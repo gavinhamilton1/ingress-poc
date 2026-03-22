@@ -1,5 +1,20 @@
 version: "3.9"
 services:
+  postgres:
+    image: postgres:16-alpine
+    ports: ["5432:5432"]
+    environment:
+      POSTGRES_DB: ingress_registry
+      POSTGRES_USER: ingress
+      POSTGRES_PASSWORD: ingress_poc
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ingress -d ingress_registry"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   dns:
     build: ./dns
     ports: ["5553:53/udp", "5553:53/tcp"]
@@ -34,11 +49,17 @@ services:
       dockerfile: management-api/Dockerfile
     ports: ["8003:8003"]
     environment:
-      DATABASE_URL: "sqlite:///./registry.db"
+      DATABASE_URL: "postgresql://ingress:ingress_poc@postgres:5432/ingress_registry"
       SVC_WEB_URL: "http://svc-web:8004"
       SVC_API_URL: "http://svc-api:8005"
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
-    depends_on: [jaeger, auth-service]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
+      auth-service:
+        condition: service_started
 
   envoy-control-plane:
     build:
@@ -47,6 +68,7 @@ services:
     ports: ["8080:8080"]
     environment:
       MANAGEMENT_API_URL: "http://management-api:8003"
+      ENVOY_ADMIN_URL: "http://gateway-envoy:9901"
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
     depends_on: [jaeger, management-api]
 
@@ -144,3 +166,17 @@ services:
       VITE_GATEWAY_URL: "http://localhost:8010"
       VITE_JAEGER_URL: "http://localhost:16686"
     depends_on: [management-api, auth-service, mock-akamai-gtm]
+
+  watchdog:
+    build:
+      context: .
+      dockerfile: watchdog/Dockerfile
+    ports: ["8006:8006"]
+    environment:
+      MANAGEMENT_API_URL: "http://management-api:8003"
+      PORT: "8006"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
+    depends_on: [management-api, jaeger]
+
+volumes:
+  pgdata:

@@ -1,17 +1,17 @@
-LOB			        Fleet			    Route/App		    URL                                 Regions 			        Instances   Type        Auth
-Markets		        JPMM			    Research		    https://jpmm.jpm.com/research       us-east-1, us-east-2		4           Envoy       Janus
-Markets		        JPMM			    Research		    https://jpmm.jpm.com/research/api   us-east-1, us-east-2		4           Kong        Janus    
-Markets		        JPMM			    Sales & Trading	    https://jpmm.jpm.com/sandt          us-east-1, us-east-2		4           Envoy       Janus
-Markets		        JPMM			    Events		        https://jpmm.jpm.com/events         us-east-1, us-east-2		4           Envoy       Janus
-Markets		        JPMM			    Events		        https://jpmm.jpm.com/events/api     us-east-1, us-east-2		4           Kong        Janus
-Markets		        Execute		        Execute		        https://execute.jpm.com/            us-east-1, us-east-2		8           Envoy       Janus
-Markets		        Execute		        Execute		        https://execute.jpm.com/api         us-east-1, us-east-2		8           Kong        Janus
-Payments	        JPMA			    Access		        https://access.jpm.com/             us-east-1, us-east-2		8           Envoy       AuthE1.0
-Payments	        JPMA			    Access Mobile       https://access-mobile.jpm.com/      us-east-1, us-east-2		2           Envoy       AuthE1.0
-Payments	        JPMDB		        Digital-Banking     https://digital-banking.jpm.com/    us-east-1, us-east-2		4           Envoy       Sentry
-Payments            Merchant Services   SMB                 https://smb.jpm.com                 us-east-1, us-east-2		4           Envoy       Chase
-Payments            PDP                 PDP                 https://developer.jpm.com/api       us-east-1, us-east-2		4           Kong        Sentry
-Global Banking      IQ                  IQ                  https://iq.jpm.com                  us-east-1, us-east-2		4           Envoy       Janus
-Security Services   SecSvcs             SecSvcs             https://secsvcs.jpm.com             us-east-1, us-east-2		4           Envoy       Janus
-CIB                 AuthN               authn               https://login.jpm.com               us-east-1, us-east-2		4           Envoy       N/A
-CIB                 AuthZ               authz               https://authz.jpm.com               us-east-1, us-east-2		4           Envoy       Sentry
+LOB			        Fleet			    Host            Route/App		    URL                                 Regions 			        Instances   Type        Auth
+Markets		        JPMM			    AWS             Research		    https://jpmm.jpm.com/research       us-east-1, us-east-2		4           Envoy       Janus
+Markets		        JPMM			    AWS             Research		    https://jpmm.jpm.com/research/api   us-east-1, us-east-2		4           Kong        Janus    
+Markets		        JPMM			    AWS             Sales & Trading	    https://jpmm.jpm.com/sandt          us-east-1, us-east-2		4           Envoy       Janus
+Markets		        JPMM			    AWS             Events		        https://jpmm.jpm.com/events         us-east-1, us-east-2		4           Envoy       Janus
+Markets		        JPMM			    AWS             Events		        https://jpmm.jpm.com/events/api     us-east-1, us-east-2		4           Kong        Janus
+Markets		        Execute		        PSaaS           Execute		        https://execute.jpm.com/            us-east-1, us-east-2		8           Envoy       Janus
+Markets		        Execute		        PSaaS           Execute		        https://execute.jpm.com/api         us-east-1, us-east-2		8           Kong        Janus
+Payments	        JPMA			    PSaaS           Access		        https://access.jpm.com/             us-east-1, us-east-2		8           Envoy       AuthE1.0
+Payments	        JPMA			    PSaaS           Access Mobile       https://access-mobile.jpm.com/      us-east-1, us-east-2		2           Envoy       AuthE1.0
+Payments	        JPMDB		        AWS             Digital-Banking     https://digital-banking.jpm.com/    us-east-1, us-east-2		4           Envoy       Sentry
+Payments            Merchant Services   PSaaS           SMB                 https://smb.jpm.com                 us-east-1, us-east-2		4           Envoy       Chase
+Payments            PDP                 AWS             PDP                 https://developer.jpm.com/api       us-east-1, us-east-2		4           Kong        Sentry
+Global Banking      IQ                  PSaaS           IQ                  https://iq.jpm.com                  us-east-1, us-east-2		4           Envoy       Janus
+Security Services   SecSvcs             PSaaS           SecSvcs             https://secsvcs.jpm.com             us-east-1, us-east-2		4           Envoy       Janus
+CIB                 AuthN               PSaaS           authn               https://login.jpm.com               us-east-1, us-east-2		4           Envoy       N/A
+CIB                 AuthZ               PSaaS           authz               https://authz.jpm.com               us-east-1, us-east-2		4           Envoy       Sentry

@@ -52,6 +52,10 @@ class RouteModel(Base):
     team = Column(String, default="platform")
     created_by = Column(String, default="system")
     gateway_type = Column(String, default="kong")  # envoy | kong | auto
+    health_path = Column(String, default="/health")  # health check endpoint path
+    authn_mechanism = Column(String, default="bearer")  # bearer | mtls | api-key | none
+    auth_issuer = Column(String, default="")  # Janus | AuthE1.0 | Sentry | Chase | N/A
+    authz_scopes = Column(JSON, default=list)  # coarse-grained scopes the gateway checks in the access token
     tls_required = Column(Boolean, default=True)
     notes = Column(Text, default="")
     created_at = Column(Float, default=time.time)
@@ -87,6 +91,7 @@ class FleetModel(Base):
     name = Column(String, nullable=False)
     subdomain = Column(String, nullable=False, unique=True)
     lob = Column(String, default="")  # Markets | Payments | Global Banking | Security Services | CIB
+    host_env = Column(String, default="psaas")  # psaas | aws
     gateway_type = Column(String, default="kong")  # kong | envoy
     region = Column(String, default="us-east")
     regions = Column(JSON, default=list)  # ["us-east-1", "us-east-2"]
@@ -110,6 +115,20 @@ class FleetInstanceModel(Base):
     created_at = Column(Float, default=time.time)
 
 
+class HealthReportModel(Base):
+    __tablename__ = "health_reports"
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    gateway_type = Column(String, nullable=False)      # "envoy" | "kong"
+    cluster_name = Column(String, nullable=False)       # e.g., "cluster__research"
+    backend_host = Column(String, default="")
+    backend_port = Column(Float, default=0)
+    health_status = Column(String, default="unknown")   # "healthy" | "unhealthy" | "unknown"
+    latency_ms = Column(Float, default=0)
+    consecutive_failures = Column(Float, default=0)
+    last_check_time = Column(Float, default=time.time)
+    reporter = Column(String, default="")               # "envoy-control-plane" | "kong-admin-proxy"
+
+
 Base.metadata.create_all(engine)
 
 
@@ -119,7 +138,11 @@ def _route_to_dict(r: RouteModel) -> dict:
         "id": r.id, "path": r.path, "hostname": r.hostname, "backend_url": r.backend_url,
         "auth_policy": r.auth_policy, "allowed_roles": r.allowed_roles, "methods": r.methods,
         "status": r.status, "team": r.team, "created_by": r.created_by,
-        "gateway_type": r.gateway_type, "tls_required": r.tls_required, "notes": r.notes,
+        "gateway_type": r.gateway_type, "health_path": r.health_path or "/health",
+        "authn_mechanism": r.authn_mechanism or "bearer",
+        "auth_issuer": r.auth_issuer or "",
+        "authz_scopes": r.authz_scopes or [],
+        "tls_required": r.tls_required, "notes": r.notes,
         "created_at": r.created_at, "updated_at": r.updated_at,
     }
 
@@ -177,47 +200,65 @@ def seed_defaults():
         return
     # [portal].jpm.com/[path] — /api/* → Kong, everything else → Envoy
     defaults = [
-        {"path": "/health",     "backend_url": SVC_API_URL, "auth_policy": "public", "allowed_roles": [], "gateway_type": "kong",  "team": "platform", "hostname": "*"},
-        {"path": "/api/public", "backend_url": SVC_API_URL, "auth_policy": "public", "allowed_roles": [], "gateway_type": "kong",  "team": "platform", "hostname": "*"},
+        {"path": "/health",     "backend_url": SVC_API_URL, "auth_policy": "public", "allowed_roles": [], "gateway_type": "kong",  "team": "platform", "hostname": "*",
+         "authn_mechanism": "none", "authz_scopes": [], "health_path": "/health"},
+        {"path": "/api/public", "backend_url": SVC_API_URL, "auth_policy": "public", "allowed_roles": [], "gateway_type": "kong",  "team": "platform", "hostname": "*",
+         "authn_mechanism": "none", "authz_scopes": [], "health_path": "/health"},
     ]
     fleet_routes = [
-        # ── Markets / JPMM — jpmm.jpm.com ───────────────────────
-        {"path": "/research",      "backend_url": SVC_WEB_URL, "auth_policy": "authenticated", "allowed_roles": [], "gateway_type": "envoy", "team": "markets", "hostname": "jpmm.jpm.com"},
-        {"path": "/research/api",  "backend_url": SVC_API_URL, "auth_policy": "authenticated", "allowed_roles": [], "gateway_type": "kong",  "team": "markets", "hostname": "jpmm.jpm.com"},
-        {"path": "/sandt",         "backend_url": SVC_WEB_URL, "auth_policy": "authenticated", "allowed_roles": [], "gateway_type": "envoy", "team": "markets", "hostname": "jpmm.jpm.com"},
-        {"path": "/events",        "backend_url": SVC_WEB_URL, "auth_policy": "authenticated", "allowed_roles": [], "gateway_type": "envoy", "team": "markets", "hostname": "jpmm.jpm.com"},
-        {"path": "/events/api",    "backend_url": SVC_API_URL, "auth_policy": "authenticated", "allowed_roles": [], "gateway_type": "kong",  "team": "markets", "hostname": "jpmm.jpm.com"},
+        # ── Markets / JPMM — jpmm.jpm.com (Janus) ───────────────
+        {"path": "/research",      "backend_url": SVC_WEB_URL, "auth_policy": "authenticated", "allowed_roles": [],          "gateway_type": "envoy", "team": "markets", "hostname": "jpmm.jpm.com",
+         "authn_mechanism": "bearer", "auth_issuer": "Janus", "authz_scopes": ["markets:read", "research:view"],        "health_path": "/health"},
+        {"path": "/research/api",  "backend_url": SVC_API_URL, "auth_policy": "authenticated", "allowed_roles": [],          "gateway_type": "kong",  "team": "markets", "hostname": "jpmm.jpm.com",
+         "authn_mechanism": "bearer", "auth_issuer": "Janus", "authz_scopes": ["markets:read", "research:api"],         "health_path": "/health"},
+        {"path": "/sandt",         "backend_url": SVC_WEB_URL, "auth_policy": "authenticated", "allowed_roles": ["trader"],   "gateway_type": "envoy", "team": "markets", "hostname": "jpmm.jpm.com",
+         "authn_mechanism": "bearer", "auth_issuer": "Janus", "authz_scopes": ["markets:read", "trading:view"],         "health_path": "/health"},
+        {"path": "/events",        "backend_url": SVC_WEB_URL, "auth_policy": "authenticated", "allowed_roles": [],          "gateway_type": "envoy", "team": "markets", "hostname": "jpmm.jpm.com",
+         "authn_mechanism": "bearer", "auth_issuer": "Janus", "authz_scopes": ["markets:read", "events:view"],          "health_path": "/health"},
+        {"path": "/events/api",    "backend_url": SVC_API_URL, "auth_policy": "authenticated", "allowed_roles": [],          "gateway_type": "kong",  "team": "markets", "hostname": "jpmm.jpm.com",
+         "authn_mechanism": "bearer", "auth_issuer": "Janus", "authz_scopes": ["markets:read", "events:api"],           "health_path": "/health"},
 
-        # ── Markets / Execute — execute.jpm.com ─────────────────
-        {"path": "/",              "backend_url": SVC_WEB_URL, "auth_policy": "authenticated", "allowed_roles": [], "gateway_type": "envoy", "team": "markets", "hostname": "execute.jpm.com"},
-        {"path": "/api",           "backend_url": SVC_API_URL, "auth_policy": "authenticated", "allowed_roles": [], "gateway_type": "kong",  "team": "markets", "hostname": "execute.jpm.com"},
+        # ── Markets / Execute — execute.jpm.com (Janus) ──────────
+        {"path": "/",              "backend_url": SVC_WEB_URL, "auth_policy": "authenticated", "allowed_roles": ["trader"],   "gateway_type": "envoy", "team": "markets", "hostname": "execute.jpm.com",
+         "authn_mechanism": "bearer", "auth_issuer": "Janus", "authz_scopes": ["markets:read", "execute:trade"],        "health_path": "/health"},
+        {"path": "/api",           "backend_url": SVC_API_URL, "auth_policy": "authenticated", "allowed_roles": ["trader"],   "gateway_type": "kong",  "team": "markets", "hostname": "execute.jpm.com",
+         "authn_mechanism": "bearer", "auth_issuer": "Janus", "authz_scopes": ["markets:read", "markets:write", "execute:api"],  "health_path": "/health"},
 
-        # ── Payments / JPMA / Access — access.jpm.com ────────────
-        {"path": "/",              "backend_url": SVC_WEB_URL, "auth_policy": "authenticated", "allowed_roles": [], "gateway_type": "envoy", "team": "payments", "hostname": "access.jpm.com"},
+        # ── Payments / JPMA / Access — access.jpm.com (AuthE1.0) ──
+        {"path": "/",              "backend_url": SVC_WEB_URL, "auth_policy": "authenticated", "allowed_roles": [],          "gateway_type": "envoy", "team": "payments", "hostname": "access.jpm.com",
+         "authn_mechanism": "bearer", "auth_issuer": "AuthE1.0", "authz_scopes": ["payments:read", "access:view"],       "health_path": "/health"},
 
-        # ── Payments / JPMA / Access Mobile — access-mobile.jpm.com
-        {"path": "/",              "backend_url": SVC_WEB_URL, "auth_policy": "authenticated", "allowed_roles": [], "gateway_type": "envoy", "team": "payments", "hostname": "access-mobile.jpm.com"},
+        # ── Payments / Access Mobile — access-mobile.jpm.com (AuthE1.0)
+        {"path": "/",              "backend_url": SVC_WEB_URL, "auth_policy": "authenticated", "allowed_roles": [],          "gateway_type": "envoy", "team": "payments", "hostname": "access-mobile.jpm.com",
+         "authn_mechanism": "bearer", "auth_issuer": "AuthE1.0", "authz_scopes": ["payments:read", "access:mobile"],     "health_path": "/health"},
 
-        # ── Payments / JPMDB / Digital Banking — digital-banking.jpm.com
-        {"path": "/",              "backend_url": SVC_WEB_URL, "auth_policy": "authenticated", "allowed_roles": [], "gateway_type": "envoy", "team": "payments", "hostname": "digital-banking.jpm.com"},
+        # ── Payments / JPMDB / Digital Banking — digital-banking.jpm.com (Sentry)
+        {"path": "/",              "backend_url": SVC_WEB_URL, "auth_policy": "authenticated", "allowed_roles": [],          "gateway_type": "envoy", "team": "payments", "hostname": "digital-banking.jpm.com",
+         "authn_mechanism": "bearer", "auth_issuer": "Sentry", "authz_scopes": ["payments:read", "digital-banking:view"], "health_path": "/health"},
 
-        # ── Payments / Merchant Services / SMB — smb.jpm.com ─────
-        {"path": "/",              "backend_url": SVC_WEB_URL, "auth_policy": "authenticated", "allowed_roles": [], "gateway_type": "envoy", "team": "payments", "hostname": "smb.jpm.com"},
+        # ── Payments / Merchant Services / SMB — smb.jpm.com (Chase)
+        {"path": "/",              "backend_url": SVC_WEB_URL, "auth_policy": "authenticated", "allowed_roles": [],          "gateway_type": "envoy", "team": "payments", "hostname": "smb.jpm.com",
+         "authn_mechanism": "bearer", "auth_issuer": "Chase", "authz_scopes": ["payments:read", "merchant:view"],         "health_path": "/health"},
 
-        # ── Payments / PDP — developer.jpm.com ───────────────────
-        {"path": "/api",           "backend_url": SVC_API_URL, "auth_policy": "authenticated", "allowed_roles": [], "gateway_type": "kong",  "team": "payments", "hostname": "developer.jpm.com"},
+        # ── Payments / PDP — developer.jpm.com (Sentry) ───────────
+        {"path": "/api",           "backend_url": SVC_API_URL, "auth_policy": "authenticated", "allowed_roles": [],          "gateway_type": "kong",  "team": "payments", "hostname": "developer.jpm.com",
+         "authn_mechanism": "api-key", "auth_issuer": "Sentry", "authz_scopes": ["payments:read", "developer:api"],       "health_path": "/health"},
 
-        # ── Global Banking / IQ — iq.jpm.com ────────────────────
-        {"path": "/",              "backend_url": SVC_WEB_URL, "auth_policy": "authenticated", "allowed_roles": [], "gateway_type": "envoy", "team": "global-banking", "hostname": "iq.jpm.com"},
+        # ── Global Banking / IQ — iq.jpm.com (Janus) ─────────────
+        {"path": "/",              "backend_url": SVC_WEB_URL, "auth_policy": "authenticated", "allowed_roles": [],          "gateway_type": "envoy", "team": "global-banking", "hostname": "iq.jpm.com",
+         "authn_mechanism": "bearer", "auth_issuer": "Janus", "authz_scopes": ["global-banking:read", "iq:view"],         "health_path": "/health"},
 
-        # ── Security Services / SecSvcs — secsvcs.jpm.com ────────
-        {"path": "/",              "backend_url": SVC_WEB_URL, "auth_policy": "authenticated", "allowed_roles": [], "gateway_type": "envoy", "team": "security-services", "hostname": "secsvcs.jpm.com"},
+        # ── Security Services / SecSvcs — secsvcs.jpm.com (Janus) ─
+        {"path": "/",              "backend_url": SVC_WEB_URL, "auth_policy": "authenticated", "allowed_roles": [],          "gateway_type": "envoy", "team": "security-services", "hostname": "secsvcs.jpm.com",
+         "authn_mechanism": "mtls",   "auth_issuer": "Janus", "authz_scopes": ["security:read", "secsvcs:admin"],         "health_path": "/health"},
 
-        # ── CIB / AuthN — login.jpm.com ──────────────────────────
-        {"path": "/",              "backend_url": SVC_WEB_URL, "auth_policy": "public", "allowed_roles": [], "gateway_type": "envoy", "team": "cib", "hostname": "login.jpm.com"},
+        # ── CIB / AuthN — login.jpm.com (N/A - public) ───────────
+        {"path": "/",              "backend_url": SVC_WEB_URL, "auth_policy": "public", "allowed_roles": [],                 "gateway_type": "envoy", "team": "cib", "hostname": "login.jpm.com",
+         "authn_mechanism": "none",   "auth_issuer": "N/A", "authz_scopes": [],                                             "health_path": "/health"},
 
-        # ── CIB / AuthZ — authz.jpm.com ──────────────────────────
-        {"path": "/",              "backend_url": SVC_WEB_URL, "auth_policy": "authenticated", "allowed_roles": [], "gateway_type": "envoy", "team": "cib", "hostname": "authz.jpm.com"},
+        # ── CIB / AuthZ — authz.jpm.com (Sentry) ─────────────────
+        {"path": "/",              "backend_url": SVC_WEB_URL, "auth_policy": "authenticated", "allowed_roles": [],          "gateway_type": "envoy", "team": "cib", "hostname": "authz.jpm.com",
+         "authn_mechanism": "mtls",   "auth_issuer": "Sentry", "authz_scopes": ["cib:admin", "authz:manage"],              "health_path": "/health"},
     ]
     all_routes = defaults + fleet_routes
     for d in all_routes:
@@ -236,21 +277,21 @@ def seed_defaults():
         R = ["us-east-1", "us-east-2"]
         fleet_seeds = [
             # Markets
-            {"id": "fleet-jpmm",       "name": "JPMM",              "subdomain": "jpmm.jpm.com",            "lob": "Markets",            "gateway_type": "envoy", "region": "us-east", "regions": R, "auth_provider": "Janus",    "instances_count": 4, "status": "healthy"},
-            {"id": "fleet-execute",    "name": "Execute",           "subdomain": "execute.jpm.com",          "lob": "Markets",            "gateway_type": "envoy", "region": "us-east", "regions": R, "auth_provider": "Janus",    "instances_count": 8, "status": "healthy"},
+            {"id": "fleet-jpmm",       "name": "JPMM",              "subdomain": "jpmm.jpm.com",            "lob": "Markets",            "host_env": "aws",   "gateway_type": "envoy", "region": "us-east", "regions": R, "auth_provider": "Janus",    "instances_count": 4, "status": "healthy"},
+            {"id": "fleet-execute",    "name": "Execute",           "subdomain": "execute.jpm.com",          "lob": "Markets",            "host_env": "psaas", "gateway_type": "envoy", "region": "us-east", "regions": R, "auth_provider": "Janus",    "instances_count": 8, "status": "healthy"},
             # Payments
-            {"id": "fleet-access",     "name": "JPMA",              "subdomain": "access.jpm.com",           "lob": "Payments",           "gateway_type": "envoy", "region": "us-east", "regions": R, "auth_provider": "AuthE1.0", "instances_count": 8, "status": "healthy"},
-            {"id": "fleet-access-mob", "name": "Access Mobile",     "subdomain": "access-mobile.jpm.com",    "lob": "Payments",           "gateway_type": "envoy", "region": "us-east", "regions": R, "auth_provider": "AuthE1.0", "instances_count": 2, "status": "healthy"},
-            {"id": "fleet-digbank",    "name": "JPMDB",             "subdomain": "digital-banking.jpm.com",  "lob": "Payments",           "gateway_type": "envoy", "region": "us-east", "regions": R, "auth_provider": "Sentry",   "instances_count": 4, "status": "healthy"},
-            {"id": "fleet-smb",        "name": "Merchant Services", "subdomain": "smb.jpm.com",              "lob": "Payments",           "gateway_type": "envoy", "region": "us-east", "regions": R, "auth_provider": "Chase",    "instances_count": 4, "status": "healthy"},
-            {"id": "fleet-pdp",        "name": "PDP",               "subdomain": "developer.jpm.com",        "lob": "Payments",           "gateway_type": "kong",  "region": "us-east", "regions": R, "auth_provider": "Sentry",   "instances_count": 4, "status": "healthy"},
+            {"id": "fleet-access",     "name": "JPMA",              "subdomain": "access.jpm.com",           "lob": "Payments",           "host_env": "psaas", "gateway_type": "envoy", "region": "us-east", "regions": R, "auth_provider": "AuthE1.0", "instances_count": 8, "status": "healthy"},
+            {"id": "fleet-access-mob", "name": "Access Mobile",     "subdomain": "access-mobile.jpm.com",    "lob": "Payments",           "host_env": "psaas", "gateway_type": "envoy", "region": "us-east", "regions": R, "auth_provider": "AuthE1.0", "instances_count": 2, "status": "healthy"},
+            {"id": "fleet-digbank",    "name": "JPMDB",             "subdomain": "digital-banking.jpm.com",  "lob": "Payments",           "host_env": "aws",   "gateway_type": "envoy", "region": "us-east", "regions": R, "auth_provider": "Sentry",   "instances_count": 4, "status": "healthy"},
+            {"id": "fleet-smb",        "name": "Merchant Services", "subdomain": "smb.jpm.com",              "lob": "Payments",           "host_env": "psaas", "gateway_type": "envoy", "region": "us-east", "regions": R, "auth_provider": "Chase",    "instances_count": 4, "status": "healthy"},
+            {"id": "fleet-pdp",        "name": "PDP",               "subdomain": "developer.jpm.com",        "lob": "Payments",           "host_env": "aws",   "gateway_type": "kong",  "region": "us-east", "regions": R, "auth_provider": "Sentry",   "instances_count": 4, "status": "healthy"},
             # Global Banking
-            {"id": "fleet-iq",         "name": "IQ",                "subdomain": "iq.jpm.com",               "lob": "Global Banking",     "gateway_type": "envoy", "region": "us-east", "regions": R, "auth_provider": "Janus",    "instances_count": 4, "status": "healthy"},
+            {"id": "fleet-iq",         "name": "IQ",                "subdomain": "iq.jpm.com",               "lob": "Global Banking",     "host_env": "psaas", "gateway_type": "envoy", "region": "us-east", "regions": R, "auth_provider": "Janus",    "instances_count": 4, "status": "healthy"},
             # Security Services
-            {"id": "fleet-secsvcs",    "name": "SecSvcs",           "subdomain": "secsvcs.jpm.com",          "lob": "Security Services",  "gateway_type": "envoy", "region": "us-east", "regions": R, "auth_provider": "Janus",    "instances_count": 4, "status": "healthy"},
+            {"id": "fleet-secsvcs",    "name": "SecSvcs",           "subdomain": "secsvcs.jpm.com",          "lob": "Security Services",  "host_env": "psaas", "gateway_type": "envoy", "region": "us-east", "regions": R, "auth_provider": "Janus",    "instances_count": 4, "status": "healthy"},
             # CIB
-            {"id": "fleet-authn",      "name": "AuthN",             "subdomain": "login.jpm.com",            "lob": "CIB",                "gateway_type": "envoy", "region": "us-east", "regions": R, "auth_provider": "N/A",      "instances_count": 4, "status": "healthy"},
-            {"id": "fleet-authz",      "name": "AuthZ",             "subdomain": "authz.jpm.com",            "lob": "CIB",                "gateway_type": "envoy", "region": "us-east", "regions": R, "auth_provider": "Sentry",   "instances_count": 4, "status": "healthy"},
+            {"id": "fleet-authn",      "name": "AuthN",             "subdomain": "login.jpm.com",            "lob": "CIB",                "host_env": "psaas", "gateway_type": "envoy", "region": "us-east", "regions": R, "auth_provider": "N/A",      "instances_count": 4, "status": "healthy"},
+            {"id": "fleet-authz",      "name": "AuthZ",             "subdomain": "authz.jpm.com",            "lob": "CIB",                "host_env": "psaas", "gateway_type": "envoy", "region": "us-east", "regions": R, "auth_provider": "Sentry",   "instances_count": 4, "status": "healthy"},
         ]
         instance_seeds = [
             # JPMM — jpmm.jpm.com
@@ -489,13 +530,13 @@ async def get_drift():
 @app.get("/fleets")
 async def list_fleets():
     db = SessionLocal()
-    fleets = db.query(FleetModel).all()
+    fleets = db.query(FleetModel).order_by(FleetModel.lob, FleetModel.name).all()
     result = []
     for f in fleets:
-        instances = db.query(FleetInstanceModel).filter(FleetInstanceModel.fleet_id == f.id).all()
+        instances = db.query(FleetInstanceModel).filter(FleetInstanceModel.fleet_id == f.id).order_by(FleetInstanceModel.context_path).all()
         result.append({
             "id": f.id, "name": f.name, "subdomain": f.subdomain, "lob": f.lob,
-            "gateway_type": f.gateway_type, "region": f.region, "regions": f.regions or [],
+            "gateway_type": f.gateway_type, "host_env": f.host_env or "psaas", "region": f.region, "regions": f.regions or [],
             "auth_provider": f.auth_provider, "instances_count": f.instances_count,
             "status": f.status, "created_at": f.created_at, "updated_at": f.updated_at,
             "instances": [{"id": i.id, "fleet_id": i.fleet_id, "context_path": i.context_path,
@@ -514,10 +555,10 @@ async def get_fleet(fleet_id: str):
     if not f:
         db.close()
         raise HTTPException(404, "Fleet not found")
-    instances = db.query(FleetInstanceModel).filter(FleetInstanceModel.fleet_id == f.id).all()
+    instances = db.query(FleetInstanceModel).filter(FleetInstanceModel.fleet_id == f.id).order_by(FleetInstanceModel.context_path).all()
     result = {
         "id": f.id, "name": f.name, "subdomain": f.subdomain, "lob": f.lob,
-        "gateway_type": f.gateway_type, "region": f.region, "regions": f.regions or [],
+        "gateway_type": f.gateway_type, "host_env": f.host_env or "psaas", "region": f.region, "regions": f.regions or [],
         "auth_provider": f.auth_provider, "instances_count": f.instances_count,
         "status": f.status, "created_at": f.created_at, "updated_at": f.updated_at,
         "instances": [{"id": i.id, "fleet_id": i.fleet_id, "context_path": i.context_path,
@@ -618,6 +659,64 @@ async def remove_fleet_instance(fleet_id: str, instance_id: str):
     return {"deleted": True, "id": instance_id}
 
 
+# --- Health Reports Endpoints ---
+@app.post("/health-reports")
+async def receive_health_reports(request: Request):
+    """Accept health reports from gateway proxies (envoy-control-plane, kong-admin-proxy)."""
+    data = await request.json()
+    reports = data.get("reports", [])
+    db = SessionLocal()
+    for report in reports:
+        gw = report.get("gateway_type", "")
+        cluster = report.get("cluster_name", "")
+        existing = db.query(HealthReportModel).filter(
+            HealthReportModel.gateway_type == gw,
+            HealthReportModel.cluster_name == cluster,
+        ).first()
+        if existing:
+            existing.health_status = report.get("health_status", "unknown")
+            existing.latency_ms = report.get("latency_ms", 0)
+            existing.backend_host = report.get("backend_host", existing.backend_host)
+            existing.backend_port = report.get("backend_port", existing.backend_port)
+            existing.consecutive_failures = report.get("consecutive_failures", 0)
+            existing.last_check_time = time.time()
+            existing.reporter = report.get("reporter", existing.reporter)
+        else:
+            db.add(HealthReportModel(
+                id=str(uuid.uuid4()),
+                gateway_type=gw,
+                cluster_name=cluster,
+                backend_host=report.get("backend_host", ""),
+                backend_port=report.get("backend_port", 0),
+                health_status=report.get("health_status", "unknown"),
+                latency_ms=report.get("latency_ms", 0),
+                consecutive_failures=report.get("consecutive_failures", 0),
+                last_check_time=time.time(),
+                reporter=report.get("reporter", ""),
+            ))
+    db.commit()
+    db.close()
+    return {"accepted": len(reports)}
+
+
+@app.get("/health-reports")
+async def list_health_reports(gateway_type: str = None):
+    """Return current health reports from gateway probes."""
+    db = SessionLocal()
+    q = db.query(HealthReportModel)
+    if gateway_type:
+        q = q.filter(HealthReportModel.gateway_type == gateway_type)
+    reports = [{
+        "id": r.id, "gateway_type": r.gateway_type, "cluster_name": r.cluster_name,
+        "backend_host": r.backend_host, "backend_port": r.backend_port,
+        "health_status": r.health_status, "latency_ms": r.latency_ms,
+        "consecutive_failures": r.consecutive_failures, "last_check_time": r.last_check_time,
+        "reporter": r.reporter,
+    } for r in q.all()]
+    db.close()
+    return reports
+
+
 # --- Drift Detection Background Task ---
 async def detect_drift():
     while True:
@@ -650,8 +749,12 @@ async def detect_drift():
 
                 drifted_count = 0
                 for route in routes:
-                    actual_routes = envoy_routes if route.gateway_type == "envoy" else kong_routes
-                    actual = actual_routes.get(route.path)
+                    if route.gateway_type == "envoy":
+                        actual = envoy_routes.get(route.path)
+                    else:
+                        # Kong sync-status uses "hostname:path" compound keys
+                        hostname = route.hostname or "*"
+                        actual = kong_routes.get(f"{hostname}:{route.path}")
 
                     drift = False
                     drift_detail = ""
@@ -697,13 +800,103 @@ async def detect_drift():
         except Exception as e:
             pass
 
-        await asyncio.sleep(10)
+        await asyncio.sleep(3)
+
+
+def _parse_backend(backend_url: str):
+    """Parse 'http://host:port' into (host, port) tuple."""
+    no_scheme = backend_url.split("://")[-1]
+    host = no_scheme.split(":")[0]
+    port = int(no_scheme.split(":")[1].split("/")[0]) if ":" in no_scheme else 80
+    return host, port
+
+
+async def compute_fleet_status():
+    """Compute fleet and instance status from real health reports. Runs every 15s."""
+    await asyncio.sleep(8)  # wait for health reports to start flowing
+    while True:
+        try:
+            db = SessionLocal()
+            # Build lookup: (backend_host, backend_port) -> HealthReportModel
+            # Also build a port-only lookup since Envoy reports Docker IPs while
+            # fleet instances use service names (svc-web vs 172.18.0.5)
+            all_reports = db.query(HealthReportModel).all()
+            report_by_backend = {}
+            report_by_port = {}  # port -> list of reports (for fuzzy matching)
+            for r in all_reports:
+                key = (r.backend_host, int(r.backend_port))
+                existing = report_by_backend.get(key)
+                if not existing or r.last_check_time > existing.last_check_time:
+                    report_by_backend[key] = r
+                port = int(r.backend_port)
+                if port not in report_by_port or r.last_check_time > report_by_port[port].last_check_time:
+                    report_by_port[port] = r
+
+            # Build route lookup by (hostname, path) to check suspended routes
+            all_routes = db.query(RouteModel).all()
+            route_status_map = {}
+            for r in all_routes:
+                route_status_map[(r.hostname or "*", r.path)] = r.status
+
+            fleets = db.query(FleetModel).all()
+            for fleet in fleets:
+                instances = db.query(FleetInstanceModel).filter(
+                    FleetInstanceModel.fleet_id == fleet.id
+                ).all()
+
+                statuses = []
+                for inst in instances:
+                    # First check if the underlying route is suspended/inactive
+                    route_st = route_status_map.get((fleet.subdomain, inst.context_path))
+                    if route_st and route_st == "inactive":
+                        inst.status = "suspended"
+                        inst.latency_p99 = 0
+                        statuses.append("suspended")
+                        continue
+
+                    host, port = _parse_backend(inst.backend)
+                    report = report_by_backend.get((host, port)) or report_by_port.get(port)
+
+                    if report and (time.time() - report.last_check_time) < 60:
+                        if report.health_status == "healthy":
+                            inst.status = "active"
+                            inst.latency_p99 = round(report.latency_ms, 1)
+                        else:
+                            inst.status = "offline"
+                            inst.latency_p99 = 0
+                    elif report and (time.time() - report.last_check_time) >= 60:
+                        inst.status = "warning"  # stale health data
+                    # If no report yet, leave status as-is (seed value)
+
+                    statuses.append(inst.status)
+
+                # Compute fleet-level status from instance statuses
+                active_statuses = [s for s in statuses if s != "suspended"]
+                if not active_statuses:
+                    fleet.status = "offline"  # all suspended
+                elif all(s == "offline" for s in active_statuses):
+                    fleet.status = "offline"
+                elif all(s == "active" for s in active_statuses):
+                    if any(s == "suspended" for s in statuses):
+                        fleet.status = "degraded"  # some routes suspended
+                    else:
+                        fleet.status = "healthy"
+                else:
+                    fleet.status = "degraded"
+                fleet.updated_at = time.time()
+
+            db.commit()
+            db.close()
+        except Exception:
+            pass
+        await asyncio.sleep(3)
 
 
 @app.on_event("startup")
 async def startup():
     seed_defaults()
     asyncio.create_task(detect_drift())
+    asyncio.create_task(compute_fleet_status())
 
 
 @app.get("/health")

@@ -27,20 +27,56 @@ synced_routes: dict[str, dict] = {}  # path -> route info
 
 
 def build_declarative_config(desired_routes: list[dict]) -> dict:
-    """Build Kong declarative config from desired routes."""
+    """Build Kong declarative config with upstreams, services, routes, and health checks."""
     services = []
-    routes = []
+    routes_list = []
+    upstreams = []
+    seen_upstreams = set()
+
     for route in desired_routes:
         hostname = route.get("hostname", "*")
-        # Include hostname in names to avoid collisions when same path exists on different hosts
         host_slug = hostname.replace(".", "-").replace("*", "wildcard") if hostname != "*" else "wildcard"
         path_slug = route['path'].replace('/', '-').strip('-')
         svc_name = f"svc-{host_slug}-{path_slug}"
+        upstream_name = f"upstream-{host_slug}-{path_slug}"
         backend = route["backend_url"].rstrip("/")
+
+        # Parse backend for upstream target
+        backend_no_scheme = backend.split("://")[-1]
+        backend_host = backend_no_scheme.split(":")[0]
+        backend_port = int(backend_no_scheme.split(":")[1]) if ":" in backend_no_scheme else 80
+        scheme = backend.split("://")[0] if "://" in backend else "http"
+
+        # Create upstream with health checks (deduplicate by target)
+        if upstream_name not in seen_upstreams:
+            seen_upstreams.add(upstream_name)
+            upstreams.append({
+                "name": upstream_name,
+                "targets": [{"target": f"{backend_host}:{backend_port}", "weight": 100}],
+                "healthchecks": {
+                    "active": {
+                        "type": "http",
+                        "http_path": "/health",
+                        "timeout": 2,
+                        "healthy": {"interval": 10, "successes": 2},
+                        "unhealthy": {"interval": 5, "http_failures": 3, "tcp_failures": 3, "timeouts": 3},
+                    },
+                    "passive": {
+                        "type": "http",
+                        "healthy": {"successes": 2},
+                        "unhealthy": {"http_failures": 5},
+                    },
+                },
+            })
+
+        # Service points at upstream instead of raw backend
         services.append({
             "name": svc_name,
-            "url": backend,
+            "host": upstream_name,
+            "port": backend_port,
+            "protocol": scheme,
         })
+
         route_entry = {
             "name": f"route-{host_slug}-{path_slug}",
             "service": svc_name,
@@ -48,16 +84,15 @@ def build_declarative_config(desired_routes: list[dict]) -> dict:
             "methods": route.get("methods", ["GET", "POST", "PUT", "DELETE"]),
             "strip_path": False,
         }
-        # Add hostname matching for fleet subdomain routes
-        hostname = route.get("hostname", "*")
         if hostname and hostname != "*":
             route_entry["hosts"] = [hostname]
-        routes.append(route_entry)
+        routes_list.append(route_entry)
 
     return {
         "_format_version": "3.0",
+        "upstreams": upstreams,
         "services": services,
-        "routes": routes,
+        "routes": routes_list,
         "plugins": [
             {
                 "name": "cors",
@@ -138,11 +173,63 @@ async def sync_status_routes():
             for path, info in synced_routes.items()]
 
 
+async def report_health():
+    """Poll Kong admin API for upstream health and report to management-api."""
+    await asyncio.sleep(8)  # wait for Kong upstreams to be created and health checks to run
+    while True:
+        try:
+            async with httpx.AsyncClient() as client:
+                r = await client.get(f"{KONG_ADMIN_URL}/upstreams", timeout=5.0)
+                if r.status_code == 200:
+                    reports = []
+                    for upstream in r.json().get("data", []):
+                        name = upstream["name"]
+                        hr = await client.get(f"{KONG_ADMIN_URL}/upstreams/{name}/health", timeout=5.0)
+                        if hr.status_code == 200:
+                            for target in hr.json().get("data", []):
+                                target_addr = target.get("target", "0.0.0.0:0")
+                                host = target_addr.split(":")[0]
+                                port = int(target_addr.split(":")[1]) if ":" in target_addr else 0
+                                health_str = target.get("health", "HEALTHCHECKS_OFF")
+                                health = "healthy" if health_str == "HEALTHY" else "unhealthy" if health_str == "UNHEALTHY" else "unknown"
+                                # Direct probe for latency
+                                latency_ms = 0
+                                try:
+                                    start = time.time()
+                                    probe = await client.get(f"http://{host}:{port}/health", timeout=3.0)
+                                    latency_ms = round((time.time() - start) * 1000, 1)
+                                    if probe.status_code != 200:
+                                        health = "unhealthy"
+                                except Exception:
+                                    if health != "unhealthy":
+                                        health = "unhealthy"
+                                    latency_ms = 0
+                                reports.append({
+                                    "gateway_type": "kong",
+                                    "cluster_name": name,
+                                    "backend_host": host,
+                                    "backend_port": port,
+                                    "health_status": health,
+                                    "latency_ms": latency_ms,
+                                    "reporter": "kong-admin-proxy",
+                                })
+                    if reports:
+                        await client.post(
+                            f"{MANAGEMENT_API_URL}/health-reports",
+                            json={"reports": reports},
+                            timeout=5.0,
+                        )
+        except Exception:
+            pass
+        await asyncio.sleep(3)
+
+
 @app.on_event("startup")
 async def startup():
     # Wait for Kong to be ready
     await asyncio.sleep(5)
     asyncio.create_task(sync_routes())
+    asyncio.create_task(report_health())
 
 
 @app.get("/health")

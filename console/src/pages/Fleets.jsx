@@ -5,9 +5,11 @@ import {
   Server, Cpu, Globe, ChevronDown, ChevronRight,
   Activity, ArrowRight, MapPin, Plus, X, Info,
   GitBranch, Cloud, Shield, Box, Layers, Zap, Lock, Hash,
+  Pause, Play, Search, Filter, ArrowUpDown,
 } from 'lucide-react'
 import GlassCard from '../components/GlassCard'
 import StatusBadge from '../components/StatusBadge'
+import RouteDetailPanel from '../components/RouteDetailPanel'
 import { useConfig } from '../context/ConfigContext'
 
 function InstancePill({ inst }) {
@@ -64,16 +66,28 @@ function AnimatedHealthLine({ status = 'healthy', vertical = false }) {
   )
 }
 
-function GatewayBranch({ label, desc, color, routes, status }) {
+function instHealthStatus(inst) {
+  if (inst.status === 'active') return 'healthy'
+  if (inst.status === 'suspended' || inst.status === 'offline') return 'degraded'
+  return 'degraded'
+}
+
+function GatewayBranch({ label, desc, color, routes }) {
   if (routes.length === 0) return null
-  const branchStatus = routes.every(r => r.status === 'active') ? 'healthy' : 'degraded'
+  // Line from perimeter to gateway is healthy if ANY route in this branch is active
+  const anyActive = routes.some(r => r.status === 'active')
+  const perimeterToGwStatus = anyActive ? 'healthy' : 'degraded'
   return (
     <div className="flex items-center gap-1">
-      <AnimatedHealthLine status={branchStatus} />
+      <AnimatedHealthLine status={perimeterToGwStatus} />
       <TopoNode icon={Cpu} label={label} desc={desc} color={color} />
-      <AnimatedHealthLine status={branchStatus} />
       <div className="flex flex-col gap-1.5">
-        {routes.map(inst => <InstancePill key={inst.id} inst={inst} />)}
+        {routes.map(inst => (
+          <div key={inst.id} className="flex items-center gap-1">
+            <AnimatedHealthLine status={instHealthStatus(inst)} />
+            <InstancePill inst={inst} />
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -81,22 +95,26 @@ function GatewayBranch({ label, desc, color, routes, status }) {
 
 function FleetTopology({ fleet }) {
   const instances = fleet.instances || []
-  // Split by gateway_type field on each instance, fall back to path convention
   const kongRoutes = instances.filter(i => i.gateway_type === 'kong' || (!i.gateway_type && i.context_path.startsWith('/api')))
   const envoyRoutes = instances.filter(i => i.gateway_type === 'envoy' || (!i.gateway_type && !i.context_path.startsWith('/api')))
   const hasBoth = kongRoutes.length > 0 && envoyRoutes.length > 0
-  const fleetHealthy = fleet.status === 'healthy'
+  const anyRouteActive = instances.some(i => i.status === 'active')
+  const infraStatus = anyRouteActive ? 'healthy' : fleet.status === 'offline' ? 'degraded' : 'healthy'
+  const isAws = fleet.host_env === 'aws'
 
   return (
     <div className="overflow-x-auto py-4">
       <div className="flex items-start gap-1 min-w-fit">
-        {/* Shared front layers: DNS → CDN/WAF → Perimeter */}
+        {/* Shared front layers: DNS → CDN/WAF → Perimeter (PSaaS or AWS WAF) */}
         <div className="flex items-center gap-1 shrink-0" style={{ alignSelf: hasBoth ? 'center' : 'flex-start' }}>
           <TopoNode icon={Globe} label={fleet.subdomain.split('.')[0]} desc="DNS entry" color="blue" />
-          <AnimatedHealthLine status={fleetHealthy ? 'healthy' : 'degraded'} />
+          <AnimatedHealthLine status={infraStatus} />
           <TopoNode icon={Shield} label="CDN / WAF" desc="Akamai Edge" color="cyan" />
-          <AnimatedHealthLine status={fleetHealthy ? 'healthy' : 'degraded'} />
-          <TopoNode icon={Layers} label="PSaaS+" desc="Perimeter" color="indigo" />
+          <AnimatedHealthLine status={infraStatus} />
+          {isAws
+            ? <TopoNode icon={Cloud} label="AWS WAF" desc="Cloud perimeter" color="orange" />
+            : <TopoNode icon={Layers} label="PSaaS+" desc="On-prem perimeter" color="indigo" />
+          }
         </div>
 
         {/* Gateway branches — split Kong (API) from Envoy (Web) */}
@@ -120,6 +138,7 @@ function TopoNode({ icon: Icon, label, desc, color }) {
     blue: 'bg-blue-500/15 border-blue-500/30 text-blue-400',
     cyan: 'bg-cyan-500/15 border-cyan-500/30 text-cyan-400',
     indigo: 'bg-indigo-500/15 border-indigo-500/30 text-indigo-400',
+    orange: 'bg-orange-500/15 border-orange-500/30 text-orange-400',
     purple: 'bg-purple-500/15 border-purple-500/30 text-purple-400',
     violet: 'bg-violet-500/15 border-violet-500/30 text-violet-400',
   }
@@ -138,8 +157,13 @@ export default function Fleets() {
   const { API_URL } = useConfig()
   const queryClient = useQueryClient()
   const [expandedFleet, setExpandedFleet] = useState(null)
+  const [expandedInstance, setExpandedInstance] = useState(null)
   const [showDeploy, setShowDeploy] = useState(false)
   const [showCreateFleet, setShowCreateFleet] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [gatewayFilter, setGatewayFilter] = useState('all')
+  const [sortBy, setSortBy] = useState('lob')  // lob | name | status | instances
   const [deployFleetId, setDeployFleetId] = useState('')
   const [deployForm, setDeployForm] = useState({ context_path: '', backend: 'http://svc-api:8005', team: '' })
   const [deploySuccess, setDeploySuccess] = useState(false)
@@ -174,6 +198,51 @@ export default function Fleets() {
     queryKey: ['fleets'],
     queryFn: () => fetch(`${API_URL}/fleets`).then(r => r.json()).catch(() => []),
   })
+
+  const { data: routes = [] } = useQuery({
+    queryKey: ['routes'],
+    queryFn: () => fetch(`${API_URL}/routes`).then(r => r.json()).catch(() => []),
+  })
+
+  const { data: actuals = [] } = useQuery({
+    queryKey: ['actuals'],
+    queryFn: () => fetch(`${API_URL}/actuals`).then(r => r.json()).catch(() => []),
+  })
+
+  const { data: auditLog = [] } = useQuery({
+    queryKey: ['audit-log'],
+    queryFn: () => fetch(`${API_URL}/audit-log`).then(r => r.json()).catch(() => []),
+  })
+
+  // Find the matching route for a fleet instance by hostname + path
+  const findRouteForInstance = (inst, fleet) => {
+    return routes.find(r =>
+      r.path === inst.context_path &&
+      r.hostname === fleet.subdomain
+    )
+  }
+
+  const getDriftStatus = (routeId) => {
+    const actual = actuals.find(a => a.route_id === routeId)
+    if (!actual) return 'unknown'
+    if (actual.drift) return 'drifted'
+    return 'in sync'
+  }
+
+  const toggleRouteStatus = async (route) => {
+    if (!route) return
+    const newStatus = route.status === 'active' ? 'inactive' : 'active'
+    try {
+      await fetch(`${API_URL}/routes/${route.id}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      })
+      queryClient.invalidateQueries({ queryKey: ['routes'] })
+      queryClient.invalidateQueries({ queryKey: ['fleets'] })
+      queryClient.invalidateQueries({ queryKey: ['actuals'] })
+    } catch {}
+  }
 
   const totalInstances = fleets.reduce((sum, f) => sum + (f.instances || []).length, 0)
   const healthyFleets = fleets.filter(f => f.status === 'healthy').length
@@ -468,15 +537,76 @@ export default function Fleets() {
         )}
       </AnimatePresence>
 
+      {/* Search, Filter, Sort Bar */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-jpmc-muted" />
+          <input className="input-field pl-9 text-sm" placeholder="Search fleets, subdomains, LOBs..."
+            value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+        </div>
+        <select className="select-field text-xs w-auto" value={statusFilter}
+          onChange={e => setStatusFilter(e.target.value)}>
+          <option value="all">All Status</option>
+          <option value="healthy">Healthy</option>
+          <option value="degraded">Degraded</option>
+          <option value="offline">Offline</option>
+        </select>
+        <select className="select-field text-xs w-auto" value={gatewayFilter}
+          onChange={e => setGatewayFilter(e.target.value)}>
+          <option value="all">All Gateways</option>
+          <option value="envoy">Envoy</option>
+          <option value="kong">Kong</option>
+        </select>
+        <select className="select-field text-xs w-auto" value={sortBy}
+          onChange={e => setSortBy(e.target.value)}>
+          <option value="lob">Sort: LOB</option>
+          <option value="name">Sort: Name</option>
+          <option value="status">Sort: Status</option>
+          <option value="instances">Sort: Instances</option>
+        </select>
+      </div>
+
       {/* Fleet Cards grouped by LOB */}
       <div className="space-y-6">
-        {Object.entries(
-          fleets.reduce((groups, fleet) => {
+        {(() => {
+          // Filter
+          let filtered = fleets.filter(f => {
+            if (searchTerm) {
+              const q = searchTerm.toLowerCase()
+              const match = (f.name || '').toLowerCase().includes(q) ||
+                (f.subdomain || '').toLowerCase().includes(q) ||
+                (f.lob || '').toLowerCase().includes(q) ||
+                (f.auth_provider || '').toLowerCase().includes(q)
+              if (!match) return false
+            }
+            if (statusFilter !== 'all' && f.status !== statusFilter) return false
+            if (gatewayFilter !== 'all') {
+              const insts = f.instances || []
+              const hasGateway = insts.some(i => i.gateway_type === gatewayFilter)
+              if (!hasGateway && f.gateway_type !== gatewayFilter) return false
+            }
+            return true
+          })
+          // Sort
+          if (sortBy === 'name') filtered.sort((a, b) => a.name.localeCompare(b.name))
+          else if (sortBy === 'status') filtered.sort((a, b) => {
+            const order = { offline: 0, degraded: 1, healthy: 2 }
+            return (order[a.status] ?? 9) - (order[b.status] ?? 9)
+          })
+          else if (sortBy === 'instances') filtered.sort((a, b) => (b.instances || []).length - (a.instances || []).length)
+          // Group by LOB
+          const groups = filtered.reduce((g, fleet) => {
             const lob = fleet.lob || 'Other'
-            ;(groups[lob] = groups[lob] || []).push(fleet)
-            return groups
+            ;(g[lob] = g[lob] || []).push(fleet)
+            return g
           }, {})
-        ).map(([lob, lobFleets]) => (
+          // Sort LOB groups deterministically
+          const lobOrder = ['Markets', 'Payments', 'Global Banking', 'Security Services', 'CIB']
+          const sortedEntries = Object.entries(groups).sort(([a], [b]) => {
+            const ai = lobOrder.indexOf(a), bi = lobOrder.indexOf(b)
+            return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
+          })
+          return sortedEntries.map(([lob, lobFleets]) => (
           <div key={lob}>
             <div className="flex items-center gap-2 mb-3">
               <h2 className="text-xs font-bold text-jpmc-muted uppercase tracking-widest">{lob}</h2>
@@ -535,6 +665,9 @@ export default function Fleets() {
                   </div>
 
                   <div className="flex items-center gap-4 shrink-0">
+                    <span className={`badge text-[9px] ${fleet.host_env === 'aws' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/30' : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/30'}`}>
+                      {fleet.host_env === 'aws' ? 'AWS' : 'PSaaS'}
+                    </span>
                     <span className={`badge ${fleet.gateway_type === 'kong' ? 'badge-blue' : 'badge-gray'}`}>
                       {fleet.gateway_type}
                     </span>
@@ -580,23 +713,96 @@ export default function Fleets() {
                             <span className="text-[10px] font-normal ml-2 normal-case">(each served by all pods in this fleet)</span>
                           </div>
                           <div className="space-y-2">
-                            {instances.map(inst => (
-                              <div key={inst.id} className="flex items-center gap-4 p-3 rounded-lg bg-jpmc-navy/50 border border-jpmc-border/30">
-                                <span className={`w-2 h-2 rounded-full shrink-0 ${
-                                  inst.status === 'active'
-                                    ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.5)]'
-                                    : 'bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.5)]'
-                                }`} />
-                                <code className="text-sm text-blue-400 min-w-[140px]">{inst.context_path}</code>
-                                <ArrowRight size={12} className="text-jpmc-muted shrink-0" />
-                                <span className="text-xs text-jpmc-muted font-mono flex-1">{inst.backend}</span>
-                                <StatusBadge status={inst.status} />
-                                <div className="text-right min-w-[60px]">
-                                  <div className="text-xs font-medium text-jpmc-text">{inst.latency_p99}ms</div>
-                                  <div className="text-[10px] text-jpmc-muted">p99</div>
+                            {instances.map(inst => {
+                              const isInstExpanded = expandedInstance === inst.id
+                              return (
+                                <div key={inst.id}>
+                                  <div
+                                    className="flex items-center gap-4 p-3 rounded-lg bg-jpmc-navy/50 border border-jpmc-border/30 cursor-pointer hover:bg-jpmc-hover/30 transition-colors"
+                                    onClick={() => setExpandedInstance(isInstExpanded ? null : inst.id)}
+                                  >
+                                    <span className={`w-2 h-2 rounded-full shrink-0 ${
+                                      inst.status === 'active'
+                                        ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.5)]'
+                                        : inst.status === 'offline'
+                                        ? 'bg-red-400 shadow-[0_0_6px_rgba(248,113,113,0.5)]'
+                                        : inst.status === 'warning'
+                                        ? 'bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.5)]'
+                                        : 'bg-gray-400'
+                                    }`} />
+                                    <code className="text-sm text-blue-400 min-w-[140px]">{inst.context_path}</code>
+                                    <ArrowRight size={12} className="text-jpmc-muted shrink-0" />
+                                    <span className="text-xs text-jpmc-muted font-mono flex-1">{inst.backend}</span>
+                                    <span className={`badge text-[9px] ${inst.gateway_type === 'kong' ? 'badge-blue' : 'badge-gray'}`}>
+                                      {inst.gateway_type || 'envoy'}
+                                    </span>
+                                    <StatusBadge status={inst.status} />
+                                    {(() => {
+                                      const matchedRoute = findRouteForInstance(inst, fleet)
+                                      if (!matchedRoute) return null
+                                      const isActive = matchedRoute.status === 'active'
+                                      return (
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); toggleRouteStatus(matchedRoute) }}
+                                          className={`p-1.5 rounded-md transition-colors shrink-0 ${
+                                            isActive
+                                              ? 'hover:bg-amber-500/10 text-jpmc-muted hover:text-amber-400'
+                                              : 'hover:bg-emerald-500/10 text-jpmc-muted hover:text-emerald-400'
+                                          }`}
+                                          title={isActive ? 'Suspend route' : 'Resume route'}
+                                        >
+                                          {isActive ? <Pause size={13} /> : <Play size={13} />}
+                                        </button>
+                                      )
+                                    })()}
+                                    <div className="text-right min-w-[60px]">
+                                      <div className="text-xs font-medium text-jpmc-text">{inst.latency_p99}ms</div>
+                                      <div className="text-[10px] text-jpmc-muted">p99</div>
+                                    </div>
+                                    {isInstExpanded
+                                      ? <ChevronDown size={14} className="text-jpmc-muted shrink-0" />
+                                      : <ChevronRight size={14} className="text-jpmc-muted shrink-0" />}
+                                  </div>
+                                  <AnimatePresence>
+                                    {isInstExpanded && (
+                                      <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: 'auto', opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={{ duration: 0.2 }}
+                                        className="overflow-hidden"
+                                      >
+                                        <div className="ml-6 mt-1 mb-2 p-3 rounded-lg bg-jpmc-dark/50 border border-jpmc-border/20">
+                                          {(() => {
+                                            const matchedRoute = findRouteForInstance(inst, fleet)
+                                            const routeData = matchedRoute
+                                              ? { ...matchedRoute, auth_issuer: fleet.auth_provider }
+                                              : {
+                                                path: inst.context_path,
+                                                hostname: fleet.subdomain,
+                                                backend_url: inst.backend,
+                                                id: inst.route_id || inst.id,
+                                                gateway_type: inst.gateway_type,
+                                                auth_policy: fleet.auth_provider,
+                                                auth_issuer: fleet.auth_provider,
+                                                team: fleet.lob,
+                                              }
+                                            return (
+                                              <RouteDetailPanel
+                                                route={routeData}
+                                                driftStatus={matchedRoute ? getDriftStatus(matchedRoute.id) : undefined}
+                                                auditEntries={matchedRoute ? auditLog.filter(a => a.detail?.includes(matchedRoute.path)) : []}
+                                                gatewayUrl={`https://${fleet.subdomain}`}
+                                              />
+                                            )
+                                          })()}
+                                        </div>
+                                      </motion.div>
+                                    )}
+                                  </AnimatePresence>
                                 </div>
-                              </div>
-                            ))}
+                              )
+                            })}
                           </div>
                         </div>
 
@@ -618,7 +824,8 @@ export default function Fleets() {
         })}
             </div>
           </div>
-        ))}
+          ))
+        })()}
       </div>
     </div>
   )

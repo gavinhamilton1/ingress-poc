@@ -11,6 +11,8 @@ const statusConfig = {
   degraded: { dotClass: 'status-dot bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]', badgeClass: 'badge-amber', label: 'Degraded' },
   warning: { dotClass: 'status-dot bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]', badgeClass: 'badge-amber', label: 'Warning' },
   pending: { dotClass: 'status-dot bg-blue-400 animate-pulse', badgeClass: 'badge-blue', label: 'Pending' },
+  offline: { dotClass: 'status-dot bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.5)]', badgeClass: 'badge-red', label: 'Offline' },
+  suspended: { dotClass: 'status-dot bg-gray-400', badgeClass: 'badge-gray', label: 'Suspended' },
   revoked: { dotClass: 'status-dot bg-red-400', badgeClass: 'badge-red', label: 'Revoked' },
   'in sync': { dotClass: 'status-dot-active', badgeClass: 'badge-green', label: 'In Sync' },
   unknown: { dotClass: 'status-dot-inactive', badgeClass: 'badge-gray', label: 'Unknown' },

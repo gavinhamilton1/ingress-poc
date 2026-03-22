@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import GlassCard from '../components/GlassCard'
 import StatusBadge from '../components/StatusBadge'
+import RouteDetailPanel from '../components/RouteDetailPanel'
 import { useConfig } from '../context/ConfigContext'
 
 import { useNavigate } from 'react-router-dom'
@@ -424,49 +425,12 @@ export default function RoutesPage() {
                           exit={{ opacity: 0 }}
                         >
                           <td colSpan={8} className="px-4 py-4 bg-jpmc-navy/30">
-                            <div className="grid grid-cols-2 gap-4 text-xs">
-                              <div>
-                                <div className="text-jpmc-muted mb-2 font-medium uppercase tracking-wider">Route Details</div>
-                                <div className="space-y-1.5">
-                                  {(() => {
-                                    const h = route.hostname && route.hostname !== '*' ? route.hostname : null
-                                    const testBase = h ? `https://${h}` : GATEWAY_URL
-                                    return (
-                                      <>
-                                        <div><span className="text-jpmc-muted">Test URL:</span>{' '}
-                                          <a href={`${testBase}${route.path}`} target="_blank" rel="noopener noreferrer"
-                                            className="font-mono text-blue-400 hover:text-blue-300">{testBase}{route.path}</a>
-                                        </div>
-                                        {h && <div><span className="text-jpmc-muted">Hostname:</span> <span className="font-mono text-cyan-400">{h}</span></div>}
-                                        <div><span className="text-jpmc-muted">Backend (internal):</span> <span className="font-mono text-jpmc-text/60">{route.backend_url}</span></div>
-                                      </>
-                                    )
-                                  })()}
-                                  <div><span className="text-jpmc-muted">ID:</span> <span className="font-mono text-jpmc-text">{route.id}</span></div>
-                                  <div><span className="text-jpmc-muted">Methods:</span> <span className="text-jpmc-text">{(route.methods || []).join(', ')}</span></div>
-                                  <div><span className="text-jpmc-muted">Roles:</span> <span className="text-jpmc-text">{(route.allowed_roles || []).join(', ') || 'Any'}</span></div>
-                                  <div><span className="text-jpmc-muted">Drift:</span> <StatusBadge status={driftStatus} /></div>
-                                </div>
-                              </div>
-                              <div>
-                                <div className="text-jpmc-muted mb-2 font-medium uppercase tracking-wider">Audit History</div>
-                                <div className="space-y-1">
-                                  {auditLog
-                                    .filter(a => a.detail?.includes(route.path))
-                                    .slice(0, 5)
-                                    .map((a, i) => (
-                                      <div key={i} className="flex items-center gap-2">
-                                        <span className={`text-[10px] font-medium ${
-                                          a.action === 'CREATE' ? 'text-emerald-400' :
-                                          a.action === 'DELETE' ? 'text-red-400' : 'text-amber-400'
-                                        }`}>{a.action}</span>
-                                        <span className="text-jpmc-muted">{a.ts ? new Date(a.ts * 1000).toLocaleString() : ''}</span>
-                                      </div>
-                                    ))
-                                  }
-                                </div>
-                              </div>
-                            </div>
+                            <RouteDetailPanel
+                              route={route}
+                              driftStatus={driftStatus}
+                              auditEntries={auditLog.filter(a => a.detail?.includes(route.path))}
+                              gatewayUrl={GATEWAY_URL}
+                            />
                           </td>
                         </motion.tr>
                       )}

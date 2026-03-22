@@ -15,6 +15,7 @@ from opentelemetry import trace
 
 PORT = int(os.getenv("PORT", "8080"))
 MANAGEMENT_API_URL = os.getenv("MANAGEMENT_API_URL", "http://management-api:8003")
+ENVOY_ADMIN_URL = os.getenv("ENVOY_ADMIN_URL", "http://gateway-envoy:9901")
 AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://auth-service:8001")
 OPA_URL = os.getenv("OPA_URL", "http://opa:8181")
 JAEGER_GRPC = os.getenv("JAEGER_GRPC", "jaeger:4317")
@@ -105,6 +106,19 @@ def build_cluster_config(routes: list[dict]) -> dict:
                 "endpoints": [{"lb_endpoints": [{"endpoint": {
                     "address": {"socket_address": {"address": host, "port_value": port}}
                 }}]}],
+            },
+            "health_checks": [{
+                "timeout": "2s",
+                "interval": "10s",
+                "unhealthy_threshold": 3,
+                "healthy_threshold": 2,
+                "http_health_check": {"path": "/health"},
+            }],
+            "outlier_detection": {
+                "consecutive_5xx": 5,
+                "interval": "10s",
+                "base_ejection_time": "30s",
+                "max_ejection_percent": 50,
             },
         })
 
@@ -259,9 +273,64 @@ async def poll_routes():
         await asyncio.sleep(5)
 
 
+async def report_health():
+    """Poll Envoy admin API for cluster health and report to management-api."""
+    await asyncio.sleep(8)  # wait for Envoy to start and run first health checks
+    while True:
+        try:
+            async with httpx.AsyncClient() as client:
+                r = await client.get(f"{ENVOY_ADMIN_URL}/clusters?format=json", timeout=5.0)
+                if r.status_code == 200:
+                    cluster_data = r.json()
+                    reports = []
+                    for cluster_status in cluster_data.get("cluster_statuses", []):
+                        name = cluster_status.get("name", "")
+                        # Only report on dynamic route clusters, skip infra
+                        if not name.startswith("cluster_"):
+                            continue
+                        for host_status in cluster_status.get("host_statuses", []):
+                            addr = host_status.get("address", {}).get("socket_address", {})
+                            host = addr.get("address", "")
+                            port = addr.get("port_value", 0)
+                            # Determine health from eds_health_status or failed_active_health_check
+                            eds = host_status.get("health_status", {}).get("eds_health_status", "HEALTHY")
+                            failed = host_status.get("health_status", {}).get("failed_active_health_check", False)
+                            health = "unhealthy" if (eds == "UNHEALTHY" or failed) else "healthy"
+                            # Try to get latency from a direct probe
+                            latency_ms = 0
+                            try:
+                                start = time.time()
+                                probe = await client.get(f"http://{host}:{port}/health", timeout=3.0)
+                                latency_ms = round((time.time() - start) * 1000, 1)
+                                if probe.status_code != 200:
+                                    health = "unhealthy"
+                            except Exception:
+                                health = "unhealthy"
+                                latency_ms = 0
+                            reports.append({
+                                "gateway_type": "envoy",
+                                "cluster_name": name,
+                                "backend_host": host,
+                                "backend_port": port,
+                                "health_status": health,
+                                "latency_ms": latency_ms,
+                                "reporter": "envoy-control-plane",
+                            })
+                    if reports:
+                        await client.post(
+                            f"{MANAGEMENT_API_URL}/health-reports",
+                            json={"reports": reports},
+                            timeout=5.0,
+                        )
+        except Exception:
+            pass
+        await asyncio.sleep(3)
+
+
 @app.on_event("startup")
 async def startup():
     asyncio.create_task(poll_routes())
+    asyncio.create_task(report_health())
 
 
 @app.get("/health")

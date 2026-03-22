@@ -295,9 +295,9 @@ export default function Dashboard() {
           {/* ── L3–L5: PSaaS stack | divider | AWS WAF stack ── */}
           <div className="grid grid-cols-11 gap-x-1 items-start">
 
-            {/* ═══ LEFT: PSaaS → Gateways → Fleets ═══ */}
+            {/* ═══ LEFT: PSaaS → Gateways → Fleets (on-prem only) ═══ */}
             <div className="col-span-5 flex flex-col items-center">
-              <InfraNode icon={Server} label="PSaaS+" desc="L3 — Regional Perimeter" color="from-indigo-500 to-indigo-600" delay={0.48} health="healthy" />
+              <InfraNode icon={Server} label="PSaaS+" desc="L3 — On-Prem Perimeter" color="from-indigo-500 to-indigo-600" delay={0.48} health="healthy" />
               <FlowPulse delay={0.9} color={greenPulse} height={20} speed={1.4} />
 
               {/* L4: Gateways */}
@@ -307,9 +307,9 @@ export default function Dashboard() {
                   className="text-[9px] text-jpmc-muted font-medium pt-1">OR</motion.div>
                 <InfraNode icon={Cpu} label="Envoy" desc="L4 — Mesh Gateway" color="from-violet-500 to-violet-600" delay={0.58} small health="healthy" />
               </div>
-              {/* L5: Per-fleet connectors — each gets its own pulse colored by that fleet's health */}
+              {/* L5: PSaaS fleets only */}
               <div className="flex flex-wrap justify-center gap-3 mt-1">
-                {fleets.map((f, i) => {
+                {fleets.filter(f => f.host_env !== 'aws').map((f, i) => {
                   const fleetPulse = f.status === 'healthy' ? 'bg-emerald-400'
                     : f.status === 'degraded' ? 'bg-amber-400' : 'bg-red-400'
                   return (
@@ -354,27 +354,27 @@ export default function Dashboard() {
               </motion.div>
             </div>
 
-            {/* ═══ RIGHT: AWS WAF → Gateways → Fleets ═══ */}
+            {/* ═══ RIGHT: AWS WAF → Gateways → AWS Fleets ═══ */}
             <div className="col-span-5 flex flex-col items-center">
-              <InfraNode icon={ShieldCheck} label="AWS WAF" desc="L3 — WAF v2 + Shield" color="from-amber-600/70 to-amber-700/70" delay={0.5} alt health="healthy" />
+              <InfraNode icon={ShieldCheck} label="AWS WAF" desc="L3 — WAF v2 + Shield" color="from-orange-500 to-orange-600" delay={0.5} health="healthy" />
               <FlowPulse delay={1.0} color={greenPulse} height={20} speed={1.4} active />
 
               {/* L4: Gateways */}
               <div className="flex items-center gap-3">
-                <InfraNode icon={Cpu} label="Kong" desc="L4 — API Gateway" color="from-purple-500/60 to-purple-600/60" delay={0.56} small alt health="healthy" />
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.3 }} transition={{ delay: 0.58 }}
-                  className="text-[9px] text-jpmc-muted/50 font-medium pt-1">OR</motion.div>
-                <InfraNode icon={Cpu} label="Envoy" desc="L4 — Mesh Gateway" color="from-violet-500/60 to-violet-600/60" delay={0.6} small alt health="healthy" />
+                <InfraNode icon={Cpu} label="Kong" desc="L4 — API Gateway" color="from-purple-500 to-purple-600" delay={0.56} small health="healthy" />
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.4 }} transition={{ delay: 0.58 }}
+                  className="text-[9px] text-jpmc-muted font-medium pt-1">OR</motion.div>
+                <InfraNode icon={Cpu} label="Envoy" desc="L4 — Mesh Gateway" color="from-violet-500 to-violet-600" delay={0.6} small health="healthy" />
               </div>
-              {/* L5: Per-fleet connectors (mirrored, dimmed) */}
+              {/* L5: AWS fleets only */}
               <div className="flex flex-wrap justify-center gap-3 mt-1">
-                {fleets.map((f, i) => {
+                {fleets.filter(f => f.host_env === 'aws').map((f, i) => {
                   const fleetPulse = f.status === 'healthy' ? 'bg-emerald-400'
                     : f.status === 'degraded' ? 'bg-amber-400' : 'bg-red-400'
                   return (
                     <div key={f.id} className="flex flex-col items-center">
                       <FlowPulse delay={1.3 + i * 0.15} color={fleetPulse} height={18} speed={1.4} />
-                      <FleetNode fleet={f} delay={0.64 + i * 0.04} alt />
+                      <FleetNode fleet={f} delay={0.64 + i * 0.04} />
                     </div>
                   )
                 })}
