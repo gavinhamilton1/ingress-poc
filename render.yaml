@@ -1,0 +1,230 @@
+services:
+  - name: ingress-jaeger
+    type: web
+    env: docker
+    image:
+      url: jaegertracing/all-in-one:latest
+    envVars:
+      - key: COLLECTOR_OTLP_ENABLED
+        value: "true"
+
+  - name: ingress-auth-service
+    type: web
+    env: docker
+    dockerfilePath: ./auth-service/Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 8001
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        fromService:
+          name: ingress-jaeger
+          type: web
+          property: host
+
+  - name: ingress-opa
+    type: web
+    env: docker
+    dockerfilePath: ./opa/Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        fromService:
+          name: ingress-jaeger
+          type: web
+          property: host
+
+  - name: ingress-management-api
+    type: web
+    env: docker
+    dockerfilePath: ./management-api/Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ingress-registry-db
+          property: connectionString
+      - key: SVC_WEB_URL
+        fromService:
+          name: ingress-svc-web
+          type: web
+          property: host
+      - key: SVC_API_URL
+        fromService:
+          name: ingress-svc-api
+          type: web
+          property: host
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        fromService:
+          name: ingress-jaeger
+          type: web
+          property: host
+
+  - name: ingress-envoy-control-plane
+    type: web
+    env: docker
+    dockerfilePath: ./envoy-control-plane/Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: MANAGEMENT_API_URL
+        fromService:
+          name: ingress-management-api
+          type: web
+          property: host
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        fromService:
+          name: ingress-jaeger
+          type: web
+          property: host
+
+  - name: ingress-gateway-envoy
+    type: web
+    env: docker
+    dockerfilePath: ./gateway-envoy/Dockerfile
+
+  - name: ingress-gateway-kong
+    type: web
+    env: docker
+    dockerfilePath: ./gateway-kong/Dockerfile
+
+  - name: ingress-kong-admin-proxy
+    type: web
+    env: docker
+    dockerfilePath: ./kong-admin-proxy/Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: MANAGEMENT_API_URL
+        fromService:
+          name: ingress-management-api
+          type: web
+          property: host
+      - key: KONG_ADMIN_URL
+        fromService:
+          name: ingress-gateway-kong
+          type: web
+          property: host
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        fromService:
+          name: ingress-jaeger
+          type: web
+          property: host
+
+  - name: ingress-mock-akamai-gtm
+    type: web
+    env: docker
+    dockerfilePath: ./mock-akamai-gtm/Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: FORWARD_TO
+        fromService:
+          name: ingress-mock-akamai-edge
+          type: web
+          property: host
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        fromService:
+          name: ingress-jaeger
+          type: web
+          property: host
+
+  - name: ingress-mock-akamai-edge
+    type: web
+    env: docker
+    dockerfilePath: ./mock-akamai-edge/Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: GATEWAY_ENVOY_URL
+        fromService:
+          name: ingress-mock-psaas
+          type: web
+          property: host
+      - key: GATEWAY_KONG_URL
+        fromService:
+          name: ingress-mock-psaas
+          type: web
+          property: host
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        fromService:
+          name: ingress-jaeger
+          type: web
+          property: host
+
+  - name: ingress-mock-psaas
+    type: web
+    env: docker
+    dockerfilePath: ./mock-psaas/Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: GATEWAY_ENVOY_URL
+        fromService:
+          name: ingress-gateway-envoy
+          type: web
+          property: host
+      - key: GATEWAY_KONG_URL
+        fromService:
+          name: ingress-gateway-kong
+          type: web
+          property: host
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        fromService:
+          name: ingress-jaeger
+          type: web
+          property: host
+
+  - name: ingress-svc-web
+    type: web
+    env: docker
+    dockerfilePath: ./svc-web/Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: SERVICE_NAME
+        value: svc-web
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        fromService:
+          name: ingress-jaeger
+          type: web
+          property: host
+
+  - name: ingress-svc-api
+    type: web
+    env: docker
+    dockerfilePath: ./svc-api/Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: SERVICE_NAME
+        value: svc-api
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        fromService:
+          name: ingress-jaeger
+          type: web
+          property: host
+
+  - name: ingress-console
+    type: web
+    env: docker
+    dockerfilePath: ./console/Dockerfile
+    envVars:
+      - key: VITE_AUTH_SERVICE_URL
+        fromService:
+          name: ingress-auth-service
+          type: web
+          property: host
+      - key: VITE_MANAGEMENT_API_URL
+        fromService:
+          name: ingress-management-api
+          type: web
+          property: host
+      - key: VITE_GATEWAY_URL
+        fromService:
+          name: ingress-mock-akamai-gtm
+          type: web
+          property: host
+      - key: VITE_JAEGER_URL
+        fromService:
+          name: ingress-jaeger
+          type: web
+          property: host
+
+databases:
+  - name: ingress-registry-db
+    databaseName: ingress_registry
+    plan: free

@@ -1,0 +1,1409 @@
+time="2026-03-21T17:07:22-04:00" level=warning msg="/Users/gavin/OneDrive/dev/jpmc/ingress-poc/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+#1 [internal] load local bake definitions
+#1 reading from stdin 7.24kB done
+#1 DONE 0.0s
+
+#2 [mock-akamai-edge internal] load build definition from Dockerfile
+#2 DONE 0.0s
+
+#3 [gateway-kong internal] load build definition from Dockerfile
+#3 transferring dockerfile: 415B done
+#3 DONE 0.0s
+
+#4 [mock-psaas internal] load build definition from Dockerfile
+#4 transferring dockerfile: 277B done
+#4 DONE 0.0s
+
+#5 [gateway-envoy internal] load build definition from Dockerfile
+#5 transferring dockerfile: 376B done
+#5 DONE 0.0s
+
+#6 [envoy-control-plane internal] load build definition from Dockerfile
+#6 transferring dockerfile: 295B done
+#6 DONE 0.0s
+
+#7 [opa internal] load build definition from Dockerfile
+#7 transferring dockerfile: 247B done
+#7 DONE 0.0s
+
+#8 [kong-admin-proxy internal] load build definition from Dockerfile
+#8 transferring dockerfile: 289B done
+#8 DONE 0.0s
+
+#9 [console internal] load build definition from Dockerfile
+#9 transferring dockerfile: 366B done
+#9 DONE 0.0s
+
+#2 [mock-akamai-edge internal] load build definition from Dockerfile
+#2 transferring dockerfile: 289B done
+#2 DONE 0.0s
+
+#10 [auth-service internal] load build definition from Dockerfile
+#10 transferring dockerfile: 281B done
+#10 DONE 0.0s
+
+#11 [mock-akamai-gtm internal] load build definition from Dockerfile
+#11 transferring dockerfile: 287B done
+#11 DONE 0.0s
+
+#12 [svc-api internal] load build definition from Dockerfile
+#12 transferring dockerfile: 271B done
+#12 DONE 0.0s
+
+#13 [management-api internal] load build definition from Dockerfile
+#13 transferring dockerfile: 285B done
+#13 DONE 0.0s
+
+#14 [svc-web internal] load build definition from Dockerfile
+#14 transferring dockerfile: 271B done
+#14 DONE 0.0s
+
+#15 [management-api internal] load metadata for docker.io/library/python:3.12-slim
+#15 DONE 0.5s
+
+#16 [gateway-envoy internal] load metadata for docker.io/envoyproxy/envoy:v1.30-latest
+#16 DONE 0.5s
+
+#17 [gateway-kong internal] load metadata for docker.io/library/kong:3.6
+#17 DONE 0.5s
+
+#18 [console internal] load metadata for docker.io/library/nginx:alpine
+#18 DONE 0.5s
+
+#19 [opa internal] load metadata for docker.io/openpolicyagent/opa:latest
+#19 DONE 0.5s
+
+#20 [console internal] load metadata for docker.io/library/node:20-alpine
+#20 DONE 0.5s
+
+#21 [gateway-envoy internal] load .dockerignore
+#21 transferring context: 2B done
+#21 DONE 0.0s
+
+#22 [mock-akamai-edge internal] load .dockerignore
+#22 transferring context: 2B done
+#22 DONE 0.0s
+
+#23 [gateway-kong internal] load .dockerignore
+#23 transferring context: 2B done
+#23 DONE 0.0s
+
+#24 [opa internal] load .dockerignore
+#24 transferring context: 2B done
+#24 DONE 0.0s
+
+#25 [console internal] load .dockerignore
+#25 transferring context: 2B done
+#25 DONE 0.0s
+
+#26 [auth-service internal] load build context
+#26 transferring context: 15.15kB done
+#26 DONE 0.0s
+
+#27 [management-api internal] load build context
+#27 transferring context: 235B done
+#27 DONE 0.0s
+
+#28 [svc-web internal] load build context
+#28 transferring context: 2.21kB done
+#28 DONE 0.0s
+
+#29 [svc-api 1/7] FROM docker.io/library/python:3.12-slim@sha256:3d5ed973e45820f5ba5e46bd065bd88b3a504ff0724d85980dcd05eab361fcf4
+#29 resolve docker.io/library/python:3.12-slim@sha256:3d5ed973e45820f5ba5e46bd065bd88b3a504ff0724d85980dcd05eab361fcf4 0.0s done
+#29 DONE 0.0s
+
+#30 [gateway-kong internal] load build context
+#30 transferring context: 31B done
+#30 DONE 0.0s
+
+#31 [mock-psaas internal] load build context
+#31 transferring context: 4.50kB done
+#31 DONE 0.0s
+
+#32 [opa internal] load build context
+#32 transferring context: 143B done
+#32 DONE 0.0s
+
+#33 [console build 1/6] FROM docker.io/library/node:20-alpine@sha256:b88333c42c23fbd91596ebd7fd10de239cedab9617de04142dde7315e3bc0afa
+#33 resolve docker.io/library/node:20-alpine@sha256:b88333c42c23fbd91596ebd7fd10de239cedab9617de04142dde7315e3bc0afa 0.0s done
+#33 DONE 0.0s
+
+#34 [console internal] load build context
+#34 transferring context: 569B done
+#34 DONE 0.0s
+
+#35 [svc-api internal] load build context
+#35 transferring context: 4.18kB done
+#35 DONE 0.1s
+
+#36 [mock-akamai-edge internal] load build context
+#36 transferring context: 5.36kB done
+#36 DONE 0.1s
+
+#37 [envoy-control-plane internal] load build context
+#37 transferring context: 11.76kB done
+#37 DONE 0.1s
+
+#38 [kong-admin-proxy internal] load build context
+#38 transferring context: 6.26kB done
+#38 DONE 0.1s
+
+#39 [mock-akamai-gtm internal] load build context
+#39 transferring context: 3.62kB done
+#39 DONE 0.1s
+
+#40 [gateway-kong 1/2] FROM docker.io/library/kong:3.6@sha256:a42d2b4503e7b6674ca7914883bdb0d2274b806b0e397a6af28d1dd57aafce4e
+#40 resolve docker.io/library/kong:3.6@sha256:a42d2b4503e7b6674ca7914883bdb0d2274b806b0e397a6af28d1dd57aafce4e 0.0s done
+#40 CACHED
+
+#41 [opa 1/3] FROM docker.io/openpolicyagent/opa:latest@sha256:d94bd6ac314a57aceeb6dacc3f27bc59f9083b49f365aa79105abb345f94e573
+#41 resolve docker.io/openpolicyagent/opa:latest@sha256:d94bd6ac314a57aceeb6dacc3f27bc59f9083b49f365aa79105abb345f94e573 0.0s done
+#41 CACHED
+
+#42 [svc-web 2/7] WORKDIR /app
+#42 CACHED
+
+#43 [gateway-envoy 1/5] FROM docker.io/envoyproxy/envoy:v1.30-latest@sha256:b5cc70f5fe5503858817e897ae1da5d873dc32cbc493790b4e330b8a42c4af9d
+#43 resolve docker.io/envoyproxy/envoy:v1.30-latest@sha256:b5cc70f5fe5503858817e897ae1da5d873dc32cbc493790b4e330b8a42c4af9d 0.0s done
+#43 CACHED
+
+#44 [svc-web 3/7] RUN pip install --no-cache-dir setuptools
+#44 ...
+
+#45 [console stage-1 1/3] FROM docker.io/library/nginx:alpine@sha256:f46cb72c7df02710e693e863a983ac42f6a9579058a59a35f1ae36c9958e4ce0
+#45 resolve docker.io/library/nginx:alpine@sha256:f46cb72c7df02710e693e863a983ac42f6a9579058a59a35f1ae36c9958e4ce0 0.0s done
+#45 CACHED
+
+#46 [console build 2/6] WORKDIR /app
+#46 CACHED
+
+#47 [gateway-envoy internal] load build context
+#47 transferring context: 81B done
+#47 DONE 0.0s
+
+#48 [gateway-kong 2/2] COPY kong.yaml /etc/kong/kong.yaml
+#48 DONE 0.0s
+
+#49 [opa 2/3] COPY policies/ /policies/
+#49 DONE 0.0s
+
+#50 [console build 3/6] COPY package*.json .
+#50 DONE 0.0s
+
+#51 [opa 3/3] COPY opa-config.yaml /opa-config.yaml
+#51 DONE 0.0s
+
+#52 [gateway-kong] exporting to image
+#52 exporting layers 0.0s done
+#52 exporting manifest sha256:9f2a30a0db156dd7500aa88e0d215e2ec969caa4530aa8ff0ef624037275d382 done
+#52 exporting config sha256:870f12931f77c4ab0589b5b07681b6e015a0f9014d1b2150d33de7082f8371aa done
+#52 exporting attestation manifest sha256:c18cd2d91a9f179a959be328591fc0fa552595a63fbfa5afd694d52813c14ae7 0.0s done
+#52 exporting manifest list sha256:be9b03264dc7dc60c4fd1ccb58d3576f8dc2ca61df300c750aea67baf3449a03 done
+#52 naming to docker.io/library/ingress-poc-gateway-kong:latest done
+#52 unpacking to docker.io/library/ingress-poc-gateway-kong:latest 0.0s done
+#52 DONE 0.1s
+
+#53 [opa] exporting to image
+#53 exporting layers 0.0s done
+#53 exporting manifest sha256:265c12f462657298fa85236867d0182d5d651716477a08e9e0e82b1b8b5b1867 done
+#53 exporting config sha256:513ade5e07ce972fb760a6094af9503fbc135ca29d1e205249327e85e256fc99 done
+#53 exporting attestation manifest sha256:445c09d3584c2a3955aa383c93621d9f84481e4eaff89afea931d1dfee21f6c9 0.0s done
+#53 exporting manifest list sha256:ef84ea730bc1c5288e8014bd8c1983b5b3236503820f584d9befca8bba3415c4 done
+#53 naming to docker.io/library/ingress-poc-opa:latest done
+#53 unpacking to docker.io/library/ingress-poc-opa:latest 0.0s done
+#53 DONE 0.1s
+
+#54 [gateway-kong] resolving provenance for metadata file
+#54 DONE 0.0s
+
+#55 [opa] resolving provenance for metadata file
+#55 DONE 0.0s
+
+#56 [console build 4/6] RUN npm install
+#56 ...
+
+#44 [auth-service 3/7] RUN pip install --no-cache-dir setuptools
+#44 1.038 Collecting setuptools
+#44 1.100   Downloading setuptools-82.0.1-py3-none-any.whl.metadata (6.5 kB)
+#44 1.118 Downloading setuptools-82.0.1-py3-none-any.whl (1.0 MB)
+#44 1.181    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.0/1.0 MB 23.7 MB/s eta 0:00:00
+#44 1.189 Installing collected packages: setuptools
+#44 1.483 Successfully installed setuptools-82.0.1
+#44 1.483 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+#44 1.550 
+#44 1.550 [notice] A new release of pip is available: 25.0.1 -> 26.0.1
+#44 1.550 [notice] To update, run: pip install --upgrade pip
+#44 DONE 1.6s
+
+#57 [management-api 4/7] COPY management-api/requirements.txt .
+#57 DONE 0.0s
+
+#58 [mock-akamai-gtm 4/7] COPY svc-api/requirements.txt .
+#58 DONE 0.0s
+
+#59 [envoy-control-plane 4/7] COPY envoy-control-plane/requirements.txt .
+#59 DONE 0.0s
+
+#60 [auth-service 4/7] COPY auth-service/requirements.txt .
+#60 DONE 0.0s
+
+#61 [svc-web 5/7] RUN pip install --no-cache-dir -r requirements.txt
+#61 0.482 Collecting fastapi==0.111.0 (from -r requirements.txt (line 1))
+#61 0.623   Downloading fastapi-0.111.0-py3-none-any.whl.metadata (25 kB)
+#61 0.790 Collecting uvicorn==0.29.0 (from -r requirements.txt (line 2))
+#61 0.803   Downloading uvicorn-0.29.0-py3-none-any.whl.metadata (6.3 kB)
+#61 0.825 Collecting httpx==0.27.0 (from -r requirements.txt (line 3))
+#61 0.840   Downloading httpx-0.27.0-py3-none-any.whl.metadata (7.2 kB)
+#61 0.859 Collecting opentelemetry-sdk>=1.27.0 (from -r requirements.txt (line 4))
+#61 0.871   Downloading opentelemetry_sdk-1.40.0-py3-none-any.whl.metadata (1.6 kB)
+#61 0.892 Collecting opentelemetry-instrumentation-fastapi>=0.48b0 (from -r requirements.txt (line 5))
+#61 0.912   Downloading opentelemetry_instrumentation_fastapi-0.61b0-py3-none-any.whl.metadata (2.2 kB)
+#61 0.950 Collecting opentelemetry-exporter-otlp-proto-http>=1.27.0 (from -r requirements.txt (line 6))
+#61 0.965   Downloading opentelemetry_exporter_otlp_proto_http-1.40.0-py3-none-any.whl.metadata (2.5 kB)
+#61 0.966 Requirement already satisfied: setuptools>=69.0.0 in /usr/local/lib/python3.12/site-packages (from -r requirements.txt (line 7)) (82.0.1)
+#61 0.997 Collecting starlette<0.38.0,>=0.37.2 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#61 1.021   Downloading starlette-0.37.2-py3-none-any.whl.metadata (5.9 kB)
+#61 1.112 Collecting pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=1.7.4 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#61 1.124   Downloading pydantic-2.12.5-py3-none-any.whl.metadata (90 kB)
+#61 1.269 Collecting typing-extensions>=4.8.0 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#61 1.313   Downloading typing_extensions-4.15.0-py3-none-any.whl.metadata (3.3 kB)
+#61 1.337 Collecting fastapi-cli>=0.0.2 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#61 1.348   Downloading fastapi_cli-0.0.24-py3-none-any.whl.metadata (6.4 kB)
+#61 1.372 Collecting jinja2>=2.11.2 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#61 1.391   Downloading jinja2-3.1.6-py3-none-any.whl.metadata (2.9 kB)
+#61 1.408 Collecting python-multipart>=0.0.7 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#61 1.418   Downloading python_multipart-0.0.22-py3-none-any.whl.metadata (1.8 kB)
+#61 1.460 Collecting ujson!=4.0.2,!=4.1.0,!=4.2.0,!=4.3.0,!=5.0.0,!=5.1.0,>=4.0.1 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#61 1.470   Downloading ujson-5.12.0-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl.metadata (9.6 kB)
+#61 1.602 Collecting orjson>=3.2.1 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#61 1.619   Downloading orjson-3.11.7-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (41 kB)
+#61 1.642 Collecting email_validator>=2.0.0 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#61 1.661   Downloading email_validator-2.3.0-py3-none-any.whl.metadata (26 kB)
+#61 1.683 Collecting click>=7.0 (from uvicorn==0.29.0->-r requirements.txt (line 2))
+#61 1.696   Downloading click-8.3.1-py3-none-any.whl.metadata (2.6 kB)
+#61 1.815 Collecting h11>=0.8 (from uvicorn==0.29.0->-r requirements.txt (line 2))
+#61 1.837   Downloading h11-0.16.0-py3-none-any.whl.metadata (8.3 kB)
+#61 1.856 Collecting anyio (from httpx==0.27.0->-r requirements.txt (line 3))
+#61 1.867   Downloading anyio-4.12.1-py3-none-any.whl.metadata (4.3 kB)
+#61 1.884 Collecting certifi (from httpx==0.27.0->-r requirements.txt (line 3))
+#61 1.900   Downloading certifi-2026.2.25-py3-none-any.whl.metadata (2.5 kB)
+#61 1.917 Collecting httpcore==1.* (from httpx==0.27.0->-r requirements.txt (line 3))
+#61 1.933   Downloading httpcore-1.0.9-py3-none-any.whl.metadata (21 kB)
+#61 1.954 Collecting idna (from httpx==0.27.0->-r requirements.txt (line 3))
+#61 1.970   Downloading idna-3.11-py3-none-any.whl.metadata (8.4 kB)
+#61 1.986 Collecting sniffio (from httpx==0.27.0->-r requirements.txt (line 3))
+#61 2.005   Downloading sniffio-1.3.1-py3-none-any.whl.metadata (3.9 kB)
+#61 2.026 Collecting opentelemetry-api==1.40.0 (from opentelemetry-sdk>=1.27.0->-r requirements.txt (line 4))
+#61 2.064   Downloading opentelemetry_api-1.40.0-py3-none-any.whl.metadata (1.5 kB)
+#61 2.081 Collecting opentelemetry-semantic-conventions==0.61b0 (from opentelemetry-sdk>=1.27.0->-r requirements.txt (line 4))
+#61 2.091   Downloading opentelemetry_semantic_conventions-0.61b0-py3-none-any.whl.metadata (2.5 kB)
+#61 2.118 Collecting importlib-metadata<8.8.0,>=6.0 (from opentelemetry-api==1.40.0->opentelemetry-sdk>=1.27.0->-r requirements.txt (line 4))
+#61 2.127   Downloading importlib_metadata-8.7.1-py3-none-any.whl.metadata (4.7 kB)
+#61 2.153 Collecting opentelemetry-instrumentation-asgi==0.61b0 (from opentelemetry-instrumentation-fastapi>=0.48b0->-r requirements.txt (line 5))
+#61 2.168   Downloading opentelemetry_instrumentation_asgi-0.61b0-py3-none-any.whl.metadata (2.1 kB)
+#61 2.184 Collecting opentelemetry-instrumentation==0.61b0 (from opentelemetry-instrumentation-fastapi>=0.48b0->-r requirements.txt (line 5))
+#61 2.202   Downloading opentelemetry_instrumentation-0.61b0-py3-none-any.whl.metadata (7.2 kB)
+#61 2.224 Collecting opentelemetry-util-http==0.61b0 (from opentelemetry-instrumentation-fastapi>=0.48b0->-r requirements.txt (line 5))
+#61 2.314   Downloading opentelemetry_util_http-0.61b0-py3-none-any.whl.metadata (2.6 kB)
+#61 2.332 Collecting packaging>=18.0 (from opentelemetry-instrumentation==0.61b0->opentelemetry-instrumentation-fastapi>=0.48b0->-r requirements.txt (line 5))
+#61 2.348   Downloading packaging-26.0-py3-none-any.whl.metadata (3.3 kB)
+#61 2.447 Collecting wrapt<2.0.0,>=1.0.0 (from opentelemetry-instrumentation==0.61b0->opentelemetry-instrumentation-fastapi>=0.48b0->-r requirements.txt (line 5))
+#61 2.463   Downloading wrapt-1.17.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (6.4 kB)
+#61 2.483 Collecting asgiref~=3.0 (from opentelemetry-instrumentation-asgi==0.61b0->opentelemetry-instrumentation-fastapi>=0.48b0->-r requirements.txt (line 5))
+#61 2.499   Downloading asgiref-3.11.1-py3-none-any.whl.metadata (9.3 kB)
+#61 2.521 Collecting googleapis-common-protos~=1.52 (from opentelemetry-exporter-otlp-proto-http>=1.27.0->-r requirements.txt (line 6))
+#61 2.528   Downloading googleapis_common_protos-1.73.0-py3-none-any.whl.metadata (9.4 kB)
+#61 2.551 Collecting opentelemetry-exporter-otlp-proto-common==1.40.0 (from opentelemetry-exporter-otlp-proto-http>=1.27.0->-r requirements.txt (line 6))
+#61 2.562   Downloading opentelemetry_exporter_otlp_proto_common-1.40.0-py3-none-any.whl.metadata (1.9 kB)
+#61 2.581 Collecting opentelemetry-proto==1.40.0 (from opentelemetry-exporter-otlp-proto-http>=1.27.0->-r requirements.txt (line 6))
+#61 2.601   Downloading opentelemetry_proto-1.40.0-py3-none-any.whl.metadata (2.4 kB)
+#61 2.626 Collecting requests~=2.7 (from opentelemetry-exporter-otlp-proto-http>=1.27.0->-r requirements.txt (line 6))
+#61 2.638   Downloading requests-2.32.5-py3-none-any.whl.metadata (4.9 kB)
+#61 2.711 Collecting protobuf<7.0,>=5.0 (from opentelemetry-proto==1.40.0->opentelemetry-exporter-otlp-proto-http>=1.27.0->-r requirements.txt (line 6))
+#61 2.725   Downloading protobuf-6.33.6-cp39-abi3-manylinux2014_aarch64.whl.metadata (593 bytes)
+#61 2.743 Collecting dnspython>=2.0.0 (from email_validator>=2.0.0->fastapi==0.111.0->-r requirements.txt (line 1))
+#61 2.844   Downloading dnspython-2.8.0-py3-none-any.whl.metadata (5.7 kB)
+#61 2.863 Collecting typer>=0.16.0 (from fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#61 2.875   Downloading typer-0.24.1-py3-none-any.whl.metadata (16 kB)
+#61 2.897 Collecting rich-toolkit>=0.14.8 (from fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#61 2.911   Downloading rich_toolkit-0.19.7-py3-none-any.whl.metadata (1.0 kB)
+#61 2.958 Collecting MarkupSafe>=2.0 (from jinja2>=2.11.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#61 2.973   Downloading markupsafe-3.0.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (2.7 kB)
+#61 2.987 Collecting annotated-types>=0.6.0 (from pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=1.7.4->fastapi==0.111.0->-r requirements.txt (line 1))
+#61 3.001   Downloading annotated_types-0.7.0-py3-none-any.whl.metadata (15 kB)
+#61 3.316 Collecting pydantic-core==2.41.5 (from pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=1.7.4->fastapi==0.111.0->-r requirements.txt (line 1))
+#61 3.366   Downloading pydantic_core-2.41.5-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (7.3 kB)
+#61 3.382 Collecting typing-inspection>=0.4.2 (from pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=1.7.4->fastapi==0.111.0->-r requirements.txt (line 1))
+#61 3.395   Downloading typing_inspection-0.4.2-py3-none-any.whl.metadata (2.6 kB)
+#61 3.444 Collecting charset_normalizer<4,>=2 (from requests~=2.7->opentelemetry-exporter-otlp-proto-http>=1.27.0->-r requirements.txt (line 6))
+#61 3.463   Downloading charset_normalizer-3.4.6-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (40 kB)
+#61 3.487 Collecting urllib3<3,>=1.21.1 (from requests~=2.7->opentelemetry-exporter-otlp-proto-http>=1.27.0->-r requirements.txt (line 6))
+#61 3.504   Downloading urllib3-2.6.3-py3-none-any.whl.metadata (6.9 kB)
+#61 3.540 Collecting httptools>=0.5.0 (from uvicorn[standard]>=0.12.0->fastapi==0.111.0->-r requirements.txt (line 1))
+#61 3.551   Downloading httptools-0.7.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (3.5 kB)
+#61 3.571 Collecting python-dotenv>=0.13 (from uvicorn[standard]>=0.12.0->fastapi==0.111.0->-r requirements.txt (line 1))
+#61 3.589   Downloading python_dotenv-1.2.2-py3-none-any.whl.metadata (27 kB)
+#61 3.613 Collecting pyyaml>=5.1 (from uvicorn[standard]>=0.12.0->fastapi==0.111.0->-r requirements.txt (line 1))
+#61 3.621   Downloading pyyaml-6.0.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (2.4 kB)
+#61 3.651 Collecting uvloop!=0.15.0,!=0.15.1,>=0.14.0 (from uvicorn[standard]>=0.12.0->fastapi==0.111.0->-r requirements.txt (line 1))
+#61 3.664   Downloading uvloop-0.22.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (4.9 kB)
+#61 3.710 Collecting watchfiles>=0.13 (from uvicorn[standard]>=0.12.0->fastapi==0.111.0->-r requirements.txt (line 1))
+#61 3.719   Downloading watchfiles-1.1.1-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (4.9 kB)
+#61 3.768 Collecting websockets>=10.4 (from uvicorn[standard]>=0.12.0->fastapi==0.111.0->-r requirements.txt (line 1))
+#61 3.781   Downloading websockets-16.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (6.8 kB)
+#61 3.889 Collecting zipp>=3.20 (from importlib-metadata<8.8.0,>=6.0->opentelemetry-api==1.40.0->opentelemetry-sdk>=1.27.0->-r requirements.txt (line 4))
+#61 3.904   Downloading zipp-3.23.0-py3-none-any.whl.metadata (3.6 kB)
+#61 3.938 Collecting rich>=13.7.1 (from rich-toolkit>=0.14.8->fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#61 3.946   Downloading rich-14.3.3-py3-none-any.whl.metadata (18 kB)
+#61 3.988 Collecting shellingham>=1.3.0 (from typer>=0.16.0->fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#61 3.995   Downloading shellingham-1.5.4-py2.py3-none-any.whl.metadata (3.5 kB)
+#61 4.013 Collecting annotated-doc>=0.0.2 (from typer>=0.16.0->fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#61 4.026   Downloading annotated_doc-0.0.4-py3-none-any.whl.metadata (6.6 kB)
+#61 4.057 Collecting markdown-it-py>=2.2.0 (from rich>=13.7.1->rich-toolkit>=0.14.8->fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#61 4.071   Downloading markdown_it_py-4.0.0-py3-none-any.whl.metadata (7.3 kB)
+#61 4.093 Collecting pygments<3.0.0,>=2.13.0 (from rich>=13.7.1->rich-toolkit>=0.14.8->fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#61 4.105   Downloading pygments-2.19.2-py3-none-any.whl.metadata (2.5 kB)
+#61 4.134 Collecting mdurl~=0.1 (from markdown-it-py>=2.2.0->rich>=13.7.1->rich-toolkit>=0.14.8->fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#61 4.152   Downloading mdurl-0.1.2-py3-none-any.whl.metadata (1.6 kB)
+#61 4.164 Downloading fastapi-0.111.0-py3-none-any.whl (91 kB)
+#61 4.203 Downloading uvicorn-0.29.0-py3-none-any.whl (60 kB)
+#61 4.225 Downloading httpx-0.27.0-py3-none-any.whl (75 kB)
+#61 4.244 Downloading httpcore-1.0.9-py3-none-any.whl (78 kB)
+#61 4.293 Downloading opentelemetry_sdk-1.40.0-py3-none-any.whl (141 kB)
+#61 ...
+
+#62 [gateway-envoy 2/5] RUN apt-get update && apt-get install -y --no-install-recommends gettext-base && rm -rf /var/lib/apt/lists/*
+#62 0.517 Get:1 http://ports.ubuntu.com/ubuntu-ports jammy InRelease [270 kB]
+#62 1.158 Get:2 http://ports.ubuntu.com/ubuntu-ports jammy-updates InRelease [128 kB]
+#62 1.346 Get:3 http://ports.ubuntu.com/ubuntu-ports jammy-backports InRelease [127 kB]
+#62 1.459 Get:4 http://ports.ubuntu.com/ubuntu-ports jammy-security InRelease [129 kB]
+#62 1.601 Get:5 http://ports.ubuntu.com/ubuntu-ports jammy/multiverse arm64 Packages [224 kB]
+#62 1.667 Get:6 http://ports.ubuntu.com/ubuntu-ports jammy/restricted arm64 Packages [24.2 kB]
+#62 1.671 Get:7 http://ports.ubuntu.com/ubuntu-ports jammy/universe arm64 Packages [17.2 MB]
+#62 2.676 Get:8 http://ports.ubuntu.com/ubuntu-ports jammy/main arm64 Packages [1758 kB]
+#62 2.700 Get:9 http://ports.ubuntu.com/ubuntu-ports jammy-updates/restricted arm64 Packages [6860 kB]
+#62 3.053 Get:10 http://ports.ubuntu.com/ubuntu-ports jammy-updates/main arm64 Packages [3949 kB]
+#62 3.295 Get:11 http://ports.ubuntu.com/ubuntu-ports jammy-updates/multiverse arm64 Packages [47.7 kB]
+#62 3.296 Get:12 http://ports.ubuntu.com/ubuntu-ports jammy-updates/universe arm64 Packages [1665 kB]
+#62 3.306 Get:13 http://ports.ubuntu.com/ubuntu-ports jammy-backports/main arm64 Packages [83.5 kB]
+#62 3.306 Get:14 http://ports.ubuntu.com/ubuntu-ports jammy-backports/universe arm64 Packages [33.7 kB]
+#62 3.306 Get:15 http://ports.ubuntu.com/ubuntu-ports jammy-security/main arm64 Packages [3629 kB]
+#62 3.468 Get:16 http://ports.ubuntu.com/ubuntu-ports jammy-security/multiverse arm64 Packages [41.2 kB]
+#62 3.471 Get:17 http://ports.ubuntu.com/ubuntu-ports jammy-security/universe arm64 Packages [1360 kB]
+#62 3.486 Get:18 http://ports.ubuntu.com/ubuntu-ports jammy-security/restricted arm64 Packages [6669 kB]
+#62 3.894 Fetched 44.2 MB in 4s (11.8 MB/s)
+#62 3.894 Reading package lists...
+#62 4.524 Reading package lists...
+#62 5.166 Building dependency tree...
+#62 5.340 Reading state information...
+#62 5.490 The following NEW packages will be installed:
+#62 5.490   gettext-base
+#62 5.751 0 upgraded, 1 newly installed, 0 to remove and 32 not upgraded.
+#62 5.751 Need to get 37.2 kB of archives.
+#62 5.751 After this operation, 258 kB of additional disk space will be used.
+#62 5.751 Get:1 http://ports.ubuntu.com/ubuntu-ports jammy/main arm64 gettext-base arm64 0.21-4ubuntu4 [37.2 kB]
+#62 5.979 debconf: delaying package configuration, since apt-utils is not installed
+#62 5.997 Fetched 37.2 kB in 0s (88.9 kB/s)
+#62 6.006 Selecting previously unselected package gettext-base.
+#62 6.006 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 4863 files and directories currently installed.)
+#62 6.009 Preparing to unpack .../gettext-base_0.21-4ubuntu4_arm64.deb ...
+#62 6.011 Unpacking gettext-base (0.21-4ubuntu4) ...
+#62 6.029 Setting up gettext-base (0.21-4ubuntu4) ...
+#62 DONE 6.1s
+
+#63 [gateway-envoy 3/5] COPY envoy-template.yaml /etc/envoy/envoy-template.yaml
+#63 DONE 0.0s
+
+#61 [svc-web 5/7] RUN pip install --no-cache-dir -r requirements.txt
+#61 4.411 Downloading opentelemetry_api-1.40.0-py3-none-any.whl (68 kB)
+#61 4.453 Downloading opentelemetry_semantic_conventions-0.61b0-py3-none-any.whl (231 kB)
+#61 4.486 Downloading opentelemetry_instrumentation_fastapi-0.61b0-py3-none-any.whl (13 kB)
+#61 4.499 Downloading opentelemetry_instrumentation-0.61b0-py3-none-any.whl (33 kB)
+#61 ...
+
+#64 [gateway-envoy 4/5] COPY docker-entrypoint.sh /docker-entrypoint.sh
+#64 DONE 0.0s
+
+#65 [gateway-envoy 5/5] RUN chmod +x /docker-entrypoint.sh
+#65 DONE 0.1s
+
+#61 [svc-web 5/7] RUN pip install --no-cache-dir -r requirements.txt
+#61 4.540 Downloading opentelemetry_instrumentation_asgi-0.61b0-py3-none-any.whl (16 kB)
+#61 4.556 Downloading opentelemetry_util_http-0.61b0-py3-none-any.whl (9.3 kB)
+#61 4.568 Downloading opentelemetry_exporter_otlp_proto_http-1.40.0-py3-none-any.whl (19 kB)
+#61 4.583 Downloading opentelemetry_exporter_otlp_proto_common-1.40.0-py3-none-any.whl (18 kB)
+#61 4.591 Downloading opentelemetry_proto-1.40.0-py3-none-any.whl (72 kB)
+#61 4.610 Downloading click-8.3.1-py3-none-any.whl (108 kB)
+#61 4.631 Downloading email_validator-2.3.0-py3-none-any.whl (35 kB)
+#61 4.639 Downloading fastapi_cli-0.0.24-py3-none-any.whl (12 kB)
+#61 4.651 Downloading googleapis_common_protos-1.73.0-py3-none-any.whl (297 kB)
+#61 4.689 Downloading h11-0.16.0-py3-none-any.whl (37 kB)
+#61 4.699 Downloading idna-3.11-py3-none-any.whl (71 kB)
+#61 4.714 Downloading jinja2-3.1.6-py3-none-any.whl (134 kB)
+#61 ...
+
+#56 [console build 4/6] RUN npm install
+#56 6.340 
+#56 6.340 added 69 packages, and audited 70 packages in 6s
+#56 6.340 
+#56 6.340 7 packages are looking for funding
+#56 6.340   run `npm fund` for details
+#56 6.344 
+#56 6.344 2 moderate severity vulnerabilities
+#56 6.344 
+#56 6.344 To address all issues (including breaking changes), run:
+#56 6.344   npm audit fix --force
+#56 6.344 
+#56 6.344 Run `npm audit` for details.
+#56 6.345 npm notice
+#56 6.345 npm notice New major version of npm available! 10.8.2 -> 11.12.0
+#56 6.345 npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.12.0
+#56 6.345 npm notice To update run: npm install -g npm@11.12.0
+#56 6.345 npm notice
+#56 DONE 6.4s
+
+#66 [console build 5/6] COPY . .
+#66 DONE 0.0s
+
+#67 [gateway-envoy] exporting to image
+#67 exporting layers 0.1s done
+#67 exporting manifest sha256:e9dc3ddd90966f5ddc23194f4cc61a80b9178fea5d55488feda4bef94984e71e done
+#67 exporting config sha256:df03010818d2d55ba7fe78859afa51ea70c4f72f2e9c441f359ed6646b01da3d done
+#67 exporting attestation manifest sha256:a2c881a624b5197ce91dea3b01e691762e69ea2e8f3b5d3f2e7a25c46f5fc4b7 done
+#67 exporting manifest list sha256:af997601edb539dce1a96f8c8b6e4ae7a6da32833b1470c35b35d5f49be000b9 done
+#67 naming to docker.io/library/ingress-poc-gateway-envoy:latest done
+#67 unpacking to docker.io/library/ingress-poc-gateway-envoy:latest 0.1s done
+#67 DONE 0.2s
+
+#61 [svc-web 5/7] RUN pip install --no-cache-dir -r requirements.txt
+#61 4.733 Downloading orjson-3.11.7-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (128 kB)
+#61 4.752 Downloading pydantic-2.12.5-py3-none-any.whl (463 kB)
+#61 4.809 Downloading pydantic_core-2.41.5-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (1.9 MB)
+#61 ...
+
+#68 [gateway-envoy] resolving provenance for metadata file
+#68 DONE 0.0s
+
+#69 [envoy-control-plane 5/7] RUN pip install --no-cache-dir -r requirements.txt
+#69 0.477 Collecting fastapi==0.111.0 (from -r requirements.txt (line 1))
+#69 0.625   Downloading fastapi-0.111.0-py3-none-any.whl.metadata (25 kB)
+#69 0.807 Collecting uvicorn==0.29.0 (from -r requirements.txt (line 2))
+#69 0.818   Downloading uvicorn-0.29.0-py3-none-any.whl.metadata (6.3 kB)
+#69 0.844 Collecting httpx==0.27.0 (from -r requirements.txt (line 3))
+#69 0.860   Downloading httpx-0.27.0-py3-none-any.whl.metadata (7.2 kB)
+#69 0.891 Collecting pyyaml==6.0.1 (from -r requirements.txt (line 4))
+#69 0.906   Downloading PyYAML-6.0.1-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (2.1 kB)
+#69 0.948 Collecting opentelemetry-sdk>=1.27.0 (from -r requirements.txt (line 5))
+#69 0.956   Downloading opentelemetry_sdk-1.40.0-py3-none-any.whl.metadata (1.6 kB)
+#69 0.977 Collecting opentelemetry-instrumentation-fastapi>=0.48b0 (from -r requirements.txt (line 6))
+#69 0.988   Downloading opentelemetry_instrumentation_fastapi-0.61b0-py3-none-any.whl.metadata (2.2 kB)
+#69 1.013 Collecting opentelemetry-exporter-otlp-proto-http>=1.27.0 (from -r requirements.txt (line 7))
+#69 1.039   Downloading opentelemetry_exporter_otlp_proto_http-1.40.0-py3-none-any.whl.metadata (2.5 kB)
+#69 1.041 Requirement already satisfied: setuptools>=69.0.0 in /usr/local/lib/python3.12/site-packages (from -r requirements.txt (line 8)) (82.0.1)
+#69 1.072 Collecting starlette<0.38.0,>=0.37.2 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#69 1.088   Downloading starlette-0.37.2-py3-none-any.whl.metadata (5.9 kB)
+#69 1.171 Collecting pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=1.7.4 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#69 1.312   Downloading pydantic-2.12.5-py3-none-any.whl.metadata (90 kB)
+#69 1.351 Collecting typing-extensions>=4.8.0 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#69 1.365   Downloading typing_extensions-4.15.0-py3-none-any.whl.metadata (3.3 kB)
+#69 1.382 Collecting fastapi-cli>=0.0.2 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#69 1.396   Downloading fastapi_cli-0.0.24-py3-none-any.whl.metadata (6.4 kB)
+#69 1.415 Collecting jinja2>=2.11.2 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#69 1.429   Downloading jinja2-3.1.6-py3-none-any.whl.metadata (2.9 kB)
+#69 1.447 Collecting python-multipart>=0.0.7 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#69 1.461   Downloading python_multipart-0.0.22-py3-none-any.whl.metadata (1.8 kB)
+#69 1.495 Collecting ujson!=4.0.2,!=4.1.0,!=4.2.0,!=4.3.0,!=5.0.0,!=5.1.0,>=4.0.1 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#69 1.526   Downloading ujson-5.12.0-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl.metadata (9.6 kB)
+#69 1.699 Collecting orjson>=3.2.1 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#69 1.817   Downloading orjson-3.11.7-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (41 kB)
+#69 1.852 Collecting email_validator>=2.0.0 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#69 1.866   Downloading email_validator-2.3.0-py3-none-any.whl.metadata (26 kB)
+#69 1.889 Collecting click>=7.0 (from uvicorn==0.29.0->-r requirements.txt (line 2))
+#69 1.903   Downloading click-8.3.1-py3-none-any.whl.metadata (2.6 kB)
+#69 1.919 Collecting h11>=0.8 (from uvicorn==0.29.0->-r requirements.txt (line 2))
+#69 1.928   Downloading h11-0.16.0-py3-none-any.whl.metadata (8.3 kB)
+#69 1.947 Collecting anyio (from httpx==0.27.0->-r requirements.txt (line 3))
+#69 1.962   Downloading anyio-4.12.1-py3-none-any.whl.metadata (4.3 kB)
+#69 1.978 Collecting certifi (from httpx==0.27.0->-r requirements.txt (line 3))
+#69 1.998   Downloading certifi-2026.2.25-py3-none-any.whl.metadata (2.5 kB)
+#69 2.026 Collecting httpcore==1.* (from httpx==0.27.0->-r requirements.txt (line 3))
+#69 2.045   Downloading httpcore-1.0.9-py3-none-any.whl.metadata (21 kB)
+#69 2.060 Collecting idna (from httpx==0.27.0->-r requirements.txt (line 3))
+#69 2.071   Downloading idna-3.11-py3-none-any.whl.metadata (8.4 kB)
+#69 2.083 Collecting sniffio (from httpx==0.27.0->-r requirements.txt (line 3))
+#69 2.101   Downloading sniffio-1.3.1-py3-none-any.whl.metadata (3.9 kB)
+#69 2.120 Collecting opentelemetry-api==1.40.0 (from opentelemetry-sdk>=1.27.0->-r requirements.txt (line 5))
+#69 2.133   Downloading opentelemetry_api-1.40.0-py3-none-any.whl.metadata (1.5 kB)
+#69 2.158 Collecting opentelemetry-semantic-conventions==0.61b0 (from opentelemetry-sdk>=1.27.0->-r requirements.txt (line 5))
+#69 2.173   Downloading opentelemetry_semantic_conventions-0.61b0-py3-none-any.whl.metadata (2.5 kB)
+#69 2.196 Collecting importlib-metadata<8.8.0,>=6.0 (from opentelemetry-api==1.40.0->opentelemetry-sdk>=1.27.0->-r requirements.txt (line 5))
+#69 2.212   Downloading importlib_metadata-8.7.1-py3-none-any.whl.metadata (4.7 kB)
+#69 2.316 Collecting opentelemetry-instrumentation-asgi==0.61b0 (from opentelemetry-instrumentation-fastapi>=0.48b0->-r requirements.txt (line 6))
+#69 2.327   Downloading opentelemetry_instrumentation_asgi-0.61b0-py3-none-any.whl.metadata (2.1 kB)
+#69 2.343 Collecting opentelemetry-instrumentation==0.61b0 (from opentelemetry-instrumentation-fastapi>=0.48b0->-r requirements.txt (line 6))
+#69 2.360   Downloading opentelemetry_instrumentation-0.61b0-py3-none-any.whl.metadata (7.2 kB)
+#69 2.395 Collecting opentelemetry-util-http==0.61b0 (from opentelemetry-instrumentation-fastapi>=0.48b0->-r requirements.txt (line 6))
+#69 2.408   Downloading opentelemetry_util_http-0.61b0-py3-none-any.whl.metadata (2.6 kB)
+#69 2.429 Collecting packaging>=18.0 (from opentelemetry-instrumentation==0.61b0->opentelemetry-instrumentation-fastapi>=0.48b0->-r requirements.txt (line 6))
+#69 2.439   Downloading packaging-26.0-py3-none-any.whl.metadata (3.3 kB)
+#69 2.523 Collecting wrapt<2.0.0,>=1.0.0 (from opentelemetry-instrumentation==0.61b0->opentelemetry-instrumentation-fastapi>=0.48b0->-r requirements.txt (line 6))
+#69 2.534   Downloading wrapt-1.17.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (6.4 kB)
+#69 2.555 Collecting asgiref~=3.0 (from opentelemetry-instrumentation-asgi==0.61b0->opentelemetry-instrumentation-fastapi>=0.48b0->-r requirements.txt (line 6))
+#69 2.571   Downloading asgiref-3.11.1-py3-none-any.whl.metadata (9.3 kB)
+#69 2.594 Collecting googleapis-common-protos~=1.52 (from opentelemetry-exporter-otlp-proto-http>=1.27.0->-r requirements.txt (line 7))
+#69 2.611   Downloading googleapis_common_protos-1.73.0-py3-none-any.whl.metadata (9.4 kB)
+#69 2.631 Collecting opentelemetry-exporter-otlp-proto-common==1.40.0 (from opentelemetry-exporter-otlp-proto-http>=1.27.0->-r requirements.txt (line 7))
+#69 2.643   Downloading opentelemetry_exporter_otlp_proto_common-1.40.0-py3-none-any.whl.metadata (1.9 kB)
+#69 2.658 Collecting opentelemetry-proto==1.40.0 (from opentelemetry-exporter-otlp-proto-http>=1.27.0->-r requirements.txt (line 7))
+#69 2.671   Downloading opentelemetry_proto-1.40.0-py3-none-any.whl.metadata (2.4 kB)
+#69 2.692 Collecting requests~=2.7 (from opentelemetry-exporter-otlp-proto-http>=1.27.0->-r requirements.txt (line 7))
+#69 2.703   Downloading requests-2.32.5-py3-none-any.whl.metadata (4.9 kB)
+#69 2.774 Collecting protobuf<7.0,>=5.0 (from opentelemetry-proto==1.40.0->opentelemetry-exporter-otlp-proto-http>=1.27.0->-r requirements.txt (line 7))
+#69 2.842   Downloading protobuf-6.33.6-cp39-abi3-manylinux2014_aarch64.whl.metadata (593 bytes)
+#69 2.858 Collecting dnspython>=2.0.0 (from email_validator>=2.0.0->fastapi==0.111.0->-r requirements.txt (line 1))
+#69 2.870   Downloading dnspython-2.8.0-py3-none-any.whl.metadata (5.7 kB)
+#69 2.889 Collecting typer>=0.16.0 (from fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#69 2.904   Downloading typer-0.24.1-py3-none-any.whl.metadata (16 kB)
+#69 2.923 Collecting rich-toolkit>=0.14.8 (from fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#69 2.942   Downloading rich_toolkit-0.19.7-py3-none-any.whl.metadata (1.0 kB)
+#69 2.993 Collecting MarkupSafe>=2.0 (from jinja2>=2.11.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#69 3.004   Downloading markupsafe-3.0.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (2.7 kB)
+#69 3.019 Collecting annotated-types>=0.6.0 (from pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=1.7.4->fastapi==0.111.0->-r requirements.txt (line 1))
+#69 3.033   Downloading annotated_types-0.7.0-py3-none-any.whl.metadata (15 kB)
+#69 3.315 Collecting pydantic-core==2.41.5 (from pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=1.7.4->fastapi==0.111.0->-r requirements.txt (line 1))
+#69 3.365   Downloading pydantic_core-2.41.5-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (7.3 kB)
+#69 3.381 Collecting typing-inspection>=0.4.2 (from pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=1.7.4->fastapi==0.111.0->-r requirements.txt (line 1))
+#69 3.393   Downloading typing_inspection-0.4.2-py3-none-any.whl.metadata (2.6 kB)
+#69 3.442 Collecting charset_normalizer<4,>=2 (from requests~=2.7->opentelemetry-exporter-otlp-proto-http>=1.27.0->-r requirements.txt (line 7))
+#69 3.461   Downloading charset_normalizer-3.4.6-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (40 kB)
+#69 3.485 Collecting urllib3<3,>=1.21.1 (from requests~=2.7->opentelemetry-exporter-otlp-proto-http>=1.27.0->-r requirements.txt (line 7))
+#69 3.498   Downloading urllib3-2.6.3-py3-none-any.whl.metadata (6.9 kB)
+#69 3.529 Collecting httptools>=0.5.0 (from uvicorn[standard]>=0.12.0->fastapi==0.111.0->-r requirements.txt (line 1))
+#69 3.545   Downloading httptools-0.7.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (3.5 kB)
+#69 3.561 Collecting python-dotenv>=0.13 (from uvicorn[standard]>=0.12.0->fastapi==0.111.0->-r requirements.txt (line 1))
+#69 3.573   Downloading python_dotenv-1.2.2-py3-none-any.whl.metadata (27 kB)
+#69 3.602 Collecting uvloop!=0.15.0,!=0.15.1,>=0.14.0 (from uvicorn[standard]>=0.12.0->fastapi==0.111.0->-r requirements.txt (line 1))
+#69 3.614   Downloading uvloop-0.22.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (4.9 kB)
+#69 3.655 Collecting watchfiles>=0.13 (from uvicorn[standard]>=0.12.0->fastapi==0.111.0->-r requirements.txt (line 1))
+#69 3.675   Downloading watchfiles-1.1.1-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (4.9 kB)
+#69 3.722 Collecting websockets>=10.4 (from uvicorn[standard]>=0.12.0->fastapi==0.111.0->-r requirements.txt (line 1))
+#69 3.733   Downloading websockets-16.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (6.8 kB)
+#69 3.757 Collecting zipp>=3.20 (from importlib-metadata<8.8.0,>=6.0->opentelemetry-api==1.40.0->opentelemetry-sdk>=1.27.0->-r requirements.txt (line 5))
+#69 3.768   Downloading zipp-3.23.0-py3-none-any.whl.metadata (3.6 kB)
+#69 3.798 Collecting rich>=13.7.1 (from rich-toolkit>=0.14.8->fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#69 3.890   Downloading rich-14.3.3-py3-none-any.whl.metadata (18 kB)
+#69 3.927 Collecting shellingham>=1.3.0 (from typer>=0.16.0->fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#69 3.940   Downloading shellingham-1.5.4-py2.py3-none-any.whl.metadata (3.5 kB)
+#69 3.960 Collecting annotated-doc>=0.0.2 (from typer>=0.16.0->fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#69 3.974   Downloading annotated_doc-0.0.4-py3-none-any.whl.metadata (6.6 kB)
+#69 3.998 Collecting markdown-it-py>=2.2.0 (from rich>=13.7.1->rich-toolkit>=0.14.8->fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#69 4.009   Downloading markdown_it_py-4.0.0-py3-none-any.whl.metadata (7.3 kB)
+#69 4.029 Collecting pygments<3.0.0,>=2.13.0 (from rich>=13.7.1->rich-toolkit>=0.14.8->fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#69 4.044   Downloading pygments-2.19.2-py3-none-any.whl.metadata (2.5 kB)
+#69 4.058 Collecting mdurl~=0.1 (from markdown-it-py>=2.2.0->rich>=13.7.1->rich-toolkit>=0.14.8->fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#69 4.070   Downloading mdurl-0.1.2-py3-none-any.whl.metadata (1.6 kB)
+#69 4.087 Downloading fastapi-0.111.0-py3-none-any.whl (91 kB)
+#69 4.132 Downloading uvicorn-0.29.0-py3-none-any.whl (60 kB)
+#69 4.153 Downloading httpx-0.27.0-py3-none-any.whl (75 kB)
+#69 4.189 Downloading PyYAML-6.0.1-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (696 kB)
+#69 4.448    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 696.9/696.9 kB 2.1 MB/s eta 0:00:00
+#69 4.458 Downloading httpcore-1.0.9-py3-none-any.whl (78 kB)
+#69 4.488 Downloading opentelemetry_sdk-1.40.0-py3-none-any.whl (141 kB)
+#69 4.533 Downloading opentelemetry_api-1.40.0-py3-none-any.whl (68 kB)
+#69 4.575 Downloading opentelemetry_semantic_conventions-0.61b0-py3-none-any.whl (231 kB)
+#69 4.623 Downloading opentelemetry_instrumentation_fastapi-0.61b0-py3-none-any.whl (13 kB)
+#69 4.638 Downloading opentelemetry_instrumentation-0.61b0-py3-none-any.whl (33 kB)
+#69 4.657 Downloading opentelemetry_instrumentation_asgi-0.61b0-py3-none-any.whl (16 kB)
+#69 4.674 Downloading opentelemetry_util_http-0.61b0-py3-none-any.whl (9.3 kB)
+#69 4.688 Downloading opentelemetry_exporter_otlp_proto_http-1.40.0-py3-none-any.whl (19 kB)
+#69 4.700 Downloading opentelemetry_exporter_otlp_proto_common-1.40.0-py3-none-any.whl (18 kB)
+#69 4.712 Downloading opentelemetry_proto-1.40.0-py3-none-any.whl (72 kB)
+#69 4.739 Downloading click-8.3.1-py3-none-any.whl (108 kB)
+#69 4.774 Downloading email_validator-2.3.0-py3-none-any.whl (35 kB)
+#69 4.790 Downloading fastapi_cli-0.0.24-py3-none-any.whl (12 kB)
+#69 4.808 Downloading googleapis_common_protos-1.73.0-py3-none-any.whl (297 kB)
+#69 4.973 Downloading h11-0.16.0-py3-none-any.whl (37 kB)
+#69 4.998 Downloading idna-3.11-py3-none-any.whl (71 kB)
+#69 5.018 Downloading jinja2-3.1.6-py3-none-any.whl (134 kB)
+#69 5.055 Downloading orjson-3.11.7-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (128 kB)
+#69 5.091 Downloading pydantic-2.12.5-py3-none-any.whl (463 kB)
+#69 5.180 Downloading pydantic_core-2.41.5-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (1.9 MB)
+#69 5.586    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.9/1.9 MB 4.5 MB/s eta 0:00:00#69 ...
+
+#70 [console build 6/6] RUN npm run build
+#70 0.168 
+#70 0.168 > ingress-console@1.0.0 build
+#70 0.168 > vite build
+#70 0.168 
+#70 0.282 vite v5.4.21 building for production...
+#70 0.310 transforming...
+#70 0.778 ✓ 40 modules transformed.
+#70 0.844 rendering chunks...
+#70 0.848 computing gzip size...
+#70 0.852 dist/index.html                  0.33 kB │ gzip:  0.24 kB
+#70 0.852 dist/assets/index-DCDvVKDs.js  191.74 kB │ gzip: 60.69 kB
+#70 0.852 ✓ built in 555ms
+#70 DONE 0.9s
+
+#69 [envoy-control-plane 5/7] RUN pip install --no-cache-dir -r requirements.txt
+#69 5.586    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.9/1.9 MB 4.5 MB/s eta 0:00:00
+#69 5.594 Downloading python_multipart-0.0.22-py3-none-any.whl (24 kB)
+#69 5.610 Downloading requests-2.32.5-py3-none-any.whl (64 kB)
+#69 5.628 Downloading certifi-2026.2.25-py3-none-any.whl (153 kB)
+#69 5.663 Downloading starlette-0.37.2-py3-none-any.whl (71 kB)
+#69 5.682 Downloading anyio-4.12.1-py3-none-any.whl (113 kB)
+#69 ...
+
+#71 [console stage-1 2/3] COPY --from=build /app/dist /usr/share/nginx/html
+#71 DONE 0.0s
+
+#72 [console stage-1 3/3] COPY nginx.conf /etc/nginx/conf.d/default.conf
+#72 DONE 0.0s
+
+#73 [console] exporting to image
+#73 exporting layers 0.0s done
+#73 exporting manifest sha256:b7a784c6a6959238e1f85ff6ab6f584cf3c852d84282ae2a9ebca4c3f9585c2a done
+#73 exporting config sha256:b9b7f6b4c8d78ca0f2c698545c87287807167aa67635a46ad07746151e7fc162 done
+#73 exporting attestation manifest sha256:6e2df8477d758b3670dceb30c334b0e3e01882373c761894f7561cb46937976e done
+#73 exporting manifest list sha256:522a4d7387ac600d2dcbca3f9c9cf8b9124afd3c10f86e3785562a4392bd61c6 done
+#73 naming to docker.io/library/ingress-poc-console:latest done
+#73 unpacking to docker.io/library/ingress-poc-console:latest 0.0s done
+#73 DONE 0.1s
+
+#74 [console] resolving provenance for metadata file
+#74 DONE 0.0s
+
+#61 [svc-web 5/7] RUN pip install --no-cache-dir -r requirements.txt
+#61 5.092    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.9/1.9 MB 6.4 MB/s eta 0:00:00
+#61 5.103 Downloading python_multipart-0.0.22-py3-none-any.whl (24 kB)
+#61 5.117 Downloading requests-2.32.5-py3-none-any.whl (64 kB)
+#61 5.142 Downloading certifi-2026.2.25-py3-none-any.whl (153 kB)
+#61 5.165 Downloading starlette-0.37.2-py3-none-any.whl (71 kB)
+#61 5.179 Downloading anyio-4.12.1-py3-none-any.whl (113 kB)
+#61 5.198 Downloading typing_extensions-4.15.0-py3-none-any.whl (44 kB)
+#61 5.213 Downloading ujson-5.12.0-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl (57 kB)
+#61 5.225 Downloading sniffio-1.3.1-py3-none-any.whl (10 kB)
+#61 5.240 Downloading annotated_types-0.7.0-py3-none-any.whl (13 kB)
+#61 5.251 Downloading asgiref-3.11.1-py3-none-any.whl (24 kB)
+#61 5.260 Downloading charset_normalizer-3.4.6-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (199 kB)
+#61 5.286 Downloading dnspython-2.8.0-py3-none-any.whl (331 kB)
+#61 5.330 Downloading httptools-0.7.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (511 kB)
+#61 5.484 Downloading importlib_metadata-8.7.1-py3-none-any.whl (27 kB)
+#61 5.504 Downloading markupsafe-3.0.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (24 kB)
+#61 5.517 Downloading packaging-26.0-py3-none-any.whl (74 kB)
+#61 5.540 Downloading protobuf-6.33.6-cp39-abi3-manylinux2014_aarch64.whl (324 kB)
+#61 5.582 Downloading python_dotenv-1.2.2-py3-none-any.whl (22 kB)
+#61 5.596 Downloading pyyaml-6.0.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (775 kB)
+#61 5.656    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 775.1/775.1 kB 12.6 MB/s eta 0:00:00
+#61 5.671 Downloading rich_toolkit-0.19.7-py3-none-any.whl (32 kB)
+#61 5.684 Downloading typer-0.24.1-py3-none-any.whl (56 kB)
+#61 5.702 Downloading typing_inspection-0.4.2-py3-none-any.whl (14 kB)
+#61 5.714 Downloading urllib3-2.6.3-py3-none-any.whl (131 kB)
+#61 5.739 Downloading uvloop-0.22.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (4.3 MB)
+#61 6.260    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.3/4.3 MB 8.1 MB/s eta 0:00:00
+#61 6.275 Downloading watchfiles-1.1.1-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (449 kB)
+#61 6.317 Downloading websockets-16.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (186 kB)
+#61 6.343 Downloading wrapt-1.17.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (88 kB)
+#61 6.356 Downloading annotated_doc-0.0.4-py3-none-any.whl (5.3 kB)
+#61 6.370 Downloading rich-14.3.3-py3-none-any.whl (310 kB)
+#61 6.415 Downloading shellingham-1.5.4-py2.py3-none-any.whl (9.8 kB)
+#61 6.515 Downloading zipp-3.23.0-py3-none-any.whl (10 kB)
+#61 6.528 Downloading markdown_it_py-4.0.0-py3-none-any.whl (87 kB)
+#61 6.554 Downloading pygments-2.19.2-py3-none-any.whl (1.2 MB)
+#61 6.657    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.2/1.2 MB 11.9 MB/s eta 0:00:00
+#61 6.666 Downloading mdurl-0.1.2-py3-none-any.whl (10.0 kB)
+#61 6.747 Installing collected packages: zipp, wrapt, websockets, uvloop, urllib3, ujson, typing-extensions, sniffio, shellingham, pyyaml, python-multipart, python-dotenv, pygments, protobuf, packaging, orjson, opentelemetry-util-http, mdurl, MarkupSafe, idna, httptools, h11, dnspython, click, charset_normalizer, certifi, asgiref, annotated-types, annotated-doc, uvicorn, typing-inspection, requests, pydantic-core, opentelemetry-proto, markdown-it-py, jinja2, importlib-metadata, httpcore, googleapis-common-protos, email_validator, anyio, watchfiles, starlette, rich, pydantic, opentelemetry-exporter-otlp-proto-common, opentelemetry-api, httpx, typer, rich-toolkit, opentelemetry-semantic-conventions, opentelemetry-sdk, opentelemetry-instrumentation, fastapi-cli, opentelemetry-instrumentation-asgi, opentelemetry-exporter-otlp-proto-http, fastapi, opentelemetry-instrumentation-fastapi
+#61 8.543 Successfully installed MarkupSafe-3.0.3 annotated-doc-0.0.4 annotated-types-0.7.0 anyio-4.12.1 asgiref-3.11.1 certifi-2026.2.25 charset_normalizer-3.4.6 click-8.3.1 dnspython-2.8.0 email_validator-2.3.0 fastapi-0.111.0 fastapi-cli-0.0.24 googleapis-common-protos-1.73.0 h11-0.16.0 httpcore-1.0.9 httptools-0.7.1 httpx-0.27.0 idna-3.11 importlib-metadata-8.7.1 jinja2-3.1.6 markdown-it-py-4.0.0 mdurl-0.1.2 opentelemetry-api-1.40.0 opentelemetry-exporter-otlp-proto-common-1.40.0 opentelemetry-exporter-otlp-proto-http-1.40.0 opentelemetry-instrumentation-0.61b0 opentelemetry-instrumentation-asgi-0.61b0 opentelemetry-instrumentation-fastapi-0.61b0 opentelemetry-proto-1.40.0 opentelemetry-sdk-1.40.0 opentelemetry-semantic-conventions-0.61b0 opentelemetry-util-http-0.61b0 orjson-3.11.7 packaging-26.0 protobuf-6.33.6 pydantic-2.12.5 pydantic-core-2.41.5 pygments-2.19.2 python-dotenv-1.2.2 python-multipart-0.0.22 pyyaml-6.0.3 requests-2.32.5 rich-14.3.3 rich-toolkit-0.19.7 shellingham-1.5.4 sniffio-1.3.1 starlette-0.37.2 typer-0.24.1 typing-extensions-4.15.0 typing-inspection-0.4.2 ujson-5.12.0 urllib3-2.6.3 uvicorn-0.29.0 uvloop-0.22.1 watchfiles-1.1.1 websockets-16.0 wrapt-1.17.3 zipp-3.23.0
+#61 8.543 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+#61 8.667 
+#61 8.667 [notice] A new release of pip is available: 25.0.1 -> 26.0.1
+#61 8.667 [notice] To update, run: pip install --upgrade pip
+#61 DONE 9.1s
+
+#75 [mock-akamai-gtm 6/7] COPY shared/otel.py ./otel.py
+#75 DONE 0.0s
+
+#76 [mock-akamai-edge 5/7] RUN pip install --no-cache-dir -r requirements.txt
+#76 CACHED
+
+#77 [mock-akamai-edge 4/7] COPY mock-akamai-edge/requirements.txt .
+#77 CACHED
+
+#78 [mock-akamai-edge 6/7] COPY shared/otel.py ./otel.py
+#78 CACHED
+
+#79 [svc-web 6/7] COPY shared/otel.py ./otel.py
+#79 CACHED
+
+#80 [svc-web 5/7] RUN pip install --no-cache-dir -r requirements.txt
+#80 CACHED
+
+#81 [svc-web 4/7] COPY svc-web/requirements.txt .
+#81 CACHED
+
+#82 [kong-admin-proxy 5/7] RUN pip install --no-cache-dir -r requirements.txt
+#82 CACHED
+
+#83 [kong-admin-proxy 6/7] COPY shared/otel.py ./otel.py
+#83 CACHED
+
+#84 [kong-admin-proxy 4/7] COPY kong-admin-proxy/requirements.txt .
+#84 CACHED
+
+#85 [mock-akamai-gtm 6/7] COPY shared/otel.py ./otel.py
+#85 CACHED
+
+#86 [mock-akamai-gtm 5/7] RUN pip install --no-cache-dir -r requirements.txt
+#86 CACHED
+
+#87 [mock-akamai-gtm 4/7] COPY mock-akamai-gtm/requirements.txt .
+#87 CACHED
+
+#88 [mock-psaas 4/7] COPY mock-psaas/requirements.txt .
+#88 CACHED
+
+#89 [mock-psaas 5/7] RUN pip install --no-cache-dir -r requirements.txt
+#89 CACHED
+
+#90 [mock-psaas 6/7] COPY shared/otel.py ./otel.py
+#90 CACHED
+
+#91 [svc-api 7/7] COPY svc-api/ .
+#91 DONE 0.0s
+
+#92 [svc-api] exporting to image
+#92 ...
+
+#93 [mock-akamai-gtm 7/7] COPY mock-akamai-gtm/ .
+#93 DONE 0.1s
+
+#94 [mock-psaas 7/7] COPY mock-psaas/ .
+#94 DONE 0.1s
+
+#95 [kong-admin-proxy 7/7] COPY kong-admin-proxy/ .
+#95 DONE 0.1s
+
+#96 [svc-web 7/7] COPY svc-web/ .
+#96 DONE 0.1s
+
+#97 [mock-akamai-edge 7/7] COPY mock-akamai-edge/ .
+#97 DONE 0.1s
+
+#98 [auth-service 5/7] RUN pip install --no-cache-dir -r requirements.txt
+#98 0.476 Collecting fastapi==0.111.0 (from -r requirements.txt (line 1))
+#98 0.628   Downloading fastapi-0.111.0-py3-none-any.whl.metadata (25 kB)
+#98 0.807 Collecting uvicorn==0.29.0 (from -r requirements.txt (line 2))
+#98 0.824   Downloading uvicorn-0.29.0-py3-none-any.whl.metadata (6.3 kB)
+#98 0.848 Collecting httpx==0.27.0 (from -r requirements.txt (line 3))
+#98 0.868   Downloading httpx-0.27.0-py3-none-any.whl.metadata (7.2 kB)
+#98 0.886 Collecting python-jose==3.3.0 (from python-jose[cryptography]==3.3.0->-r requirements.txt (line 4))
+#98 0.898   Downloading python_jose-3.3.0-py2.py3-none-any.whl.metadata (5.4 kB)
+#98 1.036 Collecting cryptography==42.0.5 (from -r requirements.txt (line 5))
+#98 1.059   Downloading cryptography-42.0.5-cp39-abi3-manylinux_2_28_aarch64.whl.metadata (5.3 kB)
+#98 1.136 Collecting pydantic==2.7.1 (from -r requirements.txt (line 6))
+#98 1.168   Downloading pydantic-2.7.1-py3-none-any.whl.metadata (107 kB)
+#98 1.360 Collecting opentelemetry-sdk>=1.27.0 (from -r requirements.txt (line 7))
+#98 1.376   Downloading opentelemetry_sdk-1.40.0-py3-none-any.whl.metadata (1.6 kB)
+#98 1.394 Collecting opentelemetry-instrumentation-fastapi>=0.48b0 (from -r requirements.txt (line 8))
+#98 1.404   Downloading opentelemetry_instrumentation_fastapi-0.61b0-py3-none-any.whl.metadata (2.2 kB)
+#98 1.422 Collecting opentelemetry-exporter-otlp-proto-http>=1.27.0 (from -r requirements.txt (line 9))
+#98 1.438   Downloading opentelemetry_exporter_otlp_proto_http-1.40.0-py3-none-any.whl.metadata (2.5 kB)
+#98 1.439 Requirement already satisfied: setuptools>=69.0.0 in /usr/local/lib/python3.12/site-packages (from -r requirements.txt (line 10)) (82.0.1)
+#98 1.461 Collecting starlette<0.38.0,>=0.37.2 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#98 1.481   Downloading starlette-0.37.2-py3-none-any.whl.metadata (5.9 kB)
+#98 1.519 Collecting typing-extensions>=4.8.0 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#98 1.534   Downloading typing_extensions-4.15.0-py3-none-any.whl.metadata (3.3 kB)
+#98 1.553 Collecting fastapi-cli>=0.0.2 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#98 1.567   Downloading fastapi_cli-0.0.24-py3-none-any.whl.metadata (6.4 kB)
+#98 1.583 Collecting jinja2>=2.11.2 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#98 1.595   Downloading jinja2-3.1.6-py3-none-any.whl.metadata (2.9 kB)
+#98 1.614 Collecting python-multipart>=0.0.7 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#98 1.625   Downloading python_multipart-0.0.22-py3-none-any.whl.metadata (1.8 kB)
+#98 1.672 Collecting ujson!=4.0.2,!=4.1.0,!=4.2.0,!=4.3.0,!=5.0.0,!=5.1.0,>=4.0.1 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#98 1.688   Downloading ujson-5.12.0-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl.metadata (9.6 kB)
+#98 1.938 Collecting orjson>=3.2.1 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#98 1.950   Downloading orjson-3.11.7-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (41 kB)
+#98 1.982 Collecting email_validator>=2.0.0 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#98 2.000   Downloading email_validator-2.3.0-py3-none-any.whl.metadata (26 kB)
+#98 2.033 Collecting click>=7.0 (from uvicorn==0.29.0->-r requirements.txt (line 2))
+#98 2.049   Downloading click-8.3.1-py3-none-any.whl.metadata (2.6 kB)
+#98 2.064 Collecting h11>=0.8 (from uvicorn==0.29.0->-r requirements.txt (line 2))
+#98 2.075   Downloading h11-0.16.0-py3-none-any.whl.metadata (8.3 kB)
+#98 2.093 Collecting anyio (from httpx==0.27.0->-r requirements.txt (line 3))
+#98 2.106   Downloading anyio-4.12.1-py3-none-any.whl.metadata (4.3 kB)
+#98 2.124 Collecting certifi (from httpx==0.27.0->-r requirements.txt (line 3))
+#98 2.137   Downloading certifi-2026.2.25-py3-none-any.whl.metadata (2.5 kB)
+#98 2.156 Collecting httpcore==1.* (from httpx==0.27.0->-r requirements.txt (line 3))
+#98 2.163   Downloading httpcore-1.0.9-py3-none-any.whl.metadata (21 kB)
+#98 2.180 Collecting idna (from httpx==0.27.0->-r requirements.txt (line 3))
+#98 2.188   Downloading idna-3.11-py3-none-any.whl.metadata (8.4 kB)
+#98 2.211 Collecting sniffio (from httpx==0.27.0->-r requirements.txt (line 3))
+#98 2.312   Downloading sniffio-1.3.1-py3-none-any.whl.metadata (3.9 kB)
+#98 2.329 Collecting ecdsa!=0.15 (from python-jose==3.3.0->python-jose[cryptography]==3.3.0->-r requirements.txt (line 4))
+#98 2.345   Downloading ecdsa-0.19.1-py2.py3-none-any.whl.metadata (29 kB)
+#98 2.370 Collecting rsa (from python-jose==3.3.0->python-jose[cryptography]==3.3.0->-r requirements.txt (line 4))
+#98 2.384   Downloading rsa-4.9.1-py3-none-any.whl.metadata (5.6 kB)
+#98 2.412 Collecting pyasn1 (from python-jose==3.3.0->python-jose[cryptography]==3.3.0->-r requirements.txt (line 4))
+#98 2.428   Downloading pyasn1-0.6.3-py3-none-any.whl.metadata (8.4 kB)
+#98 2.484 Collecting cffi>=1.12 (from cryptography==42.0.5->-r requirements.txt (line 5))
+#98 2.496   Downloading cffi-2.0.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl.metadata (2.6 kB)
+#98 2.515 Collecting annotated-types>=0.4.0 (from pydantic==2.7.1->-r requirements.txt (line 6))
+#98 2.526   Downloading annotated_types-0.7.0-py3-none-any.whl.metadata (15 kB)
+#98 2.845 Collecting pydantic-core==2.18.2 (from pydantic==2.7.1->-r requirements.txt (line 6))
+#98 2.854   Downloading pydantic_core-2.18.2-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (6.5 kB)
+#98 2.880 Collecting opentelemetry-api==1.40.0 (from opentelemetry-sdk>=1.27.0->-r requirements.txt (line 7))
+#98 2.890   Downloading opentelemetry_api-1.40.0-py3-none-any.whl.metadata (1.5 kB)
+#98 2.907 Collecting opentelemetry-semantic-conventions==0.61b0 (from opentelemetry-sdk>=1.27.0->-r requirements.txt (line 7))
+#98 2.919   Downloading opentelemetry_semantic_conventions-0.61b0-py3-none-any.whl.metadata (2.5 kB)
+#98 2.947 Collecting importlib-metadata<8.8.0,>=6.0 (from opentelemetry-api==1.40.0->opentelemetry-sdk>=1.27.0->-r requirements.txt (line 7))
+#98 2.958   Downloading importlib_metadata-8.7.1-py3-none-any.whl.metadata (4.7 kB)
+#98 2.983 Collecting opentelemetry-instrumentation-asgi==0.61b0 (from opentelemetry-instrumentation-fastapi>=0.48b0->-r requirements.txt (line 8))
+#98 2.999   Downloading opentelemetry_instrumentation_asgi-0.61b0-py3-none-any.whl.metadata (2.1 kB)
+#98 3.022 Collecting opentelemetry-instrumentation==0.61b0 (from opentelemetry-instrumentation-fastapi>=0.48b0->-r requirements.txt (line 8))
+#98 3.032   Downloading opentelemetry_instrumentation-0.61b0-py3-none-any.whl.metadata (7.2 kB)
+#98 3.051 Collecting opentelemetry-util-http==0.61b0 (from opentelemetry-instrumentation-fastapi>=0.48b0->-r requirements.txt (line 8))
+#98 3.068   Downloading opentelemetry_util_http-0.61b0-py3-none-any.whl.metadata (2.6 kB)
+#98 3.090 Collecting packaging>=18.0 (from opentelemetry-instrumentation==0.61b0->opentelemetry-instrumentation-fastapi>=0.48b0->-r requirements.txt (line 8))
+#98 3.105   Downloading packaging-26.0-py3-none-any.whl.metadata (3.3 kB)
+#98 3.187 Collecting wrapt<2.0.0,>=1.0.0 (from opentelemetry-instrumentation==0.61b0->opentelemetry-instrumentation-fastapi>=0.48b0->-r requirements.txt (line 8))
+#98 3.203   Downloading wrapt-1.17.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (6.4 kB)
+#98 3.221 Collecting asgiref~=3.0 (from opentelemetry-instrumentation-asgi==0.61b0->opentelemetry-instrumentation-fastapi>=0.48b0->-r requirements.txt (line 8))
+#98 3.236   Downloading asgiref-3.11.1-py3-none-any.whl.metadata (9.3 kB)
+#98 3.260 Collecting googleapis-common-protos~=1.52 (from opentelemetry-exporter-otlp-proto-http>=1.27.0->-r requirements.txt (line 9))
+#98 3.357   Downloading googleapis_common_protos-1.73.0-py3-none-any.whl.metadata (9.4 kB)
+#98 3.381 Collecting opentelemetry-exporter-otlp-proto-common==1.40.0 (from opentelemetry-exporter-otlp-proto-http>=1.27.0->-r requirements.txt (line 9))
+#98 3.393   Downloading opentelemetry_exporter_otlp_proto_common-1.40.0-py3-none-any.whl.metadata (1.9 kB)
+#98 3.413 Collecting opentelemetry-proto==1.40.0 (from opentelemetry-exporter-otlp-proto-http>=1.27.0->-r requirements.txt (line 9))
+#98 3.428   Downloading opentelemetry_proto-1.40.0-py3-none-any.whl.metadata (2.4 kB)
+#98 3.453 Collecting requests~=2.7 (from opentelemetry-exporter-otlp-proto-http>=1.27.0->-r requirements.txt (line 9))
+#98 3.468   Downloading requests-2.32.5-py3-none-any.whl.metadata (4.9 kB)
+#98 3.550 Collecting protobuf<7.0,>=5.0 (from opentelemetry-proto==1.40.0->opentelemetry-exporter-otlp-proto-http>=1.27.0->-r requirements.txt (line 9))
+#98 3.565   Downloading protobuf-6.33.6-cp39-abi3-manylinux2014_aarch64.whl.metadata (593 bytes)
+#98 3.589 Collecting pycparser (from cffi>=1.12->cryptography==42.0.5->-r requirements.txt (line 5))
+#98 3.597   Downloading pycparser-3.0-py3-none-any.whl.metadata (8.2 kB)
+#98 3.616 Collecting six>=1.9.0 (from ecdsa!=0.15->python-jose==3.3.0->python-jose[cryptography]==3.3.0->-r requirements.txt (line 4))
+#98 3.627   Downloading six-1.17.0-py2.py3-none-any.whl.metadata (1.7 kB)
+#98 3.645 Collecting dnspython>=2.0.0 (from email_validator>=2.0.0->fastapi==0.111.0->-r requirements.txt (line 1))
+#98 3.656   Downloading dnspython-2.8.0-py3-none-any.whl.metadata (5.7 kB)
+#98 3.680 Collecting typer>=0.16.0 (from fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#98 3.699   Downloading typer-0.24.1-py3-none-any.whl.metadata (16 kB)
+#98 3.724 Collecting rich-toolkit>=0.14.8 (from fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#98 3.738   Downloading rich_toolkit-0.19.7-py3-none-any.whl.metadata (1.0 kB)
+#98 3.789 Collecting MarkupSafe>=2.0 (from jinja2>=2.11.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#98 3.889   Downloading markupsafe-3.0.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (2.7 kB)
+#98 3.937 Collecting charset_normalizer<4,>=2 (from requests~=2.7->opentelemetry-exporter-otlp-proto-http>=1.27.0->-r requirements.txt (line 9))
+#98 3.953   Downloading charset_normalizer-3.4.6-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (40 kB)
+#98 3.997 Collecting urllib3<3,>=1.21.1 (from requests~=2.7->opentelemetry-exporter-otlp-proto-http>=1.27.0->-r requirements.txt (line 9))
+#98 4.008   Downloading urllib3-2.6.3-py3-none-any.whl.metadata (6.9 kB)
+#98 4.050 Collecting httptools>=0.5.0 (from uvicorn[standard]>=0.12.0->fastapi==0.111.0->-r requirements.txt (line 1))
+#98 4.065   Downloading httptools-0.7.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (3.5 kB)
+#98 4.079 Collecting python-dotenv>=0.13 (from uvicorn[standard]>=0.12.0->fastapi==0.111.0->-r requirements.txt (line 1))
+#98 4.086   Downloading python_dotenv-1.2.2-py3-none-any.whl.metadata (27 kB)
+#98 4.127 Collecting pyyaml>=5.1 (from uvicorn[standard]>=0.12.0->fastapi==0.111.0->-r requirements.txt (line 1))
+#98 4.140   Downloading pyyaml-6.0.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (2.4 kB)
+#98 4.168 Collecting uvloop!=0.15.0,!=0.15.1,>=0.14.0 (from uvicorn[standard]>=0.12.0->fastapi==0.111.0->-r requirements.txt (line 1))
+#98 4.195   Downloading uvloop-0.22.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (4.9 kB)
+#98 4.245 Collecting watchfiles>=0.13 (from uvicorn[standard]>=0.12.0->fastapi==0.111.0->-r requirements.txt (line 1))
+#98 4.259   Downloading watchfiles-1.1.1-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (4.9 kB)
+#98 4.345 Collecting websockets>=10.4 (from uvicorn[standard]>=0.12.0->fastapi==0.111.0->-r requirements.txt (line 1))
+#98 4.409   Downloading websockets-16.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (6.8 kB)
+#98 4.465 Collecting zipp>=3.20 (from importlib-metadata<8.8.0,>=6.0->opentelemetry-api==1.40.0->opentelemetry-sdk>=1.27.0->-r requirements.txt (line 7))
+#98 4.480   Downloading zipp-3.23.0-py3-none-any.whl.metadata (3.6 kB)
+#98 4.521 Collecting rich>=13.7.1 (from rich-toolkit>=0.14.8->fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#98 4.530   Downloading rich-14.3.3-py3-none-any.whl.metadata (18 kB)
+#98 4.557 Collecting shellingham>=1.3.0 (from typer>=0.16.0->fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#98 4.565   Downloading shellingham-1.5.4-py2.py3-none-any.whl.metadata (3.5 kB)
+#98 4.589 Collecting annotated-doc>=0.0.2 (from typer>=0.16.0->fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#98 4.599   Downloading annotated_doc-0.0.4-py3-none-any.whl.metadata (6.6 kB)
+#98 4.625 Collecting markdown-it-py>=2.2.0 (from rich>=13.7.1->rich-toolkit>=0.14.8->fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#98 4.637   Downloading markdown_it_py-4.0.0-py3-none-any.whl.metadata (7.3 kB)
+#98 4.655 Collecting pygments<3.0.0,>=2.13.0 (from rich>=13.7.1->rich-toolkit>=0.14.8->fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#98 4.665   Downloading pygments-2.19.2-py3-none-any.whl.metadata (2.5 kB)
+#98 4.681 Collecting mdurl~=0.1 (from markdown-it-py>=2.2.0->rich>=13.7.1->rich-toolkit>=0.14.8->fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#98 4.693   Downloading mdurl-0.1.2-py3-none-any.whl.metadata (1.6 kB)
+#98 4.712 Downloading fastapi-0.111.0-py3-none-any.whl (91 kB)
+#98 4.736 Downloading uvicorn-0.29.0-py3-none-any.whl (60 kB)
+#98 4.750 Downloading httpx-0.27.0-py3-none-any.whl (75 kB)
+#98 4.778 Downloading python_jose-3.3.0-py2.py3-none-any.whl (33 kB)
+#98 4.795 Downloading cryptography-42.0.5-cp39-abi3-manylinux_2_28_aarch64.whl (4.4 MB)
+#98 5.266    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.4/4.4 MB 9.5 MB/s eta 0:00:00
+#98 5.289 Downloading pydantic-2.7.1-py3-none-any.whl (409 kB)
+#98 5.320 Downloading httpcore-1.0.9-py3-none-any.whl (78 kB)
+#98 5.330 Downloading pydantic_core-2.18.2-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (1.8 MB)
+#98 5.526    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.8/1.8 MB 8.3 MB/s eta 0:00:00
+#98 5.541 Downloading opentelemetry_sdk-1.40.0-py3-none-any.whl (141 kB)
+#98 5.560 Downloading opentelemetry_api-1.40.0-py3-none-any.whl (68 kB)
+#98 5.575 Downloading opentelemetry_semantic_conventions-0.61b0-py3-none-any.whl (231 kB)
+#98 5.594 Downloading opentelemetry_instrumentation_fastapi-0.61b0-py3-none-any.whl (13 kB)
+#98 5.608 Downloading opentelemetry_instrumentation-0.61b0-py3-none-any.whl (33 kB)
+#98 5.622 Downloading opentelemetry_instrumentation_asgi-0.61b0-py3-none-any.whl (16 kB)
+#98 5.637 Downloading opentelemetry_util_http-0.61b0-py3-none-any.whl (9.3 kB)
+#98 5.649 Downloading opentelemetry_exporter_otlp_proto_http-1.40.0-py3-none-any.whl (19 kB)
+#98 5.660 Downloading opentelemetry_exporter_otlp_proto_common-1.40.0-py3-none-any.whl (18 kB)
+#98 5.674 Downloading opentelemetry_proto-1.40.0-py3-none-any.whl (72 kB)
+#98 5.687 Downloading annotated_types-0.7.0-py3-none-any.whl (13 kB)
+#98 5.700 Downloading cffi-2.0.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl (220 kB)
+#98 5.718 Downloading click-8.3.1-py3-none-any.whl (108 kB)
+#98 5.732 Downloading ecdsa-0.19.1-py2.py3-none-any.whl (150 kB)
+#98 5.749 Downloading email_validator-2.3.0-py3-none-any.whl (35 kB)
+#98 5.764 Downloading fastapi_cli-0.0.24-py3-none-any.whl (12 kB)
+#98 5.777 Downloading googleapis_common_protos-1.73.0-py3-none-any.whl (297 kB)
+#98 5.796 Downloading h11-0.16.0-py3-none-any.whl (37 kB)
+#98 5.816 Downloading idna-3.11-py3-none-any.whl (71 kB)
+#98 5.824 Downloading jinja2-3.1.6-py3-none-any.whl (134 kB)
+#98 5.846 Downloading orjson-3.11.7-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (128 kB)
+#98 5.865 Downloading python_multipart-0.0.22-py3-none-any.whl (24 kB)
+#98 5.878 Downloading requests-2.32.5-py3-none-any.whl (64 kB)
+#98 5.979 Downloading certifi-2026.2.25-py3-none-any.whl (153 kB)
+#98 5.997 Downloading starlette-0.37.2-py3-none-any.whl (71 kB)
+#98 6.015 Downloading anyio-4.12.1-py3-none-any.whl (113 kB)
+#98 6.042 Downloading typing_extensions-4.15.0-py3-none-any.whl (44 kB)
+#98 6.057 Downloading ujson-5.12.0-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl (57 kB)
+#98 6.067 Downloading pyasn1-0.6.3-py3-none-any.whl (83 kB)
+#98 6.087 Downloading rsa-4.9.1-py3-none-any.whl (34 kB)
+#98 6.100 Downloading sniffio-1.3.1-py3-none-any.whl (10 kB)
+#98 6.114 Downloading asgiref-3.11.1-py3-none-any.whl (24 kB)
+#98 6.134 Downloading charset_normalizer-3.4.6-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (199 kB)
+#98 6.158 Downloading dnspython-2.8.0-py3-none-any.whl (331 kB)
+#98 6.195 Downloading httptools-0.7.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (511 kB)
+#98 6.237 Downloading importlib_metadata-8.7.1-py3-none-any.whl (27 kB)
+#98 6.252 Downloading markupsafe-3.0.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (24 kB)
+#98 6.262 Downloading packaging-26.0-py3-none-any.whl (74 kB)
+#98 6.283 Downloading protobuf-6.33.6-cp39-abi3-manylinux2014_aarch64.whl (324 kB)
+#98 6.300 Downloading python_dotenv-1.2.2-py3-none-any.whl (22 kB)
+#98 6.317 Downloading pyyaml-6.0.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (775 kB)
+#98 6.344    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 775.1/775.1 kB 24.6 MB/s eta 0:00:00
+#98 6.354 Downloading rich_toolkit-0.19.7-py3-none-any.whl (32 kB)
+#98 6.368 Downloading six-1.17.0-py2.py3-none-any.whl (11 kB)
+#98 6.379 Downloading typer-0.24.1-py3-none-any.whl (56 kB)
+#98 6.410 Downloading urllib3-2.6.3-py3-none-any.whl (131 kB)
+#98 6.529 Downloading uvloop-0.22.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (4.3 MB)
+#98 6.685    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.3/4.3 MB 30.8 MB/s eta 0:00:00
+#98 6.701 Downloading watchfiles-1.1.1-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (449 kB)
+#98 6.727 Downloading websockets-16.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (186 kB)
+#98 6.754 Downloading wrapt-1.17.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (88 kB)
+#98 6.771 Downloading pycparser-3.0-py3-none-any.whl (48 kB)
+#98 6.785 Downloading annotated_doc-0.0.4-py3-none-any.whl (5.3 kB)
+#98 6.797 Downloading rich-14.3.3-py3-none-any.whl (310 kB)
+#98 6.812 Downloading shellingham-1.5.4-py2.py3-none-any.whl (9.8 kB)
+#98 6.825 Downloading zipp-3.23.0-py3-none-any.whl (10 kB)
+#98 6.842 Downloading markdown_it_py-4.0.0-py3-none-any.whl (87 kB)
+#98 6.852 Downloading pygments-2.19.2-py3-none-any.whl (1.2 MB)
+#98 6.884    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.2/1.2 MB 37.4 MB/s eta 0:00:00
+#98 6.892 Downloading mdurl-0.1.2-py3-none-any.whl (10.0 kB)
+#98 6.968 Installing collected packages: zipp, wrapt, websockets, uvloop, urllib3, ujson, typing-extensions, sniffio, six, shellingham, pyyaml, python-multipart, python-dotenv, pygments, pycparser, pyasn1, protobuf, packaging, orjson, opentelemetry-util-http, mdurl, MarkupSafe, idna, httptools, h11, dnspython, click, charset_normalizer, certifi, asgiref, annotated-types, annotated-doc, uvicorn, rsa, requests, pydantic-core, opentelemetry-proto, markdown-it-py, jinja2, importlib-metadata, httpcore, googleapis-common-protos, email_validator, ecdsa, cffi, anyio, watchfiles, starlette, rich, python-jose, pydantic, opentelemetry-exporter-otlp-proto-common, opentelemetry-api, httpx, cryptography, typer, rich-toolkit, opentelemetry-semantic-conventions, opentelemetry-sdk, opentelemetry-instrumentation, fastapi-cli, opentelemetry-instrumentation-asgi, opentelemetry-exporter-otlp-proto-http, fastapi, opentelemetry-instrumentation-fastapi
+#98 9.355 Successfully installed MarkupSafe-3.0.3 annotated-doc-0.0.4 annotated-types-0.7.0 anyio-4.12.1 asgiref-3.11.1 certifi-2026.2.25 cffi-2.0.0 charset_normalizer-3.4.6 click-8.3.1 cryptography-42.0.5 dnspython-2.8.0 ecdsa-0.19.1 email_validator-2.3.0 fastapi-0.111.0 fastapi-cli-0.0.24 googleapis-common-protos-1.73.0 h11-0.16.0 httpcore-1.0.9 httptools-0.7.1 httpx-0.27.0 idna-3.11 importlib-metadata-8.7.1 jinja2-3.1.6 markdown-it-py-4.0.0 mdurl-0.1.2 opentelemetry-api-1.40.0 opentelemetry-exporter-otlp-proto-common-1.40.0 opentelemetry-exporter-otlp-proto-http-1.40.0 opentelemetry-instrumentation-0.61b0 opentelemetry-instrumentation-asgi-0.61b0 opentelemetry-instrumentation-fastapi-0.61b0 opentelemetry-proto-1.40.0 opentelemetry-sdk-1.40.0 opentelemetry-semantic-conventions-0.61b0 opentelemetry-util-http-0.61b0 orjson-3.11.7 packaging-26.0 protobuf-6.33.6 pyasn1-0.6.3 pycparser-3.0 pydantic-2.7.1 pydantic-core-2.18.2 pygments-2.19.2 python-dotenv-1.2.2 python-jose-3.3.0 python-multipart-0.0.22 pyyaml-6.0.3 requests-2.32.5 rich-14.3.3 rich-toolkit-0.19.7 rsa-4.9.1 shellingham-1.5.4 six-1.17.0 sniffio-1.3.1 starlette-0.37.2 typer-0.24.1 typing-extensions-4.15.0 ujson-5.12.0 urllib3-2.6.3 uvicorn-0.29.0 uvloop-0.22.1 watchfiles-1.1.1 websockets-16.0 wrapt-1.17.3 zipp-3.23.0
+#98 9.355 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+#98 9.423 
+#98 9.423 [notice] A new release of pip is available: 25.0.1 -> 26.0.1
+#98 9.423 [notice] To update, run: pip install --upgrade pip
+#98 DONE 9.6s
+
+#99 [management-api 5/7] RUN pip install --no-cache-dir -r requirements.txt
+#99 0.479 Collecting fastapi==0.111.0 (from -r requirements.txt (line 1))
+#99 0.624   Downloading fastapi-0.111.0-py3-none-any.whl.metadata (25 kB)
+#99 0.791 Collecting uvicorn==0.29.0 (from -r requirements.txt (line 2))
+#99 0.806   Downloading uvicorn-0.29.0-py3-none-any.whl.metadata (6.3 kB)
+#99 0.825 Collecting httpx==0.27.0 (from -r requirements.txt (line 3))
+#99 0.841   Downloading httpx-0.27.0-py3-none-any.whl.metadata (7.2 kB)
+#99 0.989 Collecting sqlalchemy==2.0.30 (from -r requirements.txt (line 4))
+#99 1.012   Downloading SQLAlchemy-2.0.30-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (9.6 kB)
+#99 1.042 Collecting aiosqlite==0.20.0 (from -r requirements.txt (line 5))
+#99 1.066   Downloading aiosqlite-0.20.0-py3-none-any.whl.metadata (4.3 kB)
+#99 1.092 Collecting opentelemetry-sdk>=1.27.0 (from -r requirements.txt (line 6))
+#99 1.107   Downloading opentelemetry_sdk-1.40.0-py3-none-any.whl.metadata (1.6 kB)
+#99 1.123 Collecting opentelemetry-instrumentation-fastapi>=0.48b0 (from -r requirements.txt (line 7))
+#99 1.152   Downloading opentelemetry_instrumentation_fastapi-0.61b0-py3-none-any.whl.metadata (2.2 kB)
+#99 1.270 Collecting opentelemetry-exporter-otlp-proto-http>=1.27.0 (from -r requirements.txt (line 8))
+#99 1.314   Downloading opentelemetry_exporter_otlp_proto_http-1.40.0-py3-none-any.whl.metadata (2.5 kB)
+#99 1.316 Requirement already satisfied: setuptools>=69.0.0 in /usr/local/lib/python3.12/site-packages (from -r requirements.txt (line 9)) (82.0.1)
+#99 1.343 Collecting starlette<0.38.0,>=0.37.2 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#99 1.354   Downloading starlette-0.37.2-py3-none-any.whl.metadata (5.9 kB)
+#99 1.422 Collecting pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=1.7.4 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#99 1.436   Downloading pydantic-2.12.5-py3-none-any.whl.metadata (90 kB)
+#99 1.467 Collecting typing-extensions>=4.8.0 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#99 1.477   Downloading typing_extensions-4.15.0-py3-none-any.whl.metadata (3.3 kB)
+#99 1.490 Collecting fastapi-cli>=0.0.2 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#99 1.503   Downloading fastapi_cli-0.0.24-py3-none-any.whl.metadata (6.4 kB)
+#99 1.535 Collecting jinja2>=2.11.2 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#99 1.545   Downloading jinja2-3.1.6-py3-none-any.whl.metadata (2.9 kB)
+#99 1.560 Collecting python-multipart>=0.0.7 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#99 1.579   Downloading python_multipart-0.0.22-py3-none-any.whl.metadata (1.8 kB)
+#99 1.614 Collecting ujson!=4.0.2,!=4.1.0,!=4.2.0,!=4.3.0,!=5.0.0,!=5.1.0,>=4.0.1 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#99 1.630   Downloading ujson-5.12.0-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl.metadata (9.6 kB)
+#99 1.753 Collecting orjson>=3.2.1 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#99 1.815   Downloading orjson-3.11.7-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (41 kB)
+#99 1.840 Collecting email_validator>=2.0.0 (from fastapi==0.111.0->-r requirements.txt (line 1))
+#99 1.847   Downloading email_validator-2.3.0-py3-none-any.whl.metadata (26 kB)
+#99 1.873 Collecting click>=7.0 (from uvicorn==0.29.0->-r requirements.txt (line 2))
+#99 1.888   Downloading click-8.3.1-py3-none-any.whl.metadata (2.6 kB)
+#99 1.902 Collecting h11>=0.8 (from uvicorn==0.29.0->-r requirements.txt (line 2))
+#99 1.912   Downloading h11-0.16.0-py3-none-any.whl.metadata (8.3 kB)
+#99 1.930 Collecting anyio (from httpx==0.27.0->-r requirements.txt (line 3))
+#99 1.947   Downloading anyio-4.12.1-py3-none-any.whl.metadata (4.3 kB)
+#99 1.963 Collecting certifi (from httpx==0.27.0->-r requirements.txt (line 3))
+#99 1.976   Downloading certifi-2026.2.25-py3-none-any.whl.metadata (2.5 kB)
+#99 1.997 Collecting httpcore==1.* (from httpx==0.27.0->-r requirements.txt (line 3))
+#99 2.021   Downloading httpcore-1.0.9-py3-none-any.whl.metadata (21 kB)
+#99 2.040 Collecting idna (from httpx==0.27.0->-r requirements.txt (line 3))
+#99 2.052   Downloading idna-3.11-py3-none-any.whl.metadata (8.4 kB)
+#99 2.066 Collecting sniffio (from httpx==0.27.0->-r requirements.txt (line 3))
+#99 2.078   Downloading sniffio-1.3.1-py3-none-any.whl.metadata (3.9 kB)
+#99 2.142 Collecting greenlet!=0.4.17 (from sqlalchemy==2.0.30->-r requirements.txt (line 4))
+#99 2.155   Downloading greenlet-3.3.2-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl.metadata (3.7 kB)
+#99 2.179 Collecting opentelemetry-api==1.40.0 (from opentelemetry-sdk>=1.27.0->-r requirements.txt (line 6))
+#99 2.194   Downloading opentelemetry_api-1.40.0-py3-none-any.whl.metadata (1.5 kB)
+#99 2.217 Collecting opentelemetry-semantic-conventions==0.61b0 (from opentelemetry-sdk>=1.27.0->-r requirements.txt (line 6))
+#99 2.315   Downloading opentelemetry_semantic_conventions-0.61b0-py3-none-any.whl.metadata (2.5 kB)
+#99 2.338 Collecting importlib-metadata<8.8.0,>=6.0 (from opentelemetry-api==1.40.0->opentelemetry-sdk>=1.27.0->-r requirements.txt (line 6))
+#99 2.349   Downloading importlib_metadata-8.7.1-py3-none-any.whl.metadata (4.7 kB)
+#99 2.375 Collecting opentelemetry-instrumentation-asgi==0.61b0 (from opentelemetry-instrumentation-fastapi>=0.48b0->-r requirements.txt (line 7))
+#99 2.389   Downloading opentelemetry_instrumentation_asgi-0.61b0-py3-none-any.whl.metadata (2.1 kB)
+#99 2.407 Collecting opentelemetry-instrumentation==0.61b0 (from opentelemetry-instrumentation-fastapi>=0.48b0->-r requirements.txt (line 7))
+#99 2.427   Downloading opentelemetry_instrumentation-0.61b0-py3-none-any.whl.metadata (7.2 kB)
+#99 2.446 Collecting opentelemetry-util-http==0.61b0 (from opentelemetry-instrumentation-fastapi>=0.48b0->-r requirements.txt (line 7))
+#99 2.456   Downloading opentelemetry_util_http-0.61b0-py3-none-any.whl.metadata (2.6 kB)
+#99 2.476 Collecting packaging>=18.0 (from opentelemetry-instrumentation==0.61b0->opentelemetry-instrumentation-fastapi>=0.48b0->-r requirements.txt (line 7))
+#99 2.489   Downloading packaging-26.0-py3-none-any.whl.metadata (3.3 kB)
+#99 2.565 Collecting wrapt<2.0.0,>=1.0.0 (from opentelemetry-instrumentation==0.61b0->opentelemetry-instrumentation-fastapi>=0.48b0->-r requirements.txt (line 7))
+#99 2.575   Downloading wrapt-1.17.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (6.4 kB)
+#99 2.600 Collecting asgiref~=3.0 (from opentelemetry-instrumentation-asgi==0.61b0->opentelemetry-instrumentation-fastapi>=0.48b0->-r requirements.txt (line 7))
+#99 2.614   Downloading asgiref-3.11.1-py3-none-any.whl.metadata (9.3 kB)
+#99 2.636 Collecting googleapis-common-protos~=1.52 (from opentelemetry-exporter-otlp-proto-http>=1.27.0->-r requirements.txt (line 8))
+#99 2.650   Downloading googleapis_common_protos-1.73.0-py3-none-any.whl.metadata (9.4 kB)
+#99 2.668 Collecting opentelemetry-exporter-otlp-proto-common==1.40.0 (from opentelemetry-exporter-otlp-proto-http>=1.27.0->-r requirements.txt (line 8))
+#99 2.678   Downloading opentelemetry_exporter_otlp_proto_common-1.40.0-py3-none-any.whl.metadata (1.9 kB)
+#99 2.696 Collecting opentelemetry-proto==1.40.0 (from opentelemetry-exporter-otlp-proto-http>=1.27.0->-r requirements.txt (line 8))
+#99 2.714   Downloading opentelemetry_proto-1.40.0-py3-none-any.whl.metadata (2.4 kB)
+#99 2.742 Collecting requests~=2.7 (from opentelemetry-exporter-otlp-proto-http>=1.27.0->-r requirements.txt (line 8))
+#99 2.845   Downloading requests-2.32.5-py3-none-any.whl.metadata (4.9 kB)
+#99 2.928 Collecting protobuf<7.0,>=5.0 (from opentelemetry-proto==1.40.0->opentelemetry-exporter-otlp-proto-http>=1.27.0->-r requirements.txt (line 8))
+#99 2.942   Downloading protobuf-6.33.6-cp39-abi3-manylinux2014_aarch64.whl.metadata (593 bytes)
+#99 2.963 Collecting dnspython>=2.0.0 (from email_validator>=2.0.0->fastapi==0.111.0->-r requirements.txt (line 1))
+#99 2.974   Downloading dnspython-2.8.0-py3-none-any.whl.metadata (5.7 kB)
+#99 2.992 Collecting typer>=0.16.0 (from fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#99 3.002   Downloading typer-0.24.1-py3-none-any.whl.metadata (16 kB)
+#99 3.025 Collecting rich-toolkit>=0.14.8 (from fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#99 3.037   Downloading rich_toolkit-0.19.7-py3-none-any.whl.metadata (1.0 kB)
+#99 3.093 Collecting MarkupSafe>=2.0 (from jinja2>=2.11.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#99 3.108   Downloading markupsafe-3.0.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (2.7 kB)
+#99 3.124 Collecting annotated-types>=0.6.0 (from pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=1.7.4->fastapi==0.111.0->-r requirements.txt (line 1))
+#99 3.134   Downloading annotated_types-0.7.0-py3-none-any.whl.metadata (15 kB)
+#99 3.430 Collecting pydantic-core==2.41.5 (from pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=1.7.4->fastapi==0.111.0->-r requirements.txt (line 1))
+#99 3.449   Downloading pydantic_core-2.41.5-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (7.3 kB)
+#99 3.468 Collecting typing-inspection>=0.4.2 (from pydantic!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0,>=1.7.4->fastapi==0.111.0->-r requirements.txt (line 1))
+#99 3.479   Downloading typing_inspection-0.4.2-py3-none-any.whl.metadata (2.6 kB)
+#99 3.528 Collecting charset_normalizer<4,>=2 (from requests~=2.7->opentelemetry-exporter-otlp-proto-http>=1.27.0->-r requirements.txt (line 8))
+#99 3.545   Downloading charset_normalizer-3.4.6-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (40 kB)
+#99 3.566 Collecting urllib3<3,>=1.21.1 (from requests~=2.7->opentelemetry-exporter-otlp-proto-http>=1.27.0->-r requirements.txt (line 8))
+#99 3.580   Downloading urllib3-2.6.3-py3-none-any.whl.metadata (6.9 kB)
+#99 3.616 Collecting httptools>=0.5.0 (from uvicorn[standard]>=0.12.0->fastapi==0.111.0->-r requirements.txt (line 1))
+#99 3.630   Downloading httptools-0.7.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (3.5 kB)
+#99 3.648 Collecting python-dotenv>=0.13 (from uvicorn[standard]>=0.12.0->fastapi==0.111.0->-r requirements.txt (line 1))
+#99 3.659   Downloading python_dotenv-1.2.2-py3-none-any.whl.metadata (27 kB)
+#99 3.688 Collecting pyyaml>=5.1 (from uvicorn[standard]>=0.12.0->fastapi==0.111.0->-r requirements.txt (line 1))
+#99 3.702   Downloading pyyaml-6.0.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (2.4 kB)
+#99 3.726 Collecting uvloop!=0.15.0,!=0.15.1,>=0.14.0 (from uvicorn[standard]>=0.12.0->fastapi==0.111.0->-r requirements.txt (line 1))
+#99 3.741   Downloading uvloop-0.22.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (4.9 kB)
+#99 3.781 Collecting watchfiles>=0.13 (from uvicorn[standard]>=0.12.0->fastapi==0.111.0->-r requirements.txt (line 1))
+#99 3.886   Downloading watchfiles-1.1.1-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (4.9 kB)
+#99 3.928 Collecting websockets>=10.4 (from uvicorn[standard]>=0.12.0->fastapi==0.111.0->-r requirements.txt (line 1))
+#99 3.942   Downloading websockets-16.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (6.8 kB)
+#99 3.966 Collecting zipp>=3.20 (from importlib-metadata<8.8.0,>=6.0->opentelemetry-api==1.40.0->opentelemetry-sdk>=1.27.0->-r requirements.txt (line 6))
+#99 3.976   Downloading zipp-3.23.0-py3-none-any.whl.metadata (3.6 kB)
+#99 4.008 Collecting rich>=13.7.1 (from rich-toolkit>=0.14.8->fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#99 4.026   Downloading rich-14.3.3-py3-none-any.whl.metadata (18 kB)
+#99 4.048 Collecting shellingham>=1.3.0 (from typer>=0.16.0->fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#99 4.061   Downloading shellingham-1.5.4-py2.py3-none-any.whl.metadata (3.5 kB)
+#99 4.079 Collecting annotated-doc>=0.0.2 (from typer>=0.16.0->fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#99 4.095   Downloading annotated_doc-0.0.4-py3-none-any.whl.metadata (6.6 kB)
+#99 4.122 Collecting markdown-it-py>=2.2.0 (from rich>=13.7.1->rich-toolkit>=0.14.8->fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#99 4.136   Downloading markdown_it_py-4.0.0-py3-none-any.whl.metadata (7.3 kB)
+#99 4.160 Collecting pygments<3.0.0,>=2.13.0 (from rich>=13.7.1->rich-toolkit>=0.14.8->fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#99 4.179   Downloading pygments-2.19.2-py3-none-any.whl.metadata (2.5 kB)
+#99 4.205 Collecting mdurl~=0.1 (from markdown-it-py>=2.2.0->rich>=13.7.1->rich-toolkit>=0.14.8->fastapi-cli>=0.0.2->fastapi==0.111.0->-r requirements.txt (line 1))
+#99 4.225   Downloading mdurl-0.1.2-py3-none-any.whl.metadata (1.6 kB)
+#99 4.244 Downloading fastapi-0.111.0-py3-none-any.whl (91 kB)
+#99 4.290 Downloading uvicorn-0.29.0-py3-none-any.whl (60 kB)
+#99 4.416 Downloading httpx-0.27.0-py3-none-any.whl (75 kB)
+#99 4.448 Downloading SQLAlchemy-2.0.30-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (3.2 MB)
+#99 4.777    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.2/3.2 MB 9.9 MB/s eta 0:00:00
+#99 4.795 Downloading aiosqlite-0.20.0-py3-none-any.whl (15 kB)
+#99 4.810 Downloading httpcore-1.0.9-py3-none-any.whl (78 kB)
+#99 4.835 Downloading opentelemetry_sdk-1.40.0-py3-none-any.whl (141 kB)
+#99 4.949 Downloading opentelemetry_api-1.40.0-py3-none-any.whl (68 kB)
+#99 4.988 Downloading opentelemetry_semantic_conventions-0.61b0-py3-none-any.whl (231 kB)
+#99 5.029 Downloading opentelemetry_instrumentation_fastapi-0.61b0-py3-none-any.whl (13 kB)
+#99 5.041 Downloading opentelemetry_instrumentation-0.61b0-py3-none-any.whl (33 kB)
+#99 5.056 Downloading opentelemetry_instrumentation_asgi-0.61b0-py3-none-any.whl (16 kB)
+#99 5.069 Downloading opentelemetry_util_http-0.61b0-py3-none-any.whl (9.3 kB)
+#99 5.082 Downloading opentelemetry_exporter_otlp_proto_http-1.40.0-py3-none-any.whl (19 kB)
+#99 5.097 Downloading opentelemetry_exporter_otlp_proto_common-1.40.0-py3-none-any.whl (18 kB)
+#99 5.112 Downloading opentelemetry_proto-1.40.0-py3-none-any.whl (72 kB)
+#99 5.128 Downloading click-8.3.1-py3-none-any.whl (108 kB)
+#99 5.147 Downloading email_validator-2.3.0-py3-none-any.whl (35 kB)
+#99 5.161 Downloading fastapi_cli-0.0.24-py3-none-any.whl (12 kB)
+#99 5.176 Downloading googleapis_common_protos-1.73.0-py3-none-any.whl (297 kB)
+#99 5.206 Downloading greenlet-3.3.2-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl (601 kB)
+#99 5.261    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 601.2/601.2 kB 10.5 MB/s eta 0:00:00
+#99 5.274 Downloading h11-0.16.0-py3-none-any.whl (37 kB)
+#99 5.291 Downloading idna-3.11-py3-none-any.whl (71 kB)
+#99 5.307 Downloading jinja2-3.1.6-py3-none-any.whl (134 kB)
+#99 5.328 Downloading orjson-3.11.7-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (128 kB)
+#99 5.352 Downloading pydantic-2.12.5-py3-none-any.whl (463 kB)
+#99 5.531 Downloading pydantic_core-2.41.5-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (1.9 MB)
+#99 5.715    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.9/1.9 MB 10.7 MB/s eta 0:00:00
+#99 5.729 Downloading python_multipart-0.0.22-py3-none-any.whl (24 kB)
+#99 5.741 Downloading requests-2.32.5-py3-none-any.whl (64 kB)
+#99 5.754 Downloading certifi-2026.2.25-py3-none-any.whl (153 kB)
+#99 5.781 Downloading starlette-0.37.2-py3-none-any.whl (71 kB)
+#99 5.801 Downloading anyio-4.12.1-py3-none-any.whl (113 kB)
+#99 5.823 Downloading typing_extensions-4.15.0-py3-none-any.whl (44 kB)
+#99 5.837 Downloading ujson-5.12.0-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl (57 kB)
+#99 5.849 Downloading sniffio-1.3.1-py3-none-any.whl (10 kB)
+#99 5.862 Downloading annotated_types-0.7.0-py3-none-any.whl (13 kB)
+#99 5.875 Downloading asgiref-3.11.1-py3-none-any.whl (24 kB)
+#99 5.890 Downloading charset_normalizer-3.4.6-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (199 kB)
+#99 6.025 Downloading dnspython-2.8.0-py3-none-any.whl (331 kB)
+#99 6.085 Downloading httptools-0.7.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (511 kB)
+#99 6.145 Downloading importlib_metadata-8.7.1-py3-none-any.whl (27 kB)
+#99 6.161 Downloading markupsafe-3.0.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (24 kB)
+#99 6.175 Downloading packaging-26.0-py3-none-any.whl (74 kB)
+#99 6.203 Downloading protobuf-6.33.6-cp39-abi3-manylinux2014_aarch64.whl (324 kB)
+#99 6.255 Downloading python_dotenv-1.2.2-py3-none-any.whl (22 kB)
+#99 6.276 Downloading pyyaml-6.0.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (775 kB)
+#99 6.347    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 775.1/775.1 kB 11.6 MB/s eta 0:00:00
+#99 6.357 Downloading rich_toolkit-0.19.7-py3-none-any.whl (32 kB)
+#99 6.378 Downloading typer-0.24.1-py3-none-any.whl (56 kB)
+#99 6.416 Downloading typing_inspection-0.4.2-py3-none-any.whl (14 kB)
+#99 6.515 Downloading urllib3-2.6.3-py3-none-any.whl (131 kB)
+#99 6.568 Downloading uvloop-0.22.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (4.3 MB)
+#99 6.938    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.3/4.3 MB 11.9 MB/s eta 0:00:00
+#99 7.043 Downloading watchfiles-1.1.1-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (449 kB)
+#99 7.110 Downloading websockets-16.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (186 kB)
+#99 7.133 Downloading wrapt-1.17.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (88 kB)
+#99 7.153 Downloading annotated_doc-0.0.4-py3-none-any.whl (5.3 kB)
+#99 7.167 Downloading rich-14.3.3-py3-none-any.whl (310 kB)
+#99 7.201 Downloading shellingham-1.5.4-py2.py3-none-any.whl (9.8 kB)
+#99 7.213 Downloading zipp-3.23.0-py3-none-any.whl (10 kB)
+#99 7.227 Downloading markdown_it_py-4.0.0-py3-none-any.whl (87 kB)
+#99 7.244 Downloading pygments-2.19.2-py3-none-any.whl (1.2 MB)
+#99 7.331    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.2/1.2 MB 14.5 MB/s eta 0:00:00
+#99 7.343 Downloading mdurl-0.1.2-py3-none-any.whl (10.0 kB)
+#99 7.415 Installing collected packages: zipp, wrapt, websockets, uvloop, urllib3, ujson, typing-extensions, sniffio, shellingham, pyyaml, python-multipart, python-dotenv, pygments, protobuf, packaging, orjson, opentelemetry-util-http, mdurl, MarkupSafe, idna, httptools, h11, greenlet, dnspython, click, charset_normalizer, certifi, asgiref, annotated-types, annotated-doc, uvicorn, typing-inspection, sqlalchemy, requests, pydantic-core, opentelemetry-proto, markdown-it-py, jinja2, importlib-metadata, httpcore, googleapis-common-protos, email_validator, anyio, aiosqlite, watchfiles, starlette, rich, pydantic, opentelemetry-exporter-otlp-proto-common, opentelemetry-api, httpx, typer, rich-toolkit, opentelemetry-semantic-conventions, opentelemetry-sdk, opentelemetry-instrumentation, fastapi-cli, opentelemetry-instrumentation-asgi, opentelemetry-exporter-otlp-proto-http, fastapi, opentelemetry-instrumentation-fastapi
+#99 ...
+
+#100 [auth-service 6/7] COPY shared/otel.py ./otel.py
+#100 DONE 0.0s
+
+#101 [auth-service 7/7] COPY auth-service/ .
+#101 DONE 0.0s
+
+#102 [auth-service] exporting to image
+#102 ...
+
+#69 [envoy-control-plane 5/7] RUN pip install --no-cache-dir -r requirements.txt
+#69 5.709 Downloading typing_extensions-4.15.0-py3-none-any.whl (44 kB)
+#69 5.721 Downloading ujson-5.12.0-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl (57 kB)
+#69 5.740 Downloading sniffio-1.3.1-py3-none-any.whl (10 kB)
+#69 5.752 Downloading annotated_types-0.7.0-py3-none-any.whl (13 kB)
+#69 5.766 Downloading asgiref-3.11.1-py3-none-any.whl (24 kB)
+#69 5.781 Downloading charset_normalizer-3.4.6-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (199 kB)
+#69 5.820 Downloading dnspython-2.8.0-py3-none-any.whl (331 kB)
+#69 5.883 Downloading httptools-0.7.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (511 kB)
+#69 6.097 Downloading importlib_metadata-8.7.1-py3-none-any.whl (27 kB)
+#69 6.111 Downloading markupsafe-3.0.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (24 kB)
+#69 6.128 Downloading packaging-26.0-py3-none-any.whl (74 kB)
+#69 6.143 Downloading protobuf-6.33.6-cp39-abi3-manylinux2014_aarch64.whl (324 kB)
+#69 6.220 Downloading python_dotenv-1.2.2-py3-none-any.whl (22 kB)
+#69 6.240 Downloading rich_toolkit-0.19.7-py3-none-any.whl (32 kB)
+#69 6.258 Downloading typer-0.24.1-py3-none-any.whl (56 kB)
+#69 6.284 Downloading typing_inspection-0.4.2-py3-none-any.whl (14 kB)
+#69 6.298 Downloading urllib3-2.6.3-py3-none-any.whl (131 kB)
+#69 6.326 Downloading uvloop-0.22.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (4.3 MB)
+#69 7.098    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.3/4.3 MB 5.5 MB/s eta 0:00:00
+#69 7.112 Downloading watchfiles-1.1.1-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (449 kB)
+#69 7.169 Downloading websockets-16.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (186 kB)
+#69 7.199 Downloading wrapt-1.17.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (88 kB)
+#69 7.218 Downloading annotated_doc-0.0.4-py3-none-any.whl (5.3 kB)
+#69 7.232 Downloading rich-14.3.3-py3-none-any.whl (310 kB)
+#69 7.267 Downloading shellingham-1.5.4-py2.py3-none-any.whl (9.8 kB)
+#69 7.282 Downloading zipp-3.23.0-py3-none-any.whl (10 kB)
+#69 7.295 Downloading markdown_it_py-4.0.0-py3-none-any.whl (87 kB)
+#69 7.308 Downloading pygments-2.19.2-py3-none-any.whl (1.2 MB)
+#69 7.424    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.2/1.2 MB 11.0 MB/s eta 0:00:00
+#69 7.439 Downloading mdurl-0.1.2-py3-none-any.whl (10.0 kB)
+#69 7.505 Installing collected packages: zipp, wrapt, websockets, uvloop, urllib3, ujson, typing-extensions, sniffio, shellingham, pyyaml, python-multipart, python-dotenv, pygments, protobuf, packaging, orjson, opentelemetry-util-http, mdurl, MarkupSafe, idna, httptools, h11, dnspython, click, charset_normalizer, certifi, asgiref, annotated-types, annotated-doc, uvicorn, typing-inspection, requests, pydantic-core, opentelemetry-proto, markdown-it-py, jinja2, importlib-metadata, httpcore, googleapis-common-protos, email_validator, anyio, watchfiles, starlette, rich, pydantic, opentelemetry-exporter-otlp-proto-common, opentelemetry-api, httpx, typer, rich-toolkit, opentelemetry-semantic-conventions, opentelemetry-sdk, opentelemetry-instrumentation, fastapi-cli, opentelemetry-instrumentation-asgi, opentelemetry-exporter-otlp-proto-http, fastapi, opentelemetry-instrumentation-fastapi
+#69 9.709 Successfully installed MarkupSafe-3.0.3 annotated-doc-0.0.4 annotated-types-0.7.0 anyio-4.12.1 asgiref-3.11.1 certifi-2026.2.25 charset_normalizer-3.4.6 click-8.3.1 dnspython-2.8.0 email_validator-2.3.0 fastapi-0.111.0 fastapi-cli-0.0.24 googleapis-common-protos-1.73.0 h11-0.16.0 httpcore-1.0.9 httptools-0.7.1 httpx-0.27.0 idna-3.11 importlib-metadata-8.7.1 jinja2-3.1.6 markdown-it-py-4.0.0 mdurl-0.1.2 opentelemetry-api-1.40.0 opentelemetry-exporter-otlp-proto-common-1.40.0 opentelemetry-exporter-otlp-proto-http-1.40.0 opentelemetry-instrumentation-0.61b0 opentelemetry-instrumentation-asgi-0.61b0 opentelemetry-instrumentation-fastapi-0.61b0 opentelemetry-proto-1.40.0 opentelemetry-sdk-1.40.0 opentelemetry-semantic-conventions-0.61b0 opentelemetry-util-http-0.61b0 orjson-3.11.7 packaging-26.0 protobuf-6.33.6 pydantic-2.12.5 pydantic-core-2.41.5 pygments-2.19.2 python-dotenv-1.2.2 python-multipart-0.0.22 pyyaml-6.0.1 requests-2.32.5 rich-14.3.3 rich-toolkit-0.19.7 shellingham-1.5.4 sniffio-1.3.1 starlette-0.37.2 typer-0.24.1 typing-extensions-4.15.0 typing-inspection-0.4.2 ujson-5.12.0 urllib3-2.6.3 uvicorn-0.29.0 uvloop-0.22.1 watchfiles-1.1.1 websockets-16.0 wrapt-1.17.3 zipp-3.23.0
+#69 9.709 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+#69 9.771 
+#69 9.771 [notice] A new release of pip is available: 25.0.1 -> 26.0.1
+#69 9.771 [notice] To update, run: pip install --upgrade pip
+#69 DONE 9.9s
+
+#103 [envoy-control-plane 6/7] COPY shared/otel.py ./otel.py
+#103 DONE 0.0s
+
+#104 [envoy-control-plane 7/7] COPY envoy-control-plane/ .
+#104 DONE 0.0s
+
+#99 [management-api 5/7] RUN pip install --no-cache-dir -r requirements.txt
+#99 10.08 Successfully installed MarkupSafe-3.0.3 aiosqlite-0.20.0 annotated-doc-0.0.4 annotated-types-0.7.0 anyio-4.12.1 asgiref-3.11.1 certifi-2026.2.25 charset_normalizer-3.4.6 click-8.3.1 dnspython-2.8.0 email_validator-2.3.0 fastapi-0.111.0 fastapi-cli-0.0.24 googleapis-common-protos-1.73.0 greenlet-3.3.2 h11-0.16.0 httpcore-1.0.9 httptools-0.7.1 httpx-0.27.0 idna-3.11 importlib-metadata-8.7.1 jinja2-3.1.6 markdown-it-py-4.0.0 mdurl-0.1.2 opentelemetry-api-1.40.0 opentelemetry-exporter-otlp-proto-common-1.40.0 opentelemetry-exporter-otlp-proto-http-1.40.0 opentelemetry-instrumentation-0.61b0 opentelemetry-instrumentation-asgi-0.61b0 opentelemetry-instrumentation-fastapi-0.61b0 opentelemetry-proto-1.40.0 opentelemetry-sdk-1.40.0 opentelemetry-semantic-conventions-0.61b0 opentelemetry-util-http-0.61b0 orjson-3.11.7 packaging-26.0 protobuf-6.33.6 pydantic-2.12.5 pydantic-core-2.41.5 pygments-2.19.2 python-dotenv-1.2.2 python-multipart-0.0.22 pyyaml-6.0.3 requests-2.32.5 rich-14.3.3 rich-toolkit-0.19.7 shellingham-1.5.4 sniffio-1.3.1 sqlalchemy-2.0.30 starlette-0.37.2 typer-0.24.1 typing-extensions-4.15.0 typing-inspection-0.4.2 ujson-5.12.0 urllib3-2.6.3 uvicorn-0.29.0 uvloop-0.22.1 watchfiles-1.1.1 websockets-16.0 wrapt-1.17.3 zipp-3.23.0
+#99 10.08 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+#99 10.24 
+#99 10.24 [notice] A new release of pip is available: 25.0.1 -> 26.0.1
+#99 10.24 [notice] To update, run: pip install --upgrade pip
+#99 DONE 10.4s
+
+#105 [envoy-control-plane] exporting to image
+#105 ...
+
+#106 [management-api 6/7] COPY shared/otel.py ./otel.py
+#106 DONE 0.0s
+
+#107 [management-api 7/7] COPY management-api/ .
+#107 DONE 0.0s
+
+#108 [management-api] exporting to image
+#108 ...
+
+#109 [mock-akamai-edge] exporting to image
+#109 exporting layers 1.5s done
+#109 exporting manifest sha256:b16c27d21bcd508de451ad92feb28b4648a7203468ee230705e612c3a0f430e9 0.0s done
+#109 exporting config sha256:e4e1b57b4c822cb1e0907222c4675bf565e14a36864ebb5e10b50e2b0809ab0b 0.0s done
+#109 exporting attestation manifest sha256:6b9bcae6ff2809a6842644e6eabb87cebba36becbdcc70bb89de49ec05c797b5 0.0s done
+#109 exporting manifest list sha256:abc586f601efca5f60f4f4d1d86ad78660ee0bacaeafcb67a3b9aa3641b293ec 0.0s done
+#109 naming to docker.io/library/ingress-poc-mock-akamai-edge:latest done
+#109 unpacking to docker.io/library/ingress-poc-mock-akamai-edge:latest 1.1s done
+#109 DONE 2.8s
+
+#110 [svc-web] exporting to image
+#110 exporting layers 1.6s done
+#110 exporting manifest sha256:0a6a254793aad57d6e17f84dbc8b19d3185e434f28eff2098b211e95ab69e07e 0.0s done
+#110 exporting config sha256:53aaa9b082af3ab0373d544708a7dc2260e7fa371f48857dd355105dae782c15 0.0s done
+#110 exporting attestation manifest sha256:424cbfb5f0604f6b9dbf630e8fcd95949549634024bef5e32557efec3e0d171e 0.0s done
+#110 exporting manifest list sha256:bf6ba6e37b8259738ca89117f8411ff914590b039c3deb7259700315f2d64107 0.0s done
+#110 naming to docker.io/library/ingress-poc-svc-web:latest done
+#110 unpacking to docker.io/library/ingress-poc-svc-web:latest 1.1s done
+#110 DONE 2.8s
+
+#111 [mock-akamai-gtm] exporting to image
+#111 exporting layers 1.6s done
+#111 exporting manifest sha256:4f2f260e8d806585c96b3ddf6cc04e00c70115fd63d0d1741c418ad1614ec065 0.0s done
+#111 exporting config sha256:7591bdb9c1eea28917385efe54527497d8c757aef7cab0f610c8cdc4bd94ab41 0.0s done
+#111 exporting attestation manifest sha256:306f45211c4f135790cbff7fd5fd5884498a046e4d41d7777a7e0f135fb0ffc3 0.0s done
+#111 exporting manifest list sha256:af458ebf59cdb4afe7a940c14fdadc0158a14db1edfca1aeb825b4a102fa37b5 0.0s done
+#111 naming to docker.io/library/ingress-poc-mock-akamai-gtm:latest done
+#111 unpacking to docker.io/library/ingress-poc-mock-akamai-gtm:latest 1.1s done
+#111 DONE 2.8s
+
+#92 [svc-api] exporting to image
+#92 exporting layers 1.6s done
+#92 exporting manifest sha256:5db922fad53ce5ad26f6c88b48a9f959027f742b36a03717e9333294f0d509c8 0.0s done
+#92 exporting config sha256:5af8f2f7126d04fd57f839dce88797aa6e9aac70f708aa48da8e35b6a2d9efe8 0.0s done
+#92 exporting attestation manifest sha256:6912583e5d17d137541e6ffa6d0bb121fec70d155264545ed9702194f814ff5d 0.0s done
+#92 exporting manifest list sha256:dee18f03933ad0f8ba45750555c0e5a7648519987467f3777bea134d6289da40 0.0s done
+#92 naming to docker.io/library/ingress-poc-svc-api:latest done
+#92 unpacking to docker.io/library/ingress-poc-svc-api:latest 1.1s done
+#92 DONE 2.8s
+
+#112 [kong-admin-proxy] exporting to image
+#112 exporting layers 1.6s done
+#112 exporting manifest sha256:e71e40811bed809bad8fa7938c253bd34df97c0fe3f2dbab332c25fdf63dd4ac 0.0s done
+#112 exporting config sha256:1db8dc1e06576b227d8c2d11fd299f816a2f7d3956e4a79d3f173ea4bfff4983 0.0s done
+#112 exporting attestation manifest sha256:fd82984a2947f1cadf2dbc8e7b091c9d6b684a37160ce9da1b3346db1ecdab61 0.0s done
+#112 exporting manifest list sha256:db44b8c1c531f834e4a4dbb8a75b2e86faedb42721359f25b9119430599c0062 0.0s done
+#112 naming to docker.io/library/ingress-poc-kong-admin-proxy:latest done
+#112 unpacking to docker.io/library/ingress-poc-kong-admin-proxy:latest 1.1s done
+#112 DONE 2.8s
+
+#113 [mock-psaas] exporting to image
+#113 exporting layers 1.6s done
+#113 exporting manifest sha256:6e038a2e419cbac4154fd416ddaec8559d8db01b6727b598579d60228f1ee078 0.0s done
+#113 exporting config sha256:8ece97a31ee215b23e1ab981f7c057ad0f2aefd5d9ecbbf8061787bf2cd241b9 0.0s done
+#113 exporting attestation manifest sha256:829af979c011bfd6494b44a5be452546aab6b14e012fd4b5d20e6149d1d8e3a6 0.0s done
+#113 exporting manifest list sha256:ea9a92d961df4272a88a44a1c8d115fb2dcf2e748825210ff48a317d45990e4d 0.0s done
+#113 naming to docker.io/library/ingress-poc-mock-psaas:latest done
+#113 unpacking to docker.io/library/ingress-poc-mock-psaas:latest 1.1s done
+#113 DONE 2.8s
+
+#114 [mock-akamai-edge] resolving provenance for metadata file
+#114 DONE 0.1s
+
+#115 [mock-akamai-gtm] resolving provenance for metadata file
+#115 DONE 0.0s
+
+#116 [mock-psaas] resolving provenance for metadata file
+#116 DONE 0.0s
+
+#117 [kong-admin-proxy] resolving provenance for metadata file
+#117 DONE 0.1s
+
+#118 [svc-web] resolving provenance for metadata file
+#118 DONE 0.1s
+
+#119 [svc-api] resolving provenance for metadata file
+#119 DONE 0.0s
+
+#102 [auth-service] exporting to image
+#102 exporting layers 2.4s done
+#102 exporting manifest sha256:d785be5294ab1f0f8230c5ec4ebff6c8bdf611363e6bc09b66e0ee6b93dd5e29 0.0s done
+#102 exporting config sha256:e5be2d5e4aeb82ad71cfc8baaf3bb2b52d097c2ff52383d01007d202543ee1c0 0.0s done
+#102 exporting attestation manifest sha256:94f3bf99e55c70034b0f59ce0e11c5ebaa8c4c3b69c7d3ddc09103075a127acb 0.1s done
+#102 exporting manifest list sha256:a19f462dc2766e1f65a07e9e89eef3c28be4ae0c9c8d02f6aaf08ed480b074a3 0.0s done
+#102 naming to docker.io/library/ingress-poc-auth-service:latest 0.0s done
+#102 unpacking to docker.io/library/ingress-poc-auth-service:latest
+#102 ...
+
+#105 [envoy-control-plane] exporting to image
+#105 exporting layers 2.0s done
+#105 exporting manifest sha256:024e0485b5ca9b1ea35672cff4c32289587981726e124d78675995975a98e2cb 0.0s done
+#105 exporting config sha256:399a65ca107bd3a333430ee3d9e59cb9679365d95d1aa390f50f1a3cd696c2e8 0.0s done
+#105 exporting attestation manifest sha256:54d44036e2e8a07fc385eb0b002abc874ec84224c411a7bf5068109c8f8e298d 0.0s done
+#105 exporting manifest list sha256:4d4b01a2aa1cd179caa48c656764aff53696e3a9a6c5b53cfa73c55738089b2c 0.0s done
+#105 naming to docker.io/library/ingress-poc-envoy-control-plane:latest done
+#105 unpacking to docker.io/library/ingress-poc-envoy-control-plane:latest 0.4s done
+#105 DONE 2.6s
+
+#108 [management-api] exporting to image
+#108 exporting layers 2.3s done
+#108 ...
+
+#102 [auth-service] exporting to image
+#102 unpacking to docker.io/library/ingress-poc-auth-service:latest 0.6s done
+#102 DONE 3.1s
+
+#120 [envoy-control-plane] resolving provenance for metadata file
+#120 DONE 0.0s
+
+#108 [management-api] exporting to image
+#108 exporting manifest sha256:8c6174e82e82ae5f393285e3c7ad8bb0846da4836b61458aa602d9d24c88566e done
+#108 exporting config sha256:0f04400942c631c0ad3963b293205f1e8907bdb65287372bb429dd76756ff0f6 0.0s done
+#108 exporting attestation manifest sha256:175eee020fe96c6bf0e0f1627d7584ec06afd5adc50d85f5b8016c51eb46a4bb 0.0s done
+#108 exporting manifest list sha256:55a8122f13f65d5eeb4f7bbd01e09604853c295d6de74b83318365b34a8a3dc8 0.0s done
+#108 naming to docker.io/library/ingress-poc-management-api:latest done
+#108 unpacking to docker.io/library/ingress-poc-management-api:latest
+#108 ...
+
+#121 [auth-service] resolving provenance for metadata file
+#121 DONE 0.0s
+
+#108 [management-api] exporting to image
+#108 unpacking to docker.io/library/ingress-poc-management-api:latest 0.4s done
+#108 DONE 2.8s
+
+#122 [management-api] resolving provenance for metadata file
+#122 DONE 0.0s
+ ingress-poc-envoy-control-plane  Built
+ ingress-poc-management-api  Built
+ ingress-poc-gateway-envoy  Built
+ ingress-poc-kong-admin-proxy  Built
+ ingress-poc-gateway-kong  Built
+ ingress-poc-console  Built
+ ingress-poc-svc-web  Built
+ ingress-poc-mock-akamai-edge  Built
+ ingress-poc-auth-service  Built
+ ingress-poc-opa  Built
+ ingress-poc-mock-akamai-gtm  Built
+ ingress-poc-mock-psaas  Built
+ ingress-poc-svc-api  Built

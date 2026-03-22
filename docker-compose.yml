@@ -1,0 +1,146 @@
+version: "3.9"
+services:
+  dns:
+    build: ./dns
+    ports: ["5553:53/udp", "5553:53/tcp"]
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports: ["16686:16686", "4317:4317", "4318:4318"]
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: auth-service/Dockerfile
+    ports: ["8001:8001"]
+    environment:
+      PORT: "8001"
+      AUTH_SERVICE_URL: "http://localhost:8001"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
+    depends_on: [jaeger]
+
+  opa:
+    build: ./opa
+    ports: ["8181:8181"]
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
+    depends_on: [jaeger]
+
+  management-api:
+    build:
+      context: .
+      dockerfile: management-api/Dockerfile
+    ports: ["8003:8003"]
+    environment:
+      DATABASE_URL: "sqlite:///./registry.db"
+      SVC_WEB_URL: "http://svc-web:8004"
+      SVC_API_URL: "http://svc-api:8005"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
+    depends_on: [jaeger, auth-service]
+
+  envoy-control-plane:
+    build:
+      context: .
+      dockerfile: envoy-control-plane/Dockerfile
+    ports: ["8080:8080"]
+    environment:
+      MANAGEMENT_API_URL: "http://management-api:8003"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
+    depends_on: [jaeger, management-api]
+
+  gateway-envoy:
+    build: ./gateway-envoy
+    ports: ["8000:8000", "9901:9901"]
+    environment:
+      XDS_HOST: "envoy-control-plane"
+      XDS_PORT: "8080"
+    depends_on: [envoy-control-plane, auth-service, opa, jaeger]
+
+  gateway-kong:
+    build: ./gateway-kong
+    ports: ["8100:8000", "8101:8001"]
+    depends_on: [auth-service, opa, jaeger]
+
+  kong-admin-proxy:
+    build:
+      context: .
+      dockerfile: kong-admin-proxy/Dockerfile
+    ports: ["8102:8102"]
+    environment:
+      MANAGEMENT_API_URL: "http://management-api:8003"
+      KONG_ADMIN_URL: "http://gateway-kong:8001"
+      AUTH_SERVICE_URL: "http://auth-service:8001"
+      OPA_URL: "http://opa:8181"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
+    depends_on: [gateway-kong, management-api, jaeger]
+
+  mock-akamai-gtm:
+    build:
+      context: .
+      dockerfile: mock-akamai-gtm/Dockerfile
+    ports: ["8010:8010", "443:8443"]
+    volumes:
+      - ./certs:/certs:ro
+    environment:
+      FORWARD_TO: "http://mock-akamai-edge:8011"
+      HTTPS_PORT: "8443"
+      SSL_CERTFILE: "/certs/jpm.com.crt"
+      SSL_KEYFILE: "/certs/jpm.com.key"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
+    depends_on: [mock-akamai-edge, jaeger]
+
+  mock-akamai-edge:
+    build:
+      context: .
+      dockerfile: mock-akamai-edge/Dockerfile
+    ports: ["8011:8011"]
+    environment:
+      GATEWAY_ENVOY_URL: "http://mock-psaas:8012"
+      GATEWAY_KONG_URL: "http://mock-psaas:8012"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
+    depends_on: [mock-psaas, jaeger]
+
+  mock-psaas:
+    build:
+      context: .
+      dockerfile: mock-psaas/Dockerfile
+    ports: ["8012:8012"]
+    environment:
+      GATEWAY_ENVOY_URL: "http://gateway-envoy:8000"
+      GATEWAY_KONG_URL: "http://gateway-kong:8000"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
+    depends_on: [gateway-envoy, gateway-kong, jaeger]
+
+  svc-web:
+    build:
+      context: .
+      dockerfile: svc-web/Dockerfile
+    ports: ["8004:8004"]
+    environment:
+      SERVICE_NAME: "svc-web"
+      PORT: "8004"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
+    depends_on: [jaeger]
+
+  svc-api:
+    build:
+      context: .
+      dockerfile: svc-api/Dockerfile
+    ports: ["8005:8005"]
+    environment:
+      SERVICE_NAME: "svc-api"
+      PORT: "8005"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
+    depends_on: [jaeger]
+
+  console:
+    build: ./console
+    ports: ["3000:80"]
+    environment:
+      VITE_AUTH_SERVICE_URL: "http://localhost:8001"
+      VITE_MANAGEMENT_API_URL: "http://localhost:8003"
+      VITE_GATEWAY_URL: "http://localhost:8010"
+      VITE_JAEGER_URL: "http://localhost:16686"
+    depends_on: [management-api, auth-service, mock-akamai-gtm]

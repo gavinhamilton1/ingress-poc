@@ -1,0 +1,9 @@
+distributed_tracing:
+  type: grpc
+  address: jaeger:4317
+  service_name: opa-policy
+  sample_percentage: 100
+  encryption: "off"
+
+decision_logs:
+  console: true
