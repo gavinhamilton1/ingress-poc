@@ -1,8 +1,11 @@
-FROM python:3.12-slim
-WORKDIR /app
-RUN pip install --no-cache-dir setuptools
-COPY watchdog/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY shared/otel.py ./otel.py
-COPY watchdog/ .
-CMD ["python", "main.py"]
+FROM golang:latest AS builder
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY pkg/ pkg/
+COPY cmd/watchdog/ cmd/watchdog/
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app ./cmd/watchdog
+
+FROM gcr.io/distroless/static-debian12
+COPY --from=builder /app /app
+ENTRYPOINT ["/app"]

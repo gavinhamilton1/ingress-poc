@@ -6,7 +6,7 @@ import StatusBadge from './StatusBadge'
  * and the Fleets page (instance expansion).
  *
  * Props:
- *   route        – route object (path, hostname, backend_url, id, methods, allowed_roles, gateway_type, auth_policy, team, status)
+ *   route        – route object (path, hostname, backend_url, id, methods, allowed_roles, gateway_type, audience, team, status)
  *   driftStatus  – 'in sync' | 'drifted' | 'unknown'  (optional)
  *   auditEntries – array of { action, ts } audit log entries for this route (optional)
  *   gatewayUrl   – base URL for test links (e.g. "https://jpmm.jpm.com")
@@ -57,7 +57,7 @@ export default function RouteDetailPanel({ route, driftStatus, auditEntries = []
               <span className="ml-2 px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 text-[10px] border border-amber-500/20">Issuer: {route.auth_issuer}</span>
             )}
           </div>
-          {route.auth_policy && <div><span className="text-jpmc-muted">Auth Policy:</span> <span className="text-jpmc-text">{route.auth_policy}</span></div>}
+          <div><span className="text-jpmc-muted">Audience:</span> <span className={`text-jpmc-text ${route.audience ? '' : 'italic text-jpmc-muted'}`}>{route.audience || 'public (unauthenticated)'}</span></div>
           <div><span className="text-jpmc-muted">Roles:</span> <span className="text-jpmc-text">{(route.allowed_roles || []).join(', ') || 'Any'}</span></div>
           <div>
             <span className="text-jpmc-muted">Required Scopes:</span>{' '}
@@ -86,12 +86,15 @@ export default function RouteDetailPanel({ route, driftStatus, auditEntries = []
       <div className="text-jpmc-muted mb-2 font-medium uppercase tracking-wider text-[10px]">Audit History</div>
       <div className="space-y-1">
         {auditEntries.slice(0, 5).map((a, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <span className={`text-[10px] font-medium ${
-              a.action === 'CREATE' ? 'text-emerald-400' :
-              a.action === 'DELETE' ? 'text-red-400' : 'text-amber-400'
-            }`}>{a.action}</span>
-            <span className="text-jpmc-muted">{a.ts ? new Date(a.ts * 1000).toLocaleString() : ''}</span>
+          <div key={i} className="flex flex-col gap-0.5">
+            <div className="flex items-center gap-2">
+              <span className={`text-[10px] font-medium ${
+                a.action === 'CREATE' ? 'text-emerald-400' :
+                a.action === 'DELETE' ? 'text-red-400' : 'text-amber-400'
+              }`}>{a.action}</span>
+              <span className="text-jpmc-muted text-[10px]">{a.ts ? new Date(a.ts * 1000).toLocaleString() : ''}</span>
+            </div>
+            {a.detail && <div className="text-[10px] text-jpmc-text/70 pl-1">{a.detail}</div>}
           </div>
         ))}
       </div>

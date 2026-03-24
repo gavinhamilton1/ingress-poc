@@ -3,10 +3,12 @@ import React, { createContext, useContext } from 'react'
 const ConfigContext = createContext(null)
 
 const defaultConfig = {
-  AUTH_URL: import.meta.env.VITE_AUTH_SERVICE_URL || 'http://localhost:8001',
-  API_URL: import.meta.env.VITE_MANAGEMENT_API_URL || 'http://localhost:8003',
-  GATEWAY_URL: import.meta.env.VITE_GATEWAY_URL || 'http://localhost:8010',
-  JAEGER_URL: import.meta.env.VITE_JAEGER_URL || 'http://localhost:16686',
+  AUTH_URL: import.meta.env.VITE_AUTH_SERVICE_URL || '/_proxy/auth',
+  API_URL: import.meta.env.VITE_MANAGEMENT_API_URL || '/_proxy/management',
+  GATEWAY_URL: import.meta.env.VITE_GATEWAY_URL || '/_proxy/gateway',
+  JAEGER_URL: import.meta.env.VITE_JAEGER_URL || '/_proxy/jaeger',
+  JAEGER_UI_URL: import.meta.env.VITE_JAEGER_UI_URL || 'http://localhost:16686',
+  WATCHDOG_URL: import.meta.env.VITE_WATCHDOG_URL || '/_proxy/watchdog',
 }
 
 export function ConfigProvider({ children }) {

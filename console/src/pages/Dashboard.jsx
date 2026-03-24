@@ -63,33 +63,47 @@ function InfraNode({ icon: Icon, label, desc, color, delay = 0, passive, alt, he
 }
 
 /* ───────────── Fleet card for L5 layer ───────────── */
-function FleetNode({ fleet, delay = 0, alt }) {
-  const opacity = alt ? 'opacity-60' : 'opacity-100'
+function FleetNode({ fleet, delay = 0, onClick }) {
   const isHealthy = fleet.status === 'healthy'
   const isDegraded = fleet.status === 'degraded'
   const dotColor = isHealthy ? 'bg-emerald-400' : isDegraded ? 'bg-amber-400' : 'bg-red-400'
   const borderColor = isHealthy ? 'border-emerald-500/30' : isDegraded ? 'border-amber-500/30' : 'border-red-500/30'
   const bgColor = isHealthy ? 'bg-emerald-500/10' : isDegraded ? 'bg-amber-500/10' : 'bg-red-500/10'
   const textColor = isHealthy ? 'text-emerald-400' : isDegraded ? 'text-amber-400' : 'text-red-400'
-  const routes = fleet.instances || []
+  const instances = fleet.instances || []
+  const envoyCount = instances.filter(i => (i.gateway_type || 'envoy') === 'envoy' || (!i.gateway_type && !i.context_path?.startsWith('/api'))).length
+  const kongCount = instances.filter(i => i.gateway_type === 'kong' || (!i.gateway_type && i.context_path?.startsWith('/api'))).length
+
+  const nodeParts = []
+  if (envoyCount > 0) nodeParts.push(`${envoyCount} Envoy`)
+  if (kongCount > 0) nodeParts.push(`${kongCount} Kong`)
+  const nodeLabel = nodeParts.length > 0 ? nodeParts.join(' \u00b7 ') : 'No nodes'
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay }}
-      className={opacity}
+      onClick={onClick}
+      className={onClick ? 'cursor-pointer' : ''}
     >
-      <div className={`px-2.5 py-1.5 rounded-lg ${bgColor} border ${borderColor} flex flex-col items-center gap-0.5 min-w-[80px]`}>
-        <div className="flex items-center gap-1">
-          <Server size={10} className={textColor} />
-          <span className="text-[9px] font-semibold text-white leading-tight">{fleet.name.replace(' Fleet', '')}</span>
-        </div>
-        <div className="flex items-center gap-1">
+      <div className={`px-3 py-2 rounded-lg ${bgColor} border ${borderColor} flex flex-col items-center gap-0.5 min-w-[90px] hover:brightness-125 transition-all`}>
+        <div className="flex items-center gap-1.5">
           <span className={`w-1.5 h-1.5 rounded-full ${dotColor} ${isDegraded ? 'animate-pulse' : ''}`} />
-          <span className={`text-[7px] ${textColor} capitalize font-medium`}>{fleet.status}</span>
-          <span className="text-[7px] text-jpmc-muted">&middot; {routes.length} routes</span>
+          <span className="text-[10px] font-semibold text-white leading-tight">{fleet.name}</span>
         </div>
+        <div className="flex items-center gap-1 flex-wrap justify-center">
+          {envoyCount > 0 && (
+            <span className="text-[7px] px-1 py-px rounded bg-purple-500/20 text-purple-300 font-medium">{envoyCount} Envoy</span>
+          )}
+          {kongCount > 0 && (
+            <span className="text-[7px] px-1 py-px rounded bg-blue-500/20 text-blue-300 font-medium">{kongCount} Kong</span>
+          )}
+          {envoyCount === 0 && kongCount === 0 && (
+            <span className="text-[7px] text-jpmc-muted">No nodes</span>
+          )}
+        </div>
+        <div className="text-[7px] text-jpmc-muted leading-tight truncate max-w-[100px]">{fleet.subdomain}</div>
       </div>
     </motion.div>
   )
@@ -255,80 +269,56 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* ── L0: Client ── */}
+          {/* ── L1: Client ── */}
           <div className="flex justify-center">
             <InfraNode icon={Globe} label="Client" desc="End User" color="from-slate-500 to-slate-600" delay={0.3} health="healthy" />
           </div>
           <FlowPulse delay={0} color={greenPulse} height={28} speed={1.6} />
 
-          {/* ── L1: DNS / GTM — Akamai (active) + Cloudflare (passive) ── */}
+          {/* ── L2: Akamai GTM ── */}
+          <div className="flex justify-center">
+            <InfraNode icon={Globe} label="Akamai GTM" desc="L2 — Global Traffic Mgr" color="from-blue-500 to-blue-600" delay={0.34} health="healthy" />
+          </div>
+          <FlowPulse delay={0.3} color={greenPulse} height={24} speed={1.4} />
+
+          {/* ── L3: CDN/WAF — Akamai Edge (active) + Cloudflare (passive failover) ── */}
           <div className="grid grid-cols-5 items-start">
             {/* Cloudflare passive stack */}
             <div className="col-span-1 flex flex-col items-center">
-              <InfraNode icon={Cloud} label="CF LB" desc="Cloudflare LB" color="from-orange-500/50 to-orange-600/50" delay={0.36} passive />
-              <FlowPulse active={false} height={20} />
-              <InfraNode icon={Shield} label="CF Edge" desc="Cloudflare CDN" color="from-orange-500/50 to-orange-600/50" delay={0.4} passive />
+              <InfraNode icon={Cloud} label="CF Edge" desc="Cloudflare CDN" color="from-orange-500/50 to-orange-600/50" delay={0.4} passive />
               <span className="text-[8px] text-orange-400/50 mt-1 font-medium uppercase tracking-wider">Passive Standby</span>
             </div>
 
             {/* failover label */}
-            <div className="col-span-1 flex items-center justify-center pt-6">
+            <div className="col-span-1 flex items-center justify-center pt-4">
               <div className="w-full border-t border-dotted border-orange-400/50 relative">
                 <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-[7px] text-orange-300/70 whitespace-nowrap uppercase tracking-wider">failover</span>
               </div>
             </div>
 
-            {/* Akamai primary */}
+            {/* Akamai Edge primary */}
             <div className="col-span-1 flex flex-col items-center">
-              <InfraNode icon={Globe} label="Akamai GTM" desc="L1 — Global Traffic Mgr" color="from-blue-500 to-blue-600" delay={0.34} health="healthy" />
-              <FlowPulse delay={0.3} color={greenPulse} height={20} speed={1.4} />
-              <InfraNode icon={Shield} label="Akamai Edge" desc="L2 — CDN + Kona WAF" color="from-cyan-500 to-cyan-600" delay={0.38} health="healthy" />
+              <InfraNode icon={Shield} label="Akamai Edge" desc="L3 — CDN + Kona WAF" color="from-cyan-500 to-cyan-600" delay={0.38} health="healthy" />
               <span className="text-[8px] text-cyan-400 mt-1 font-medium uppercase tracking-wider">Active Primary</span>
             </div>
 
             <div className="col-span-2" />
           </div>
 
-          {/* ── Connector: Edge → L3 ── */}
+          {/* ── Connector: CDN/WAF → L4 Perimeter ── */}
           <FlowPulse delay={0.6} color={greenPulse} height={28} speed={1.6} />
 
-          {/* ── L3–L5: PSaaS stack | divider | AWS WAF stack ── */}
+          {/* ── L4: Perimeter — PSaaS (left) + AWS WAF (right) side by side ── */}
           <div className="grid grid-cols-11 gap-x-1 items-start">
-
-            {/* ═══ LEFT: PSaaS → Gateways → Fleets (on-prem only) ═══ */}
             <div className="col-span-5 flex flex-col items-center">
-              <InfraNode icon={Server} label="PSaaS+" desc="L3 — On-Prem Perimeter" color="from-indigo-500 to-indigo-600" delay={0.48} health="healthy" />
-              <FlowPulse delay={0.9} color={greenPulse} height={20} speed={1.4} />
-
-              {/* L4: Gateways */}
-              <div className="flex items-center gap-3">
-                <InfraNode icon={Cpu} label="Kong" desc="L4 — API Gateway" color="from-purple-500 to-purple-600" delay={0.54} small health="healthy" />
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.4 }} transition={{ delay: 0.56 }}
-                  className="text-[9px] text-jpmc-muted font-medium pt-1">OR</motion.div>
-                <InfraNode icon={Cpu} label="Envoy" desc="L4 — Mesh Gateway" color="from-violet-500 to-violet-600" delay={0.58} small health="healthy" />
-              </div>
-              {/* L5: PSaaS fleets only */}
-              <div className="flex flex-wrap justify-center gap-3 mt-1">
-                {fleets.filter(f => f.host_env !== 'aws').map((f, i) => {
-                  const fleetPulse = f.status === 'healthy' ? 'bg-emerald-400'
-                    : f.status === 'degraded' ? 'bg-amber-400' : 'bg-red-400'
-                  return (
-                    <div key={f.id} className="flex flex-col items-center">
-                      <FlowPulse delay={1.2 + i * 0.15} color={fleetPulse} height={18} speed={1.4} />
-                      <FleetNode fleet={f} delay={0.62 + i * 0.04} />
-                    </div>
-                  )
-                })}
-              </div>
+              <InfraNode icon={Server} label="PSaaS+" desc="L4 — On-Prem Perimeter" color="from-indigo-500 to-indigo-600" delay={0.48} health="healthy" />
             </div>
 
-            {/* ═══ CENTER: Perimeter connector with animated pulses to PSaaS and AWS WAF ═══ */}
-            <div className="col-span-1 flex items-center pt-6">
+            {/* Center perimeter connector */}
+            <div className="col-span-1 flex items-center pt-4">
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
                 className="w-full relative">
-                {/* Full-width horizontal line */}
                 <div className="flex items-center w-[300%] -mx-[100%]">
-                  {/* Left pulse → PSaaS */}
                   <div className="flex-1 relative overflow-hidden h-2">
                     <div className="absolute top-1/2 w-full border-t border-dashed border-indigo-400/40" />
                     <motion.div
@@ -338,9 +328,7 @@ export default function Dashboard() {
                       transition={{ duration: 2.4, repeat: Infinity, delay: 0.9, ease: 'linear' }}
                     />
                   </div>
-                  {/* Label */}
                   <span className="px-2 text-[7px] text-indigo-300/80 font-bold tracking-widest uppercase whitespace-nowrap shrink-0">Perimeter</span>
-                  {/* Right pulse → AWS WAF */}
                   <div className="flex-1 relative overflow-hidden h-2">
                     <div className="absolute top-1/2 w-full border-t border-dashed border-indigo-400/40" />
                     <motion.div
@@ -354,32 +342,68 @@ export default function Dashboard() {
               </motion.div>
             </div>
 
-            {/* ═══ RIGHT: AWS WAF → Gateways → AWS Fleets ═══ */}
             <div className="col-span-5 flex flex-col items-center">
-              <InfraNode icon={ShieldCheck} label="AWS WAF" desc="L3 — WAF v2 + Shield" color="from-orange-500 to-orange-600" delay={0.5} health="healthy" />
-              <FlowPulse delay={1.0} color={greenPulse} height={20} speed={1.4} active />
+              <InfraNode icon={ShieldCheck} label="AWS WAF" desc="L4 — WAF v2 + Shield" color="from-orange-500 to-orange-600" delay={0.5} health="healthy" />
+            </div>
+          </div>
 
-              {/* L4: Gateways */}
-              <div className="flex items-center gap-3">
-                <InfraNode icon={Cpu} label="Kong" desc="L4 — API Gateway" color="from-purple-500 to-purple-600" delay={0.56} small health="healthy" />
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.4 }} transition={{ delay: 0.58 }}
-                  className="text-[9px] text-jpmc-muted font-medium pt-1">OR</motion.div>
-                <InfraNode icon={Cpu} label="Envoy" desc="L4 — Mesh Gateway" color="from-violet-500 to-violet-600" delay={0.6} small health="healthy" />
+          {/* ── L5: Fleets — grouped by host_env under their perimeter ── */}
+          <div className="grid grid-cols-11 gap-x-1 items-start mt-1">
+            {/* PSaaS fleets (left) */}
+            <div className="col-span-5 flex flex-col items-center">
+              <div className="flex flex-wrap justify-center gap-3">
+                {fleets.filter(f => f.host_env !== 'aws').map((f, i) => {
+                  const fleetPulse = f.status === 'healthy' ? 'bg-emerald-400'
+                    : f.status === 'degraded' ? 'bg-amber-400' : 'bg-red-400'
+                  return (
+                    <div key={f.id} className="flex flex-col items-center">
+                      <FlowPulse delay={1.0 + i * 0.15} color={fleetPulse} height={22} speed={1.4} />
+                      <FleetNode fleet={f} delay={0.6 + i * 0.04} onClick={() => navigate(`/fleets?fleet=${f.id}`)} />
+                    </div>
+                  )
+                })}
+                {fleets.filter(f => f.host_env !== 'aws').length === 0 && (
+                  <div className="flex flex-col items-center">
+                    <FlowPulse active={false} height={22} />
+                    <div className="text-[9px] text-jpmc-muted italic py-2">No PSaaS fleets</div>
+                  </div>
+                )}
               </div>
-              {/* L5: AWS fleets only */}
-              <div className="flex flex-wrap justify-center gap-3 mt-1">
+            </div>
+
+            {/* Center spacer */}
+            <div className="col-span-1" />
+
+            {/* AWS fleets (right) */}
+            <div className="col-span-5 flex flex-col items-center">
+              <div className="flex flex-wrap justify-center gap-3">
                 {fleets.filter(f => f.host_env === 'aws').map((f, i) => {
                   const fleetPulse = f.status === 'healthy' ? 'bg-emerald-400'
                     : f.status === 'degraded' ? 'bg-amber-400' : 'bg-red-400'
                   return (
                     <div key={f.id} className="flex flex-col items-center">
-                      <FlowPulse delay={1.3 + i * 0.15} color={fleetPulse} height={18} speed={1.4} />
-                      <FleetNode fleet={f} delay={0.64 + i * 0.04} />
+                      <FlowPulse delay={1.1 + i * 0.15} color={fleetPulse} height={22} speed={1.4} />
+                      <FleetNode fleet={f} delay={0.62 + i * 0.04} onClick={() => navigate(`/fleets?fleet=${f.id}`)} />
                     </div>
                   )
                 })}
+                {fleets.filter(f => f.host_env === 'aws').length === 0 && (
+                  <div className="flex flex-col items-center">
+                    <FlowPulse active={false} height={22} />
+                    <div className="text-[9px] text-jpmc-muted italic py-2">No AWS fleets</div>
+                  </div>
+                )}
               </div>
             </div>
+          </div>
+
+          {/* ── Connector: Fleets → L6 Backend ── */}
+          <FlowPulse delay={1.5} color={greenPulse} height={28} speed={1.6} />
+
+          {/* ── L6: Backend Services ── */}
+          <div className="flex justify-center gap-6">
+            <InfraNode icon={Box} label="svc-web" desc="L6 — Frontend" color="from-teal-500 to-teal-600" delay={0.7} small health="healthy" />
+            <InfraNode icon={Box} label="svc-api" desc="L6 — API Backend" color="from-teal-500 to-teal-600" delay={0.74} small health="healthy" />
           </div>
         </div>
       </GlassCard>

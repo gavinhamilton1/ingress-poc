@@ -1,11 +1,13 @@
-import React, { useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import React, { useState, useMemo } from 'react'
+import { createPortal } from 'react-dom'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Server, Cpu, Globe, ChevronDown, ChevronRight,
+  Server, Cpu, Globe, ChevronDown, ChevronRight, ChevronLeft,
   Activity, ArrowRight, MapPin, Plus, X, Info,
   GitBranch, Cloud, Shield, Box, Layers, Zap, Lock, Hash,
-  Pause, Play, Search, Filter, ArrowUpDown,
+  Pause, Play, Search, Filter, ArrowUpDown, Check, AlertTriangle,
+  Minus, Container, Monitor, Trash2, RefreshCw, Power, Edit3, Copy,
 } from 'lucide-react'
 import GlassCard from '../components/GlassCard'
 import StatusBadge from '../components/StatusBadge'
@@ -35,8 +37,532 @@ function InstancePill({ inst }) {
   )
 }
 
+function formatUptime(startedAt) {
+  if (!startedAt) return ''
+  const diff = Date.now() - new Date(startedAt).getTime()
+  if (diff < 0) return 'just now'
+  const secs = Math.floor(diff / 1000)
+  if (secs < 60) return `Up ${secs}s`
+  const mins = Math.floor(secs / 60)
+  if (mins < 60) return `Up ${mins}m`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `Up ${hrs}h`
+  const days = Math.floor(hrs / 24)
+  return `Up ${days}d`
+}
+
+function nodeStatusColor(status) {
+  if (status === 'running') return { dot: 'bg-emerald-400', glow: 'shadow-[0_0_6px_rgba(52,211,153,0.5)]', border: 'border-emerald-500/30', bg: 'bg-emerald-500/5' }
+  if (status === 'starting' || status === 'restarting') return { dot: 'bg-amber-400', glow: 'shadow-[0_0_6px_rgba(251,191,36,0.5)]', border: 'border-amber-500/30', bg: 'bg-amber-500/5' }
+  return { dot: 'bg-red-400', glow: 'shadow-[0_0_6px_rgba(248,113,113,0.5)]', border: 'border-red-500/30', bg: 'bg-red-500/5' }
+}
+
+/* Helper: derive node type counts from a list of nodes */
+function getNodeTypeCounts(nodes) {
+  const envoyCount = nodes.filter(n => (n.gateway_type || 'envoy') === 'envoy').length
+  const kongCount = nodes.filter(n => (n.gateway_type || 'envoy') === 'kong').length
+  return { envoyCount, kongCount }
+}
+
+/* Helper: determine what node types a fleet has from its nodes + instances */
+function getFleetNodeTypes(fleet, nodes = []) {
+  const allItems = [...nodes, ...(fleet.instances || [])]
+  const hasEnvoy = allItems.some(n => (n.gateway_type || 'envoy') === 'envoy')
+  const hasKong = allItems.some(n => (n.gateway_type || 'envoy') === 'kong')
+  return { hasEnvoy, hasKong }
+}
+
+/* Helper: get routes (instances) that belong on a specific node based on gateway_type matching.
+   If a route has target_nodes specified, only show on those nodes. */
+function getRoutesForNode(node, instances) {
+  const nodeGwType = node.gateway_type || 'envoy'
+  const nodeId = node.container_id || node.id || node.name
+  return instances.filter(inst => {
+    // If route has explicit node assignments, only show on assigned nodes
+    const assignedIds = inst.assigned_node_ids || inst.target_nodes || []
+    if (assignedIds.length > 0) {
+      return assignedIds.includes(nodeId)
+    }
+    // Otherwise match by gateway type (backward compat for routes without assignments)
+    const instType = inst.gateway_type || (inst.context_path?.startsWith('/api') ? 'kong' : 'envoy')
+    return instType === nodeGwType
+  })
+}
+
+const LAMBDA_TEMPLATES = [
+  { name: 'Hello World', code: `module.exports = async (req, res) => {\n  res.json({\n    message: 'Hello from Lambda!',\n    path: req.path,\n    method: req.method,\n    timestamp: new Date().toISOString(),\n  })\n}` },
+  { name: 'Echo', code: `module.exports = async (req, res) => {\n  res.json({\n    echo: true,\n    method: req.method,\n    path: req.path,\n    headers: req.headers,\n    query: req.query,\n    body: req.body,\n  })\n}` },
+  { name: 'Mock API', code: `module.exports = async (req, res) => {\n  const data = [\n    { id: 1, name: 'Item One', status: 'active' },\n    { id: 2, name: 'Item Two', status: 'pending' },\n    { id: 3, name: 'Item Three', status: 'active' },\n  ]\n  if (req.method === 'GET') {\n    res.json({ data, total: data.length, path: req.path })\n  } else if (req.method === 'POST') {\n    const item = { id: data.length + 1, ...req.json, status: 'created' }\n    res.status(201).json(item)\n  } else {\n    res.status(405).json({ error: 'Method not allowed' })\n  }\n}` },
+  { name: 'Health Check', code: `module.exports = async (req, res) => {\n  const uptime = process.uptime()\n  const memory = process.memoryUsage()\n  res.json({\n    status: 'healthy',\n    uptime: Math.floor(uptime) + 's',\n    memory: {\n      rss: Math.floor(memory.rss / 1024 / 1024) + 'MB',\n      heap: Math.floor(memory.heapUsed / 1024 / 1024) + 'MB',\n    },\n    node: process.version,\n    timestamp: new Date().toISOString(),\n  })\n}` },
+]
+
+const DEFAULT_LAMBDA_CODE = LAMBDA_TEMPLATES[0].code
+
+function makeEmptyRoute() {
+  return {
+    context_path: '',
+    destination_type: 'backend', // 'backend' | 'lambda'
+    backend_url: 'http://svc-web:8004',
+    function_code: DEFAULT_LAMBDA_CODE,
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    audience: '',
+    // Envoy-specific
+    timeout_ms: 30000, retry_count: 3, retry_on: '5xx', rate_limit_rps: 0, cors_enabled: true,
+    // Kong-specific
+    kong_rate_limit_rps: 0, strip_path: false, plugins: [],
+  }
+}
+
+function NodeCard({ node, fleetId, apiUrl, onAction, readOnly = false, routes = [] }) {
+  const queryClient = useQueryClient()
+  const [pendingAction, setPendingAction] = useState(null)
+  const [editingRoute, setEditingRoute] = useState(null)
+  const [editForm, setEditForm] = useState({
+    path: '', destination_type: 'backend', backend_url: '', function_code: '',
+    audience: '', status: 'active', methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  })
+  const [showAddRoute, setShowAddRoute] = useState(false)
+  const [addRouteError, setAddRouteError] = useState('')
+  const [addRouteForm, setAddRouteForm] = useState({
+    context_path: '', destination_type: 'backend', backend_url: 'http://svc-web:8004',
+    function_code: DEFAULT_LAMBDA_CODE, methods: ['GET', 'POST', 'PUT', 'DELETE'], audience: '',
+    deploy_to_all: false,
+  })
+  const sc = nodeStatusColor(pendingAction ? (pendingAction === 'stop' ? 'exited' : pendingAction === 'start' ? 'running' : 'exited') : (node.status || 'running'))
+  const isRunning = pendingAction === 'start' ? true : pendingAction === 'stop' ? false : (node.status || 'running') === 'running'
+  const cid = node.container_id || node.id
+  const nodeName = node.container_name || node.name || (cid ? cid.slice(0, 12) : 'unknown')
+
+  const handleAction = async (action) => {
+    if (readOnly) return
+    if (!cid) { console.error('No container ID for node', node); return }
+    if (action === 'delete' && !confirm(`Delete node ${nodeName}? This cannot be undone.`)) return
+    setPendingAction(action)
+    const method = action === 'delete' ? 'DELETE' : 'POST'
+    const url = action === 'delete'
+      ? `${apiUrl}/fleets/${fleetId}/nodes/${cid}`
+      : `${apiUrl}/fleets/${fleetId}/nodes/${cid}/${action}`
+    try {
+      const resp = await fetch(url, { method })
+      if (!resp.ok) console.error('Node action failed:', resp.status, await resp.text())
+    } catch (e) { console.error('Node action error:', e) }
+    queryClient.invalidateQueries({ queryKey: ['fleetNodes'] })
+    queryClient.invalidateQueries({ queryKey: ['fleets'] })
+    setPendingAction(null)
+    if (onAction) onAction(action)
+  }
+
+  const handleAddRoute = async () => {
+    const payload = {
+      context_path: addRouteForm.context_path,
+      backend_url: addRouteForm.destination_type === 'backend' ? addRouteForm.backend_url : undefined,
+      gateway_type: node.gateway_type || 'envoy',
+      audience: addRouteForm.audience,
+      methods: addRouteForm.methods,
+      target_nodes: addRouteForm.deploy_to_all ? [] : [cid],  // empty = all nodes of same type
+    }
+    if (addRouteForm.destination_type === 'lambda') {
+      payload.function_enabled = true
+      payload.function_code = addRouteForm.function_code
+      payload.function_language = 'javascript'
+    }
+    try {
+      const r = await fetch(`${apiUrl}/fleets/${fleetId}/deploy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (r.ok) {
+        setShowAddRoute(false)
+        setAddRouteError('')
+        setAddRouteForm({
+          context_path: '', destination_type: 'backend', backend_url: 'http://svc-web:8004',
+          function_code: DEFAULT_LAMBDA_CODE, methods: ['GET', 'POST', 'PUT', 'DELETE'], audience: '',
+          deploy_to_all: false,
+        })
+        queryClient.invalidateQueries({ queryKey: ['fleets'] })
+        queryClient.invalidateQueries({ queryKey: ['routes'] })
+        queryClient.invalidateQueries({ queryKey: ['fleetNodes'] })
+      } else {
+        const err = await r.json().catch(() => ({ detail: 'Deploy failed' }))
+        setAddRouteError(err.detail || `Error ${r.status}`)
+      }
+    } catch (e) { setAddRouteError(e.message || 'Network error') }
+  }
+
+  const regionLabel = node.datacenter || node.region || 'unassigned'
+  const actionLabel = pendingAction === 'stop' ? 'stopping...' : pendingAction === 'start' ? 'starting...' : pendingAction === 'delete' ? 'removing...' : null
+  const gwType = node.gateway_type || 'envoy'
+  const gwBadgeClass = gwType === 'kong'
+    ? 'bg-blue-500/10 border-blue-500/30 text-blue-400'
+    : gwType === 'service'
+    ? 'bg-gray-500/10 border-gray-500/30 text-gray-400'
+    : 'bg-purple-500/10 border-purple-500/30 text-purple-400'
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: pendingAction === 'delete' ? 0.5 : 1, scale: 1 }}
+      className={`relative rounded-lg border ${sc.border} ${sc.bg} transition-all group ${pendingAction ? 'opacity-70' : ''}`}
+    >
+      {isRunning && !pendingAction && (
+        <motion.div
+          className="absolute inset-0 rounded-lg border border-emerald-400/20 pointer-events-none"
+          animate={{ opacity: [0, 0.4, 0] }}
+          transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+        />
+      )}
+      <div className="flex items-center gap-2.5 px-3.5 py-2.5">
+        <span className={`w-2 h-2 rounded-full shrink-0 ${sc.dot} ${sc.glow}`} />
+        <div className="flex flex-col min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <code className="text-[11px] text-jpmc-text font-mono truncate">{nodeName}</code>
+            <span className={`text-[9px] px-1.5 py-0.5 rounded border ${gwBadgeClass}`}>{gwType}</span>
+            <span className={`text-[9px] capitalize font-medium ${
+              actionLabel ? 'text-amber-400 animate-pulse' : isRunning ? 'text-emerald-400' : node.status === 'exited' ? 'text-red-400' : 'text-amber-400'
+            }`}>{actionLabel || node.status || 'running'}</span>
+            {readOnly && (
+              <span className="text-[8px] px-1.5 py-0.5 rounded bg-slate-500/10 border border-slate-500/30 text-slate-400">docker-compose managed</span>
+            )}
+          </div>
+          <div className="flex items-center gap-3 mt-0.5">
+            <span className="text-[9px] text-jpmc-muted flex items-center gap-1">
+              <MapPin size={8} />
+              <span>{regionLabel}</span>
+            </span>
+            {node.port > 0 && (
+              <span className="text-[9px] text-jpmc-muted font-mono">port:{node.port}</span>
+            )}
+            {!readOnly && cid && (
+              <span className="text-[9px] text-jpmc-muted font-mono opacity-50">{cid.slice(0, 12)}</span>
+            )}
+          </div>
+        </div>
+        {/* Node action buttons -- hidden for read-only (CP) nodes */}
+        {!readOnly && (
+          <div className={`flex items-center gap-0.5 shrink-0 transition-opacity relative z-10 ${pendingAction ? 'opacity-50 pointer-events-none' : 'opacity-0 group-hover:opacity-100'}`}>
+            {isRunning ? (
+              <button onClick={(e) => { e.stopPropagation(); handleAction('stop') }}
+                className="p-1.5 rounded hover:bg-amber-500/10 text-jpmc-muted hover:text-amber-400 transition-colors" title="Stop node">
+                <Pause size={12} />
+              </button>
+            ) : (
+              <button onClick={(e) => { e.stopPropagation(); handleAction('start') }}
+                className="p-1.5 rounded hover:bg-emerald-500/10 text-jpmc-muted hover:text-emerald-400 transition-colors" title="Start node">
+                <Play size={12} />
+              </button>
+            )}
+            <button onClick={(e) => { e.stopPropagation(); handleAction('delete') }}
+              className="p-1.5 rounded hover:bg-red-500/10 text-jpmc-muted hover:text-red-400 transition-colors" title="Delete node">
+              <Trash2 size={12} />
+            </button>
+          </div>
+        )}
+      </div>
+      {/* Routes assigned to this node */}
+      {routes.length > 0 && (
+        <div className="mx-3.5 mb-2.5 pt-2 border-t border-jpmc-border/20 space-y-1">
+          {routes.map(route => {
+            const routeId = route.route_id || route.id  // prefer actual route ID over fleet instance ID
+            const instId = route.id  // fleet instance ID for cleanup
+            const isEditing = editingRoute === routeId
+            const routeStatus = (node.status || 'running') !== 'running' ? 'suspended' : route.status || 'active'
+            return isEditing ? (
+              <div key={routeId} className="p-2.5 rounded-lg bg-jpmc-navy/70 border border-blue-500/30 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-blue-400 font-medium">Edit Route</span>
+                  <span className="text-[9px] text-jpmc-muted font-mono">{routeId.slice(0,8)}</span>
+                  <button onClick={() => setEditingRoute(null)} className="ml-auto p-0.5 rounded hover:bg-jpmc-hover text-jpmc-muted">
+                    <X size={10} />
+                  </button>
+                </div>
+                {/* Path */}
+                <div>
+                  <label className="text-[9px] text-jpmc-muted">Context Path</label>
+                  <input className="input-field text-[10px] py-1 font-mono" value={editForm.path}
+                    onChange={e => setEditForm({...editForm, path: e.target.value})} />
+                </div>
+                {/* Destination */}
+                <div>
+                  <label className="text-[9px] text-jpmc-muted mb-1 block">Destination</label>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    {['backend', 'lambda'].map(dt => (
+                      <button key={dt} onClick={() => setEditForm({...editForm, destination_type: dt})}
+                        className={`px-2 py-0.5 rounded text-[10px] border transition-all ${
+                          editForm.destination_type === dt
+                            ? 'border-blue-500/50 bg-blue-500/10 text-blue-400'
+                            : 'border-jpmc-border/30 text-jpmc-muted hover:border-jpmc-border/60'
+                        }`}>
+                        {dt === 'backend' ? 'Backend URL' : 'Lambda Function'}
+                      </button>
+                    ))}
+                  </div>
+                  {editForm.destination_type === 'backend' ? (
+                    <input className="input-field text-[10px] py-1 font-mono" placeholder="http://svc-web:8004"
+                      value={editForm.backend_url}
+                      onChange={e => setEditForm({...editForm, backend_url: e.target.value})} />
+                  ) : (
+                    <div className="space-y-1.5">
+                      <div className="flex flex-wrap gap-1">
+                        {LAMBDA_TEMPLATES.map(t => (
+                          <button key={t.name} type="button"
+                            onClick={() => setEditForm({...editForm, function_code: t.code})}
+                            className="px-1.5 py-0.5 rounded border border-jpmc-border/40 text-[9px] text-jpmc-muted hover:bg-jpmc-hover hover:text-jpmc-text transition-colors">
+                            {t.name}
+                          </button>
+                        ))}
+                      </div>
+                      <textarea
+                        className="w-full p-2 bg-[#0d1117] border border-jpmc-border/40 rounded-lg text-[10px] font-mono text-green-400 resize-y focus:outline-none focus:border-blue-500/50"
+                        style={{ minHeight: '8rem' }}
+                        spellCheck={false}
+                        value={editForm.function_code}
+                        onChange={e => setEditForm({...editForm, function_code: e.target.value})}
+                      />
+                    </div>
+                  )}
+                </div>
+                {/* Methods */}
+                <div>
+                  <label className="text-[9px] text-jpmc-muted">Methods</label>
+                  <div className="flex flex-wrap gap-1 mt-0.5">
+                    {['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].map(m => (
+                      <button key={m} onClick={() => {
+                        const methods = editForm.methods.includes(m)
+                          ? editForm.methods.filter(x => x !== m)
+                          : [...editForm.methods, m]
+                        setEditForm({...editForm, methods})
+                      }} className={`px-1.5 py-0.5 rounded text-[9px] border transition-all ${
+                        editForm.methods.includes(m)
+                          ? 'border-blue-500/50 bg-blue-500/10 text-blue-400'
+                          : 'border-jpmc-border/30 text-jpmc-muted'
+                      }`}>{m}</button>
+                    ))}
+                  </div>
+                </div>
+                {/* Audience + Status */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[9px] text-jpmc-muted">Audience</label>
+                    <input className="input-field text-[10px] py-1" placeholder="e.g. jpmm"
+                      value={editForm.audience}
+                      onChange={e => setEditForm({...editForm, audience: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="text-[9px] text-jpmc-muted">Status</label>
+                    <select className="select-field text-[10px] py-1" value={editForm.status}
+                      onChange={e => setEditForm({...editForm, status: e.target.value})}>
+                      <option value="active">Active</option>
+                      <option value="inactive">Suspended</option>
+                    </select>
+                  </div>
+                </div>
+                {/* Save/Cancel */}
+                <div className="flex gap-2">
+                  <button onClick={async () => {
+                    const payload = {
+                      path: editForm.path,
+                      audience: editForm.audience,
+                      status: editForm.status,
+                      methods: editForm.methods,
+                    }
+                    if (editForm.destination_type === 'lambda') {
+                      payload.function_code = editForm.function_code
+                      payload.function_language = 'javascript'
+                    } else {
+                      payload.backend_url = editForm.backend_url
+                    }
+                    await fetch(`${apiUrl}/routes/${routeId}`, {
+                      method: 'PUT',
+                      headers: {'Content-Type': 'application/json'},
+                      body: JSON.stringify(payload),
+                    })
+                    setEditingRoute(null)
+                    queryClient.invalidateQueries({ queryKey: ['fleets'] })
+                    queryClient.invalidateQueries({ queryKey: ['routes'] })
+                  }} className="btn-primary text-[10px] py-1 px-3">Save</button>
+                  <button onClick={() => setEditingRoute(null)}
+                    className="text-[10px] py-1 px-3 rounded border border-jpmc-border/40 text-jpmc-muted hover:bg-jpmc-hover">Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <div key={routeId}
+                className="group/route flex items-center gap-2 text-[10px] px-1 py-0.5 rounded hover:bg-jpmc-hover/30 transition-colors">
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                  routeStatus === 'active' ? 'bg-emerald-400' : 'bg-amber-400'
+                }`} />
+                <code className="text-blue-400 font-mono">{route.context_path || route.path}</code>
+                <span className="text-jpmc-muted">{'\u2192'}</span>
+                <span className="text-jpmc-muted font-mono truncate">{(route.backend || route.backend_url || '').replace('http://', '')}</span>
+                <span className={`text-[9px] ${routeStatus === 'active' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {routeStatus}
+                </span>
+                {/* Edit/Delete controls -- visible on hover */}
+                {!readOnly && (
+                  <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover/route:opacity-100 transition-opacity">
+                    <button onClick={(e) => {
+                      e.stopPropagation()
+                      setEditingRoute(routeId)
+                      const hasLambda = !!(route.function_code || route.lambda_container_id)
+                      setEditForm({
+                        path: route.context_path || route.path || '',
+                        destination_type: hasLambda ? 'lambda' : 'backend',
+                        backend_url: route.backend || route.backend_url || '',
+                        function_code: route.function_code || DEFAULT_LAMBDA_CODE,
+                        audience: route.audience || '',
+                        status: route.status || 'active',
+                        methods: route.methods || ['GET', 'POST', 'PUT', 'DELETE'],
+                      })
+                    }} className="p-1 rounded hover:bg-blue-500/10 text-jpmc-muted hover:text-blue-400" title="Edit route">
+                      <Edit3 size={10} />
+                    </button>
+                    <button onClick={async (e) => {
+                      e.stopPropagation()
+                      if (!confirm('Delete this route?')) return
+                      // Delete the actual route (cleans up route + assignments + fleet instances by route_id)
+                      if (routeId) {
+                        await fetch(`${apiUrl}/routes/${routeId}`, { method: 'DELETE' }).catch(() => {})
+                      }
+                      // Also delete the fleet instance by its own ID (handles orphans with empty route_id)
+                      if (instId && instId !== routeId) {
+                        await fetch(`${apiUrl}/fleets/${fleetId}/instances/${instId}`, { method: 'DELETE' }).catch(() => {})
+                      }
+                      // Always refresh
+                      queryClient.invalidateQueries({ queryKey: ['fleets'] })
+                      queryClient.invalidateQueries({ queryKey: ['routes'] })
+                      queryClient.invalidateQueries({ queryKey: ['fleetNodes'] })
+                    }} className="p-1 rounded hover:bg-red-500/10 text-jpmc-muted hover:text-red-400" title="Delete route">
+                      <Trash2 size={10} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+      {routes.length === 0 && !readOnly && (
+        <div className="mx-3.5 mb-2.5 pt-2 border-t border-jpmc-border/20">
+          <span className="text-[9px] text-jpmc-muted italic">No routes assigned</span>
+        </div>
+      )}
+      {/* Add Route inline form */}
+      {!readOnly && (
+        <div className="mx-3.5 mb-2.5">
+          {!showAddRoute ? (
+            <button
+              onClick={() => setShowAddRoute(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-dashed border-jpmc-border/40 text-[10px] text-jpmc-muted hover:border-blue-500/30 hover:text-blue-400 hover:bg-blue-500/5 transition-all w-full justify-center"
+            >
+              <Plus size={10} /> Add Route
+            </button>
+          ) : (
+            <div className="p-2.5 rounded-lg bg-jpmc-navy/70 border border-blue-500/30 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-blue-400 font-medium">New Route</span>
+                <button onClick={() => setShowAddRoute(false)} className="p-0.5 rounded hover:bg-jpmc-hover text-jpmc-muted"><X size={10} /></button>
+              </div>
+              <div>
+                <label className="text-[9px] text-jpmc-muted">Context Path</label>
+                <input className="input-field text-[10px] py-1" placeholder="/my-route" value={addRouteForm.context_path}
+                  onChange={e => setAddRouteForm({...addRouteForm, context_path: e.target.value})} />
+              </div>
+              {/* Destination toggle */}
+              <div>
+                <label className="text-[9px] text-jpmc-muted mb-1 block">Destination</label>
+                <div className="flex items-center gap-2 mb-1.5">
+                  {['backend', 'lambda'].map(dt => (
+                    <button key={dt} onClick={() => setAddRouteForm({...addRouteForm, destination_type: dt})}
+                      className={`px-2 py-0.5 rounded text-[10px] border transition-all ${
+                        addRouteForm.destination_type === dt
+                          ? 'border-blue-500/50 bg-blue-500/10 text-blue-400'
+                          : 'border-jpmc-border/30 text-jpmc-muted hover:border-jpmc-border/60'
+                      }`}>
+                      {dt === 'backend' ? 'Backend URL' : 'Lambda Function'}
+                    </button>
+                  ))}
+                </div>
+                {addRouteForm.destination_type === 'backend' ? (
+                  <input className="input-field text-[10px] py-1 font-mono" placeholder="http://svc-web:8004" value={addRouteForm.backend_url}
+                    onChange={e => setAddRouteForm({...addRouteForm, backend_url: e.target.value})} />
+                ) : (
+                  <textarea
+                    className="w-full p-2 bg-[#0d1117] border border-jpmc-border/40 rounded-lg text-[10px] font-mono text-green-400 resize-y focus:outline-none focus:border-blue-500/50"
+                    style={{ minHeight: '6rem' }}
+                    spellCheck={false}
+                    value={addRouteForm.function_code}
+                    onChange={e => setAddRouteForm({...addRouteForm, function_code: e.target.value})}
+                  />
+                )}
+              </div>
+              {/* Methods */}
+              <div>
+                <label className="text-[9px] text-jpmc-muted">Methods</label>
+                <div className="flex flex-wrap gap-1 mt-0.5">
+                  {['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].map(m => (
+                    <button key={m} onClick={() => {
+                      const methods = addRouteForm.methods.includes(m)
+                        ? addRouteForm.methods.filter(x => x !== m)
+                        : [...addRouteForm.methods, m]
+                      setAddRouteForm({...addRouteForm, methods})
+                    }}
+                      className={`px-1.5 py-0.5 rounded text-[9px] border transition-all ${
+                        addRouteForm.methods.includes(m)
+                          ? 'border-blue-500/50 bg-blue-500/10 text-blue-400'
+                          : 'border-jpmc-border/30 text-jpmc-muted'
+                      }`}>{m}</button>
+                  ))}
+                </div>
+              </div>
+              {/* Audience */}
+              <div>
+                <label className="text-[9px] text-jpmc-muted">Audience</label>
+                <input className="input-field text-[10px] py-1" placeholder="e.g. jpmm, execute, access"
+                  value={addRouteForm.audience}
+                  onChange={e => setAddRouteForm({...addRouteForm, audience: e.target.value})} />
+                <p className="text-[8px] text-jpmc-muted mt-0.5">JWT aud claim. Leave empty for unauthenticated.</p>
+              </div>
+              {/* Error message */}
+              {addRouteError && (
+                <div className="p-1.5 rounded bg-red-500/10 border border-red-500/30 text-[10px] text-red-400">
+                  {addRouteError}
+                </div>
+              )}
+              {/* Deploy to all nodes checkbox */}
+              <label className="flex items-center gap-2 cursor-pointer py-1">
+                <input type="checkbox" checked={addRouteForm.deploy_to_all}
+                  onChange={e => setAddRouteForm({...addRouteForm, deploy_to_all: e.target.checked})}
+                  className="w-3 h-3 rounded border-jpmc-border" />
+                <span className="text-[10px] text-jpmc-text">Deploy to all {node.gateway_type || 'envoy'} nodes in this fleet</span>
+              </label>
+              <button
+                disabled={!addRouteForm.context_path}
+                onClick={handleAddRoute}
+                className="btn-primary text-[10px] py-1 px-3 w-full disabled:opacity-40">
+                {addRouteForm.deploy_to_all ? 'Deploy to All Nodes' : 'Deploy to This Node'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </motion.div>
+  )
+}
+
 /* Animated health pulse that travels along a connection line */
 function AnimatedHealthLine({ status = 'healthy', vertical = false }) {
+  // Not deployed = static gray dashed line, no animation
+  if (status === 'not_deployed') {
+    if (vertical) {
+      return <div className="w-px h-6 border-l border-dashed border-slate-600/40 mx-auto" />
+    }
+    return (
+      <div className="relative w-8 shrink-0" style={{ height: '8px' }}>
+        <div className="absolute top-1/2 left-0 right-0 border-t border-dashed border-slate-600/40" />
+      </div>
+    )
+  }
+
   const color = status === 'healthy' ? 'bg-emerald-400' : status === 'degraded' ? 'bg-amber-400' : 'bg-red-400'
   const glow = status === 'healthy' ? 'shadow-[0_0_6px_rgba(52,211,153,0.6)]' : status === 'degraded' ? 'shadow-[0_0_6px_rgba(251,191,36,0.6)]' : 'shadow-[0_0_6px_rgba(248,113,113,0.6)]'
   const borderColor = status === 'healthy' ? 'border-emerald-500/30' : status === 'degraded' ? 'border-amber-500/30' : 'border-red-500/30'
@@ -72,40 +598,94 @@ function instHealthStatus(inst) {
   return 'degraded'
 }
 
-function GatewayBranch({ label, desc, color, routes }) {
-  if (routes.length === 0) return null
-  // Line from perimeter to gateway is healthy if ANY route in this branch is active
-  const anyActive = routes.some(r => r.status === 'active')
-  const perimeterToGwStatus = anyActive ? 'healthy' : 'degraded'
+function GatewayBranch({ routes, nodes = [] }) {
+  if (routes.length === 0 && nodes.length === 0) return null
+  const anyNodeRunning = nodes.some(n => (n.status || 'running') === 'running')
+  const hasNodes = nodes.length > 0
   return (
-    <div className="flex items-center gap-1">
-      <AnimatedHealthLine status={perimeterToGwStatus} />
-      <TopoNode icon={Cpu} label={label} desc={desc} color={color} />
-      <div className="flex flex-col gap-1.5">
-        {routes.map(inst => (
-          <div key={inst.id} className="flex items-center gap-1">
-            <AnimatedHealthLine status={instHealthStatus(inst)} />
-            <InstancePill inst={inst} />
-          </div>
-        ))}
-      </div>
+    <>
+      {/* Nodes with their routes shown inline */}
+      {hasNodes && (
+        <div className="flex flex-col gap-3">
+          {nodes.map(node => {
+            const nodeGwType = node.gateway_type || 'envoy'
+            const nodeRoutes = routes.filter(inst => {
+              const instType = inst.gateway_type || (inst.context_path?.startsWith('/api') ? 'kong' : 'envoy')
+              return instType === nodeGwType
+            })
+            return (
+              <div key={node.id || node.name} className="flex items-center gap-1">
+                <AnimatedHealthLine status={(node.status || 'running') === 'running' ? 'healthy' : 'degraded'} />
+                <NodeTopoCard node={node} />
+                {nodeRoutes.length > 0 && (
+                  <div className="flex flex-col gap-0.5">
+                    {nodeRoutes.map(inst => (
+                      <div key={inst.id} className="flex items-center gap-1">
+                        <AnimatedHealthLine status={instHealthStatus(inst)} />
+                        <InstancePill inst={inst} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+      {/* Unattached routes (no nodes) */}
+      {!hasNodes && routes.length > 0 && (
+        <div className="flex flex-col gap-1">
+          {routes.map(inst => (
+            <div key={inst.id} className="flex items-center gap-1">
+              <AnimatedHealthLine status="not_deployed" />
+              <InstancePill inst={inst} />
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  )
+}
+
+function NodeTopoCard({ node }) {
+  const isRunning = (node.status || 'running') === 'running'
+  const sc = nodeStatusColor(node.status || 'running')
+  return (
+    <div className={`flex items-center gap-1.5 px-2 py-1 rounded border text-[10px] ${sc.border} ${sc.bg}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
+      <code className="text-jpmc-text">{node.name?.replace(/^fleet-/, '') || 'node'}</code>
+      <span className={`text-[8px] px-1 py-0 rounded ${
+        (node.gateway_type || 'envoy') === 'kong'
+          ? 'bg-blue-500/10 text-blue-400'
+          : 'bg-purple-500/10 text-purple-400'
+      }`}>{node.gateway_type || 'envoy'}</span>
+      {node.port && <span className="text-jpmc-muted font-mono">:{node.port}</span>}
     </div>
   )
 }
 
-function FleetTopology({ fleet }) {
+function FleetTopology({ fleet, nodes = [] }) {
   const instances = fleet.instances || []
+
+  const envoyNodes = nodes.filter(n => (n.gateway_type || 'envoy') === 'envoy')
+  const kongNodes = nodes.filter(n => (n.gateway_type || 'envoy') === 'kong')
+
   const kongRoutes = instances.filter(i => i.gateway_type === 'kong' || (!i.gateway_type && i.context_path.startsWith('/api')))
   const envoyRoutes = instances.filter(i => i.gateway_type === 'envoy' || (!i.gateway_type && !i.context_path.startsWith('/api')))
-  const hasBoth = kongRoutes.length > 0 && envoyRoutes.length > 0
+
+  const hasEnvoyBranch = envoyNodes.length > 0 || envoyRoutes.length > 0
+  const hasKongBranch = kongNodes.length > 0 || kongRoutes.length > 0
+  const hasBoth = hasEnvoyBranch && hasKongBranch
+
   const anyRouteActive = instances.some(i => i.status === 'active')
-  const infraStatus = anyRouteActive ? 'healthy' : fleet.status === 'offline' ? 'degraded' : 'healthy'
+  const anyNodeRunning = nodes.some(n => (n.status || 'running') === 'running')
+  const hasNodes = nodes.length > 0
+  const infraStatus = !hasNodes ? 'not_deployed' : (anyRouteActive || anyNodeRunning) ? 'healthy' : fleet.status === 'offline' ? 'degraded' : 'healthy'
   const isAws = fleet.host_env === 'aws'
 
   return (
     <div className="overflow-x-auto py-4">
       <div className="flex items-start gap-1 min-w-fit">
-        {/* Shared front layers: DNS → CDN/WAF → Perimeter (PSaaS or AWS WAF) */}
         <div className="flex items-center gap-1 shrink-0" style={{ alignSelf: hasBoth ? 'center' : 'flex-start' }}>
           <TopoNode icon={Globe} label={fleet.subdomain.split('.')[0]} desc="DNS entry" color="blue" />
           <AnimatedHealthLine status={infraStatus} />
@@ -117,16 +697,29 @@ function FleetTopology({ fleet }) {
           }
         </div>
 
-        {/* Gateway branches — split Kong (API) from Envoy (Web) */}
-        {hasBoth ? (
+        {hasNodes ? (
           <div className="flex flex-col gap-3">
-            <GatewayBranch label="Kong" desc="API gateway" color="purple" routes={kongRoutes} />
-            <GatewayBranch label="Envoy" desc="Web gateway" color="violet" routes={envoyRoutes} />
+            {hasEnvoyBranch && envoyNodes.length > 0 && (
+              <GatewayBranch routes={envoyRoutes} nodes={envoyNodes} />
+            )}
+            {hasKongBranch && kongNodes.length > 0 && (
+              <GatewayBranch routes={kongRoutes} nodes={kongNodes} />
+            )}
           </div>
-        ) : kongRoutes.length > 0 ? (
-          <GatewayBranch label="Kong" desc="API gateway" color="purple" routes={kongRoutes} />
+        ) : instances.length > 0 ? (
+          <div className="flex items-center gap-1">
+            <AnimatedHealthLine status="not_deployed" />
+            <div className="px-3 py-2 rounded-lg border border-dashed border-slate-600/40 text-[10px] text-slate-500">
+              No gateway nodes deployed -- {instances.length} route{instances.length !== 1 ? 's' : ''} waiting
+            </div>
+          </div>
         ) : (
-          <GatewayBranch label="Envoy" desc="Web gateway" color="violet" routes={envoyRoutes} />
+          <div className="flex items-center gap-1">
+            <AnimatedHealthLine status="not_deployed" />
+            <div className="px-3 py-2 rounded-lg border border-dashed border-slate-600/40 text-[10px] text-slate-500">
+              No routes or nodes deployed
+            </div>
+          </div>
         )}
       </div>
     </div>
@@ -153,47 +746,336 @@ function TopoNode({ icon: Icon, label, desc, color }) {
   )
 }
 
+/* ========== Route Card inside Deploy Node panel ========== */
+function DeployRouteCard({ route, index, nodeType, onUpdate, onRemove }) {
+  const [showGwConfig, setShowGwConfig] = useState(false)
+  const isEnvoy = nodeType === 'envoy'
+
+  const update = (field, value) => onUpdate(index, { ...route, [field]: value })
+
+  return (
+    <div className="p-3 rounded-lg bg-jpmc-navy/50 border border-jpmc-border/30 space-y-3 relative">
+      <button onClick={() => onRemove(index)}
+        className="absolute top-2 right-2 p-1 rounded hover:bg-red-500/10 text-jpmc-muted hover:text-red-400 transition-colors" title="Remove route">
+        <X size={13} />
+      </button>
+
+      <div className="flex items-center gap-2 pr-6">
+        <span className="text-[10px] text-jpmc-muted font-medium">Route {index + 1}</span>
+      </div>
+
+      {/* Context Path */}
+      <div>
+        <label className="text-[9px] text-jpmc-muted">Context Path</label>
+        <input className="input-field text-xs font-mono" placeholder="/research" value={route.context_path}
+          onChange={e => update('context_path', e.target.value)} />
+      </div>
+
+      {/* Destination toggle */}
+      <div>
+        <label className="text-[9px] text-jpmc-muted mb-1.5 block">Destination</label>
+        <div className="flex items-center gap-2 mb-2">
+          {[
+            { key: 'backend', label: 'Backend URL' },
+            { key: 'lambda', label: 'Lambda Function' },
+          ].map(dt => (
+            <button key={dt.key}
+              onClick={() => update('destination_type', dt.key)}
+              className={`px-2.5 py-1 rounded-lg text-[10px] border transition-all ${
+                route.destination_type === dt.key
+                  ? 'border-blue-500/50 bg-blue-500/10 text-blue-400'
+                  : 'border-jpmc-border/30 text-jpmc-muted hover:border-jpmc-border/60'
+              }`}>
+              {dt.label}
+            </button>
+          ))}
+        </div>
+
+        {route.destination_type === 'backend' ? (
+          <input className="input-field text-xs font-mono" placeholder="http://svc-web:8004"
+            value={route.backend_url} onChange={e => update('backend_url', e.target.value)} />
+        ) : (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="badge badge-blue text-[9px]">JavaScript (Node.js 20)</span>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {LAMBDA_TEMPLATES.map(t => (
+                <button key={t.name} type="button"
+                  onClick={() => update('function_code', t.code)}
+                  className="px-2 py-0.5 rounded border border-jpmc-border/40 text-[9px] text-jpmc-muted hover:bg-jpmc-hover hover:text-jpmc-text transition-colors">
+                  {t.name}
+                </button>
+              ))}
+            </div>
+            <textarea
+              className="w-full p-2.5 bg-[#0d1117] border border-jpmc-border/40 rounded-lg text-xs font-mono text-green-400 resize-y focus:outline-none focus:border-blue-500/50"
+              style={{ minHeight: '12rem' }}
+              spellCheck={false}
+              value={route.function_code}
+              onChange={e => update('function_code', e.target.value)}
+              placeholder="module.exports = async (req, res) => { ... }"
+            />
+            <p className="text-[9px] text-jpmc-muted">
+              A container will be created running your function. The route backend will point to this container automatically.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* HTTP Methods */}
+      <div>
+        <label className="text-[9px] text-jpmc-muted">HTTP Methods</label>
+        <div className="flex flex-wrap gap-1.5 mt-1">
+          {['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].map(m => (
+            <button key={m} type="button"
+              onClick={() => {
+                const methods = route.methods.includes(m)
+                  ? route.methods.filter(x => x !== m)
+                  : [...route.methods, m]
+                update('methods', methods)
+              }}
+              className={`px-2 py-0.5 rounded text-[10px] border transition-all ${
+                route.methods.includes(m)
+                  ? 'border-blue-500/50 bg-blue-500/10 text-blue-400'
+                  : 'border-jpmc-border/30 text-jpmc-muted hover:border-jpmc-border/60'
+              }`}>
+              {m}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Audience */}
+      <div>
+        <label className="text-[9px] text-jpmc-muted">Audience</label>
+        <input className="input-field text-xs" placeholder="e.g. jpmm, execute, access"
+          value={route.audience}
+          onChange={e => update('audience', e.target.value)} />
+        <p className="text-[8px] text-jpmc-muted mt-0.5">JWT aud claim. Leave empty for unauthenticated.</p>
+      </div>
+
+      {/* Gateway-specific config */}
+      <div>
+        <button onClick={() => setShowGwConfig(!showGwConfig)}
+          className="flex items-center gap-1.5 text-[10px] text-jpmc-muted hover:text-jpmc-text transition-colors">
+          {showGwConfig ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+          {isEnvoy ? 'Envoy Config' : 'Kong Config'}
+        </button>
+        {showGwConfig && isEnvoy && (
+          <div className="mt-2 space-y-2 p-2 rounded-lg bg-jpmc-navy/30 border border-jpmc-border/20">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[9px] text-jpmc-muted">Timeout (ms)</label>
+                <input type="number" className="input-field text-[10px] py-1" value={route.timeout_ms}
+                  onChange={e => update('timeout_ms', parseInt(e.target.value) || 30000)} />
+              </div>
+              <div>
+                <label className="text-[9px] text-jpmc-muted">Retry Count</label>
+                <input type="number" className="input-field text-[10px] py-1" value={route.retry_count} min={0} max={10}
+                  onChange={e => update('retry_count', parseInt(e.target.value) || 0)} />
+              </div>
+            </div>
+            <div>
+              <label className="text-[9px] text-jpmc-muted">Retry Policy</label>
+              <select className="select-field text-[10px] py-1" value={route.retry_on}
+                onChange={e => update('retry_on', e.target.value)}>
+                <option value="5xx">5xx errors</option>
+                <option value="gateway-error">Gateway errors</option>
+                <option value="reset">Connection reset</option>
+                <option value="retriable-4xx">Retriable 4xx</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[9px] text-jpmc-muted">Rate Limit (req/s)</label>
+              <input type="number" className="input-field text-[10px] py-1" value={route.rate_limit_rps} min={0}
+                onChange={e => update('rate_limit_rps', parseInt(e.target.value) || 0)} />
+              <p className="text-[8px] text-jpmc-muted mt-0.5">0 = unlimited</p>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={route.cors_enabled}
+                onChange={e => update('cors_enabled', e.target.checked)}
+                className="w-3 h-3 rounded border-jpmc-border" />
+              <span className="text-[10px] text-jpmc-text">Enable CORS</span>
+            </label>
+          </div>
+        )}
+        {showGwConfig && !isEnvoy && (
+          <div className="mt-2 space-y-2 p-2 rounded-lg bg-jpmc-navy/30 border border-jpmc-border/20">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[9px] text-jpmc-muted">Rate Limit (req/s)</label>
+                <input type="number" className="input-field text-[10px] py-1" value={route.kong_rate_limit_rps} min={0}
+                  onChange={e => update('kong_rate_limit_rps', parseInt(e.target.value) || 0)} />
+                <p className="text-[8px] text-jpmc-muted mt-0.5">0 = unlimited</p>
+              </div>
+              <div>
+                <label className="text-[9px] text-jpmc-muted">Strip Path</label>
+                <select className="select-field text-[10px] py-1" value={route.strip_path ? 'true' : 'false'}
+                  onChange={e => update('strip_path', e.target.value === 'true')}>
+                  <option value="false">Keep path prefix</option>
+                  <option value="true">Strip path prefix</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="text-[9px] text-jpmc-muted">Kong Plugins</label>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {['rate-limiting', 'cors', 'jwt', 'key-auth', 'ip-restriction', 'request-transformer', 'response-transformer', 'acl'].map(p => (
+                  <label key={p} className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border cursor-pointer text-[9px] transition-all ${
+                    route.plugins.includes(p)
+                      ? 'border-blue-500/50 bg-blue-500/10 text-blue-400'
+                      : 'border-jpmc-border/30 text-jpmc-muted hover:border-jpmc-border/60'
+                  }`}>
+                    <input type="checkbox" className="sr-only"
+                      checked={route.plugins.includes(p)}
+                      onChange={e => {
+                        const plugins = e.target.checked ? [...route.plugins, p] : route.plugins.filter(x => x !== p)
+                        update('plugins', plugins)
+                      }} />
+                    {p}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function Fleets() {
   const { API_URL } = useConfig()
   const queryClient = useQueryClient()
   const [expandedFleet, setExpandedFleet] = useState(null)
   const [expandedInstance, setExpandedInstance] = useState(null)
-  const [showDeploy, setShowDeploy] = useState(false)
-  const [showCreateFleet, setShowCreateFleet] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [showDeployNodeInline, setShowDeployNodeInline] = useState(false)
+  const [deployingRegion, setDeployingRegion] = useState(null)
+  const [deployNodeType, setDeployNodeType] = useState('envoy')
+  const [deployNodeDc, setDeployNodeDc] = useState('us-east-1')
   const [statusFilter, setStatusFilter] = useState('all')
   const [gatewayFilter, setGatewayFilter] = useState('all')
-  const [sortBy, setSortBy] = useState('lob')  // lob | name | status | instances
-  const [deployFleetId, setDeployFleetId] = useState('')
-  const [deployForm, setDeployForm] = useState({ context_path: '', backend: 'http://svc-api:8005', team: '' })
-  const [deploySuccess, setDeploySuccess] = useState(false)
-  const [createFleetForm, setCreateFleetForm] = useState({ name: '', portal: '', region: 'us-east' })
-  const [createFleetSuccess, setCreateFleetSuccess] = useState(false)
+  const [sortBy, setSortBy] = useState('lob')
 
-  const computedFqdn = createFleetForm.portal ? `${createFleetForm.portal}.jpm.com` : ''
+  // ========== New Fleet slide-over ==========
+  const [showNewFleet, setShowNewFleet] = useState(false)
+  const [newFleetForm, setNewFleetForm] = useState({
+    name: '', lob: 'Markets', portal: '', description: '',
+    hostEnv: 'psaas', authProvider: 'Janus',
+  })
+  const [newFleetSuccess, setNewFleetSuccess] = useState(false)
+  const newFleetFqdn = newFleetForm.portal ? `${newFleetForm.portal}.jpm.com` : ''
 
-  const handleCreateFleet = async (e) => {
-    e.preventDefault()
-    if (!createFleetForm.name || !computedFqdn) return
+  const handleCreateFleet = async () => {
     try {
-      const r = await fetch(`${API_URL}/fleets`, {
+      const resp = await fetch(`${API_URL}/fleets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: createFleetForm.name,
-          subdomain: computedFqdn,
-          region: createFleetForm.region,
+          name: newFleetForm.name,
+          subdomain: newFleetFqdn,
+          lob: newFleetForm.lob,
+          description: newFleetForm.description,
+          host_env: newFleetForm.hostEnv,
+          auth_provider: newFleetForm.authProvider,
         }),
       })
-      if (r.ok) {
-        setCreateFleetSuccess(true)
-        setTimeout(() => { setCreateFleetSuccess(false); setShowCreateFleet(false) }, 2500)
-        queryClient.invalidateQueries({ queryKey: ['fleets'] })
-        setCreateFleetForm({ name: '', portal: '', region: 'us-east' })
-      }
+      if (!resp.ok) return
+      setNewFleetSuccess(true)
+      queryClient.invalidateQueries({ queryKey: ['fleets'] })
+      setTimeout(() => {
+        setNewFleetSuccess(false)
+        setShowNewFleet(false)
+        setNewFleetForm({ name: '', lob: 'Markets', portal: '', description: '', hostEnv: 'psaas', authProvider: 'Janus' })
+      }, 2500)
     } catch {}
   }
 
+  // ========== Deploy Node slide-over ==========
+  const [showDeployNode, setShowDeployNode] = useState(false)
+  const [deployNodeForm, setDeployNodeForm] = useState({
+    fleetId: '', nodeName: '', nodeType: 'envoy', healthCheckPath: '/health', datacenter: 'us-east-1',
+  })
+  const [deployNodeRoutes, setDeployNodeRoutes] = useState([makeEmptyRoute()])
+  const [routesSectionOpen, setRoutesSectionOpen] = useState(true)
+  const [showCopyFromExisting, setShowCopyFromExisting] = useState(false)
+  const [deployNodeSuccess, setDeployNodeSuccess] = useState(false)
+
+  const updateDeployRoute = (index, updatedRoute) => {
+    setDeployNodeRoutes(prev => prev.map((r, i) => i === index ? updatedRoute : r))
+  }
+  const removeDeployRoute = (index) => {
+    setDeployNodeRoutes(prev => prev.filter((_, i) => i !== index))
+  }
+  const addDeployRoute = () => {
+    setDeployNodeRoutes(prev => [...prev, makeEmptyRoute()])
+  }
+
+  const [isDeployingNode, setIsDeployingNode] = useState(false)
+  const handleDeployNode = async () => {
+    if (!deployNodeForm.fleetId || deployNodeRoutes.length === 0 || isDeployingNode) return
+    setIsDeployingNode(true)
+    try {
+      // 1. Deploy the node
+      const nodePayload = {
+        gateway_type: deployNodeForm.nodeType,
+        datacenter: deployNodeForm.datacenter,
+        health_check_path: deployNodeForm.healthCheckPath,
+      }
+      if (deployNodeForm.nodeName.trim()) {
+        nodePayload.name = deployNodeForm.nodeName.trim()
+      }
+      const nodeResp = await fetch(`${API_URL}/fleets/${deployNodeForm.fleetId}/nodes/deploy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(nodePayload),
+      })
+      if (!nodeResp.ok) return
+      const nodeData = await nodeResp.json()
+      const newNodeId = nodeData.container_id || nodeData.node?.container_id || nodeData.id
+
+      // 2. Deploy each route targeting the new node
+      for (const route of deployNodeRoutes) {
+        const payload = {
+          context_path: route.context_path,
+          gateway_type: deployNodeForm.nodeType,
+          audience: route.audience,
+          methods: route.methods,
+          target_nodes: newNodeId ? [newNodeId] : [],
+        }
+        if (route.destination_type === 'lambda') {
+          payload.function_enabled = true
+          payload.function_code = route.function_code
+          payload.function_language = 'javascript'
+        } else {
+          payload.backend_url = route.backend_url
+        }
+        await fetch(`${API_URL}/fleets/${deployNodeForm.fleetId}/deploy`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+      }
+
+      setDeployNodeSuccess(true)
+      queryClient.invalidateQueries({ queryKey: ['fleets'] })
+      queryClient.invalidateQueries({ queryKey: ['routes'] })
+      queryClient.invalidateQueries({ queryKey: ['fleetNodes'] })
+      setTimeout(() => {
+        setDeployNodeSuccess(false)
+        setShowDeployNode(false)
+        setIsDeployingNode(false)
+        setDeployNodeForm({ fleetId: '', nodeName: '', nodeType: 'envoy', healthCheckPath: '/health', datacenter: 'us-east-1' })
+        setDeployNodeRoutes([makeEmptyRoute()])
+      }, 2500)
+    } catch {
+      setIsDeployingNode(false)
+    }
+  }
+
+  // ========== Queries ==========
   const { data: fleets = [] } = useQuery({
     queryKey: ['fleets'],
     queryFn: () => fetch(`${API_URL}/fleets`).then(r => r.json()).catch(() => []),
@@ -214,7 +1096,39 @@ export default function Fleets() {
     queryFn: () => fetch(`${API_URL}/audit-log`).then(r => r.json()).catch(() => []),
   })
 
-  // Find the matching route for a fleet instance by hostname + path
+  // Fetch nodes for the currently expanded fleet
+  const { data: fleetNodes = {} } = useQuery({
+    queryKey: ['fleetNodes', expandedFleet],
+    queryFn: () => expandedFleet
+      ? fetch(`${API_URL}/fleets/${expandedFleet}/nodes`).then(r => r.json()).catch(() => [])
+      : Promise.resolve([]),
+    enabled: !!expandedFleet,
+    refetchInterval: 5000,
+  })
+
+  // Normalize: API might return an array or { nodes: [...] }
+  const currentFleetNodes = useMemo(() => {
+    if (!fleetNodes) return []
+    if (Array.isArray(fleetNodes)) return fleetNodes
+    if (Array.isArray(fleetNodes.nodes)) return fleetNodes.nodes
+    return []
+  }, [fleetNodes])
+
+  // Scale fleet mutation
+  const [scaleCount, setScaleCount] = useState(null)
+  const scaleMutation = useMutation({
+    mutationFn: ({ fleetId, count }) =>
+      fetch(`${API_URL}/fleets/${fleetId}/scale`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ count }),
+      }).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fleets'] })
+      queryClient.invalidateQueries({ queryKey: ['fleetNodes', expandedFleet] })
+    },
+  })
+
   const findRouteForInstance = (inst, fleet) => {
     return routes.find(r =>
       r.path === inst.context_path &&
@@ -244,27 +1158,22 @@ export default function Fleets() {
     } catch {}
   }
 
-  const totalInstances = fleets.reduce((sum, f) => sum + (f.instances || []).length, 0)
-  const healthyFleets = fleets.filter(f => f.status === 'healthy').length
+  const dataPlaneFleets = fleets.filter(f => f.fleet_type !== 'control')
+  const controlPlaneFleets = fleets.filter(f => f.fleet_type === 'control')
+  const totalInstances = dataPlaneFleets.reduce((sum, f) => sum + (f.instances || []).length, 0)
+  const healthyFleets = dataPlaneFleets.filter(f => f.status === 'healthy').length
 
-  const handleDeploy = async (e) => {
-    e.preventDefault()
-    if (!deployFleetId) return
-    try {
-      const r = await fetch(`${API_URL}/fleets/${deployFleetId}/deploy`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(deployForm),
-      })
-      if (r.ok) {
-        setDeploySuccess(true)
-        setTimeout(() => { setDeploySuccess(false); setShowDeploy(false) }, 3000)
-        queryClient.invalidateQueries({ queryKey: ['fleets'] })
-        queryClient.invalidateQueries({ queryKey: ['routes'] })
-        setDeployForm({ context_path: '', backend: 'http://svc-api:8005', team: '' })
+  // Build "copy from existing" data: all routes grouped by fleet
+  const existingRoutesByFleet = useMemo(() => {
+    const groups = {}
+    for (const fleet of dataPlaneFleets) {
+      const insts = fleet.instances || []
+      if (insts.length > 0) {
+        groups[fleet.id] = { name: fleet.name, subdomain: fleet.subdomain, routes: insts }
       }
-    } catch {}
-  }
+    }
+    return groups
+  }, [dataPlaneFleets])
 
   return (
     <div className="space-y-6">
@@ -272,17 +1181,17 @@ export default function Fleets() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-white">Fleet Management</h1>
-          <p className="text-sm text-jpmc-muted">Logical gateway groups serving subdomains — each fleet is a Kubernetes Service with scaled pods</p>
+          <p className="text-sm text-jpmc-muted">Logical gateway groups serving subdomains -- each fleet can have both Envoy and Kong nodes</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => { setShowCreateFleet(true); setShowDeploy(false) }}
+          <button onClick={() => { setShowNewFleet(true); setShowDeployNode(false) }}
             className="flex items-center gap-2 px-3 py-2 rounded-lg border border-jpmc-border/50 bg-jpmc-navy/50 text-sm text-jpmc-text hover:border-blue-500/30 hover:bg-blue-500/5 transition-all">
             <Globe size={14} />
             New Fleet
           </button>
-          <button onClick={() => { setShowDeploy(!showDeploy); setShowCreateFleet(false) }} className="btn-primary flex items-center gap-2">
-            {showDeploy ? <X size={14} /> : <Plus size={14} />}
-            {showDeploy ? 'Cancel' : 'Deploy to Fleet'}
+          <button onClick={() => { setShowDeployNode(!showDeployNode); setShowNewFleet(false) }} className="btn-primary flex items-center gap-2">
+            {showDeployNode ? <X size={14} /> : <Plus size={14} />}
+            {showDeployNode ? 'Cancel' : 'Deploy Node'}
           </button>
         </div>
       </div>
@@ -302,10 +1211,10 @@ export default function Fleets() {
             <p className="text-xs text-jpmc-muted leading-relaxed">
               Each fleet maps to a <span className="text-jpmc-text">Kubernetes Deployment</span> with
               horizontally-scaled gateway pods behind an internal <span className="text-jpmc-text">ClusterIP Service</span>.
-              Fleet subdomains resolve via internal DNS to the service VIP.
-              Routes are pushed to all pods in the fleet via the xDS control plane (Envoy) or declarative config sync (Kong).
+              A fleet can host both <span className="text-purple-400">Envoy (web)</span> and <span className="text-blue-400">Kong (API)</span> nodes.
+              Routes are pushed to compatible nodes via the xDS control plane (Envoy) or declarative config sync (Kong).
               In production, fleet changes are committed to <span className="text-jpmc-text">Bitbucket</span> and
-              reconciled by <span className="text-jpmc-text">ArgoCD</span> — this PoC writes directly to the gateway control plane.
+              reconciled by <span className="text-jpmc-text">ArgoCD</span> -- this PoC writes directly to the gateway control plane.
             </p>
           </div>
         </div>
@@ -313,43 +1222,70 @@ export default function Fleets() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <GlassCard title="Total Fleets" icon={Server} value={fleets.length} subtitle={`${healthyFleets} healthy`} delay={0} />
+        <GlassCard title="Data Plane Fleets" icon={Server} value={dataPlaneFleets.length} subtitle={`${healthyFleets} healthy + ${controlPlaneFleets.length} CP services`} delay={0} />
         <GlassCard title="Route Instances" icon={Cpu} value={totalInstances} subtitle="Across all fleets" delay={0.05} />
         <GlassCard
           title="Fleet Health"
           icon={Activity}
-          value={fleets.length > 0 ? `${Math.round((healthyFleets / fleets.length) * 100)}%` : '—'}
-          subtitle={fleets.length === healthyFleets ? 'All fleets healthy' : 'Some fleets degraded'}
+          value={dataPlaneFleets.length > 0 ? `${Math.round((healthyFleets / dataPlaneFleets.length) * 100)}%` : '--'}
+          subtitle={dataPlaneFleets.length === healthyFleets ? 'All fleets healthy' : 'Some fleets degraded'}
           delay={0.1}
         />
       </div>
 
-      {/* Deploy Slide-over */}
+      {/* ========== Deploy Node Slide-over ========== */}
+      {createPortal(
       <AnimatePresence>
-        {showDeploy && (
+        {showDeployNode && (
           <>
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/40 z-40"
-              onClick={() => setShowDeploy(false)}
+              className="fixed inset-0 bg-black/40 z-[9998]"
+              onClick={() => setShowDeployNode(false)}
             />
             <motion.div
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="fixed right-0 top-0 h-screen w-full max-w-md bg-jpmc-dark border-l border-jpmc-border z-50 overflow-y-auto"
+              className="fixed top-0 right-0 bottom-0 w-full max-w-lg bg-jpmc-dark border-l border-jpmc-border z-[9999] flex flex-col overflow-hidden"
             >
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-lg font-bold text-white">Deploy Route to Fleet</h2>
-                  <button onClick={() => setShowDeploy(false)} className="p-1.5 rounded-md hover:bg-jpmc-hover text-jpmc-muted">
+              {/* Header */}
+              <div className="p-6 pb-4 shrink-0">
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-lg font-bold text-white">Deploy Node</h2>
+                  <button onClick={() => setShowDeployNode(false)} className="p-1.5 rounded-md hover:bg-jpmc-hover text-jpmc-muted">
                     <X size={18} />
                   </button>
                 </div>
+              </div>
 
+              {/* Success overlay */}
+              <AnimatePresence>
+                {deployNodeSuccess && (
+                  <motion.div
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    className="absolute inset-0 z-10 flex items-center justify-center bg-jpmc-dark/90"
+                  >
+                    <motion.div initial={{ scale: 0.8 }} animate={{ scale: 1 }} className="text-center">
+                      <motion.div
+                        initial={{ scale: 0 }} animate={{ scale: 1 }}
+                        transition={{ type: 'spring', damping: 10, stiffness: 200 }}
+                        className="w-20 h-20 rounded-full bg-emerald-500/20 border-2 border-emerald-500 flex items-center justify-center mx-auto mb-4"
+                      >
+                        <Check size={36} className="text-emerald-400" />
+                      </motion.div>
+                      <div className="text-lg font-bold text-emerald-300">Node Deployed Successfully</div>
+                      <div className="text-sm text-emerald-400/70 mt-1">Routes will be live within 5 seconds</div>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Scrollable content */}
+              <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6">
                 {/* GitOps notice */}
                 <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 mb-4">
                   <div className="flex items-center gap-2 text-amber-400 text-xs font-medium mb-1">
@@ -358,184 +1294,331 @@ export default function Fleets() {
                   </div>
                   <p className="text-[11px] text-amber-300/70">
                     In production this deploy would create a PR in Bitbucket, pass CI validation,
-                    and be reconciled by ArgoCD to the target fleet's Kubernetes namespace.
-                    This PoC writes directly to the ingress registry and gateway control plane.
+                    and be reconciled by ArgoCD. This PoC writes directly to the control plane.
                   </p>
                 </div>
 
-                {/* What happens on deploy */}
-                <div className="p-3 rounded-lg bg-jpmc-navy/50 border border-jpmc-border/30 mb-6">
-                  <div className="flex items-center gap-2 text-jpmc-text text-xs font-medium mb-2">
-                    <Info size={12} className="text-blue-400" />
-                    What happens when you deploy
-                  </div>
-                  <ol className="text-[11px] text-jpmc-muted space-y-1.5 list-decimal list-inside">
-                    <li>Route is registered in the <span className="text-jpmc-text">Ingress Registry</span> (desired state)</li>
-                    <li>Control plane pushes config to the fleet's <span className="text-jpmc-text">gateway cluster</span> within 5s</li>
-                    <li>All gateway pods in the fleet receive the route via <span className="text-jpmc-text">xDS / declarative sync</span></li>
-                    <li>Drift detection confirms <span className="text-emerald-400">desired = actual</span> within 10s</li>
-                    <li>Route is live and testable at the fleet's <span className="text-jpmc-text">subdomain</span></li>
-                  </ol>
-                </div>
+                {/* Section 1: Node Config */}
+                <div className="space-y-4 mb-6">
+                  <div className="text-xs font-bold text-jpmc-muted uppercase tracking-wider">Node Configuration</div>
 
-                <AnimatePresence>
-                  {deploySuccess && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30 mb-4 text-center"
-                    >
-                      <Zap size={24} className="text-emerald-400 mx-auto mb-2" />
-                      <div className="text-sm font-medium text-emerald-300">Route deployed successfully</div>
-                      <div className="text-[11px] text-emerald-400/70 mt-1">Gateway will pick up the route within 5 seconds</div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                <form onSubmit={handleDeploy} className="space-y-4">
+                  {/* Target Fleet */}
                   <div>
                     <label className="block text-xs font-medium text-jpmc-muted mb-1.5">Target Fleet</label>
-                    <select
-                      className="select-field"
-                      value={deployFleetId}
-                      onChange={e => setDeployFleetId(e.target.value)}
-                    >
+                    <select className="select-field" value={deployNodeForm.fleetId}
+                      onChange={e => setDeployNodeForm({ ...deployNodeForm, fleetId: e.target.value })}>
                       <option value="">Select a fleet...</option>
-                      {fleets.map(f => (
+                      {dataPlaneFleets.map(f => (
                         <option key={f.id} value={f.id}>
-                          {f.name} ({f.subdomain}) — {f.gateway_type}
+                          {f.name} ({f.subdomain})
                         </option>
                       ))}
                     </select>
                   </div>
+
+                  {/* Node Name */}
                   <div>
-                    <label className="block text-xs font-medium text-jpmc-muted mb-1.5">Context Path</label>
-                    <input className="input-field" placeholder="/api/new-service" value={deployForm.context_path}
-                      onChange={e => setDeployForm({ ...deployForm, context_path: e.target.value })} />
+                    <label className="block text-xs font-medium text-jpmc-muted mb-1.5">Node Name</label>
+                    <input className="input-field" placeholder={`e.g. ${deployNodeForm.fleetId || 'fleet'}-${deployNodeForm.nodeType}-prod-1`}
+                      value={deployNodeForm.nodeName}
+                      onChange={e => setDeployNodeForm({ ...deployNodeForm, nodeName: e.target.value })} />
                     <p className="text-[10px] text-jpmc-muted mt-1">
-                      The path this route handles within the fleet's subdomain
+                      {deployNodeForm.nodeName
+                        ? `Container: ${deployNodeForm.nodeName}`
+                        : 'Leave blank for auto-generated name'}
                     </p>
                   </div>
+
+                  {/* Node Type */}
                   <div>
-                    <label className="block text-xs font-medium text-jpmc-muted mb-1.5">Backend Service</label>
-                    <select className="select-field" value={deployForm.backend}
-                      onChange={e => setDeployForm({ ...deployForm, backend: e.target.value })}>
-                      <option value="http://svc-api:8005">svc-api (API services)</option>
-                      <option value="http://svc-web:8004">svc-web (Web services)</option>
+                    <label className="block text-xs font-medium text-jpmc-muted mb-2">Node Type</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {[
+                        { key: 'envoy', label: 'Web Gateway (Envoy)', icon: Globe, desc: 'HTML, CSS, JS, static assets', color: 'purple' },
+                        { key: 'kong', label: 'API Gateway (Kong)', icon: Cpu, desc: 'REST, gRPC, GraphQL endpoints', color: 'blue' },
+                      ].map(opt => (
+                        <div key={opt.key}
+                          onClick={() => setDeployNodeForm({ ...deployNodeForm, nodeType: opt.key })}
+                          className={`cursor-pointer p-3 rounded-lg border-2 transition-all ${
+                            deployNodeForm.nodeType === opt.key
+                              ? opt.color === 'purple' ? 'border-purple-500 bg-purple-500/5' : 'border-blue-500 bg-blue-500/5'
+                              : 'border-jpmc-border/50 bg-jpmc-navy/30 hover:border-jpmc-border'
+                          }`}
+                        >
+                          <opt.icon size={18} className={
+                            deployNodeForm.nodeType === opt.key
+                              ? opt.color === 'purple' ? 'text-purple-400 mb-1' : 'text-blue-400 mb-1'
+                              : 'text-jpmc-muted mb-1'
+                          } />
+                          <div className="text-xs font-medium text-white">{opt.label}</div>
+                          <div className="text-[10px] text-jpmc-muted mt-0.5">{opt.desc}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Health Check Path */}
+                  <div>
+                    <label className="block text-xs font-medium text-jpmc-muted mb-1.5">Health Check Path</label>
+                    <input className="input-field text-xs font-mono" value={deployNodeForm.healthCheckPath}
+                      onChange={e => setDeployNodeForm({ ...deployNodeForm, healthCheckPath: e.target.value })} />
+                  </div>
+
+                  {/* Datacenter */}
+                  <div>
+                    <label className="block text-xs font-medium text-jpmc-muted mb-1.5">Datacenter</label>
+                    <select className="select-field" value={deployNodeForm.datacenter}
+                      onChange={e => setDeployNodeForm({ ...deployNodeForm, datacenter: e.target.value })}>
+                      {['us-east-1', 'us-east-2', 'eu-west-1', 'ap-southeast-1'].map(dc => (
+                        <option key={dc} value={dc}>{dc}</option>
+                      ))}
                     </select>
-                    <p className="text-[10px] text-jpmc-muted mt-1">
-                      In production this would be a Kubernetes Service name in the target namespace
-                    </p>
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-jpmc-muted mb-1.5">Team</label>
-                    <input className="input-field" placeholder="markets-team" value={deployForm.team}
-                      onChange={e => setDeployForm({ ...deployForm, team: e.target.value })} />
+                </div>
+
+                {/* Section 2: Routes */}
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <button onClick={() => setRoutesSectionOpen(!routesSectionOpen)}
+                      className="flex items-center gap-2 text-xs font-bold text-jpmc-muted uppercase tracking-wider hover:text-jpmc-text transition-colors">
+                      {routesSectionOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                      Routes
+                      <span className="px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 text-[10px] font-medium normal-case">
+                        {deployNodeRoutes.length}
+                      </span>
+                    </button>
+                    <div className="flex items-center gap-2">
+                      <div className="relative">
+                        <button
+                          onClick={() => setShowCopyFromExisting(!showCopyFromExisting)}
+                          className="flex items-center gap-1 px-2 py-1 rounded text-[10px] border border-jpmc-border/40 text-jpmc-muted hover:text-jpmc-text hover:bg-jpmc-hover transition-colors">
+                          <Copy size={10} /> Copy from existing
+                        </button>
+                        {showCopyFromExisting && (
+                          <div className="absolute right-0 top-full mt-1 w-72 max-h-60 overflow-y-auto bg-jpmc-dark border border-jpmc-border rounded-lg shadow-xl z-50">
+                            {Object.entries(existingRoutesByFleet).length === 0 ? (
+                              <div className="p-3 text-[10px] text-jpmc-muted text-center">No existing routes found</div>
+                            ) : (
+                              Object.entries(existingRoutesByFleet).map(([fid, fdata]) => (
+                                <div key={fid}>
+                                  <div className="px-3 py-1.5 text-[9px] font-bold text-jpmc-muted uppercase tracking-wider bg-jpmc-navy/50 border-b border-jpmc-border/20">
+                                    {fdata.name} <span className="font-normal text-jpmc-muted">({fdata.subdomain})</span>
+                                  </div>
+                                  {fdata.routes.map(r => (
+                                    <button key={r.id}
+                                      className="w-full text-left px-3 py-1.5 text-[10px] hover:bg-jpmc-hover transition-colors flex items-center gap-2"
+                                      onClick={() => {
+                                        const newRoute = makeEmptyRoute()
+                                        newRoute.context_path = r.context_path || r.path || ''
+                                        newRoute.backend_url = r.backend || r.backend_url || 'http://svc-web:8004'
+                                        newRoute.audience = r.audience || ''
+                                        setDeployNodeRoutes(prev => [...prev, newRoute])
+                                        setShowCopyFromExisting(false)
+                                      }}>
+                                      <code className="text-blue-400 font-mono">{r.context_path}</code>
+                                      <span className="text-jpmc-muted">{'\u2192'}</span>
+                                      <span className="text-jpmc-muted font-mono truncate">{(r.backend || '').replace('http://', '')}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <button onClick={addDeployRoute}
+                        className="flex items-center gap-1 px-2 py-1 rounded text-[10px] bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500/20 transition-colors">
+                        <Plus size={10} /> Add Route
+                      </button>
+                    </div>
                   </div>
-                  <button type="submit" disabled={!deployFleetId || !deployForm.context_path} className="btn-primary w-full py-3 disabled:opacity-40">
-                    Deploy to Fleet
-                  </button>
-                </form>
+
+                  {routesSectionOpen && (
+                    <div className="space-y-3">
+                      {deployNodeRoutes.length === 0 && (
+                        <div className="p-4 rounded-lg border-2 border-dashed border-jpmc-border/30 text-center">
+                          <div className="text-xs text-jpmc-muted">At least 1 route is required to deploy</div>
+                          <button onClick={addDeployRoute}
+                            className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-dashed border-blue-500/30 text-xs text-blue-400 hover:bg-blue-500/5 transition-all mx-auto">
+                            <Plus size={12} /> Add Route
+                          </button>
+                        </div>
+                      )}
+                      {deployNodeRoutes.map((route, idx) => (
+                        <DeployRouteCard
+                          key={idx}
+                          route={route}
+                          index={idx}
+                          nodeType={deployNodeForm.nodeType}
+                          onUpdate={updateDeployRoute}
+                          onRemove={removeDeployRoute}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Deploy Button */}
+                <button
+                  onClick={handleDeployNode}
+                  disabled={!deployNodeForm.fleetId || deployNodeRoutes.length === 0 || deployNodeRoutes.some(r => !r.context_path) || isDeployingNode}
+                  className="btn-primary w-full py-3 disabled:opacity-40"
+                >
+                  {isDeployingNode ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Deploying...
+                    </span>
+                  ) : (
+                    `Deploy Node with ${deployNodeRoutes.length} Route${deployNodeRoutes.length !== 1 ? 's' : ''}`
+                  )}
+                </button>
               </div>
             </motion.div>
           </>
         )}
       </AnimatePresence>
+      , document.body)}
 
-      {/* Create Fleet Slide-over */}
+      {/* ========== New Fleet Slide-over ========== */}
+      {createPortal(
       <AnimatePresence>
-        {showCreateFleet && (
+        {showNewFleet && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/40 z-40" onClick={() => setShowCreateFleet(false)} />
+              className="fixed inset-0 bg-black/40 z-[9998]" onClick={() => setShowNewFleet(false)} />
             <motion.div
               initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="fixed right-0 top-0 h-screen w-full max-w-md bg-jpmc-dark border-l border-jpmc-border z-50 overflow-y-auto"
+              className="fixed top-0 right-0 bottom-0 w-full max-w-lg bg-jpmc-dark border-l border-jpmc-border z-[9999] flex flex-col overflow-hidden"
             >
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
+              {/* Header */}
+              <div className="p-6 pb-4 shrink-0">
+                <div className="flex items-center justify-between mb-2">
                   <h2 className="text-lg font-bold text-white">Create New Fleet</h2>
-                  <button onClick={() => setShowCreateFleet(false)} className="p-1.5 rounded-md hover:bg-jpmc-hover text-jpmc-muted">
+                  <button onClick={() => setShowNewFleet(false)} className="p-1.5 rounded-md hover:bg-jpmc-hover text-jpmc-muted">
                     <X size={18} />
                   </button>
                 </div>
+              </div>
 
-                <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30 mb-4">
-                  <div className="flex items-center gap-2 text-blue-400 text-xs font-medium mb-1">
-                    <Globe size={12} />
-                    Portal-Based Routing
-                  </div>
-                  <p className="text-[11px] text-blue-300/70">
-                    Each fleet gets a portal hostname: <code className="text-blue-300">[portal].jpm.com</code>.
-                    Routes on the portal use path convention: <code className="text-blue-300">/api/*</code> → Kong,
-                    everything else → Envoy. The perimeter layer (PSaaS) applies this rule statically.
-                  </p>
+              {/* Success overlay */}
+              <AnimatePresence>
+                {newFleetSuccess && (
+                  <motion.div
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    className="absolute inset-0 z-10 flex items-center justify-center bg-jpmc-dark/90"
+                  >
+                    <motion.div initial={{ scale: 0.8 }} animate={{ scale: 1 }} className="text-center">
+                      <motion.div
+                        initial={{ scale: 0 }} animate={{ scale: 1 }}
+                        transition={{ type: 'spring', damping: 10, stiffness: 200 }}
+                        className="w-20 h-20 rounded-full bg-emerald-500/20 border-2 border-emerald-500 flex items-center justify-center mx-auto mb-4"
+                      >
+                        <Check size={36} className="text-emerald-400" />
+                      </motion.div>
+                      <div className="text-lg font-bold text-emerald-300">Fleet Created Successfully</div>
+                      <div className="text-sm text-emerald-400/70 mt-1">Deploy nodes and routes to start serving traffic</div>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Form */}
+              <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6 space-y-4">
+                {/* Name */}
+                <div>
+                  <label className="block text-xs font-medium text-jpmc-muted mb-1.5">Fleet Name <span className="text-red-400">*</span></label>
+                  <input className="input-field" placeholder="JPMM Markets Gateway" value={newFleetForm.name}
+                    onChange={e => setNewFleetForm({ ...newFleetForm, name: e.target.value })} />
                 </div>
 
-                <AnimatePresence>
-                  {createFleetSuccess && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-                      className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30 mb-4 text-center"
-                    >
-                      <Zap size={24} className="text-emerald-400 mx-auto mb-2" />
-                      <div className="text-sm font-medium text-emerald-300">Fleet created successfully</div>
-                      <div className="text-[11px] text-emerald-400/70 mt-1">Ready for route deployments</div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                {/* LOB */}
+                <div>
+                  <label className="block text-xs font-medium text-jpmc-muted mb-1.5">Line of Business</label>
+                  <select className="select-field" value={newFleetForm.lob} onChange={e => setNewFleetForm({ ...newFleetForm, lob: e.target.value })}>
+                    {['Markets', 'Payments', 'Global Banking', 'Security Services', 'xCIB'].map(l => (
+                      <option key={l} value={l}>{l}</option>
+                    ))}
+                  </select>
+                </div>
 
-                <form onSubmit={handleCreateFleet} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-medium text-jpmc-muted mb-1.5">Fleet Name</label>
-                    <input className="input-field" placeholder="JPMM — Markets" value={createFleetForm.name}
-                      onChange={e => setCreateFleetForm({ ...createFleetForm, name: e.target.value })} />
+                {/* Portal Hostname */}
+                <div>
+                  <label className="block text-xs font-medium text-jpmc-muted mb-1.5">Portal Hostname <span className="text-red-400">*</span></label>
+                  <div className="flex items-center gap-0">
+                    <input className="input-field rounded-r-none border-r-0 flex-1 text-xs"
+                      placeholder="myportal" value={newFleetForm.portal}
+                      onChange={e => setNewFleetForm({ ...newFleetForm, portal: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })} />
+                    <span className="px-3 py-2 rounded-r-lg border border-jpmc-border/50 bg-jpmc-navy/80 text-xs text-jpmc-muted">.jpm.com</span>
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-jpmc-muted mb-1.5">Portal Name</label>
-                    <div className="flex items-center gap-0">
-                      <input className="input-field rounded-r-none border-r-0 flex-1 text-xs"
-                        placeholder="myportal" value={createFleetForm.portal}
-                        onChange={e => setCreateFleetForm({ ...createFleetForm, portal: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })} />
-                      <span className="px-3 py-2 rounded-r-lg border border-jpmc-border/50 bg-jpmc-navy/80 text-xs text-jpmc-muted">.jpm.com</span>
+                  {newFleetFqdn && (
+                    <div className="mt-2 p-2 rounded-lg bg-jpmc-navy/50 border border-jpmc-border/20">
+                      <code className="text-xs text-blue-400">{newFleetFqdn}</code>
                     </div>
-                    {computedFqdn && (
-                      <div className="mt-2 p-2 rounded-lg bg-jpmc-navy/50 border border-jpmc-border/20">
-                        <code className="text-xs text-blue-400">{computedFqdn}</code>
-                        <div className="mt-1 text-[9px] text-jpmc-muted">
-                          Web: <code className="text-violet-400">{computedFqdn}/your-page</code> → Envoy
-                          {' · '}API: <code className="text-purple-400">{computedFqdn}/api/your-service</code> → Kong
-                        </div>
-                        <div className="mt-0.5 text-[9px] text-jpmc-muted">
-                          Test: <code className="text-emerald-400/80">curl -sk https://{computedFqdn}/your-path</code>
-                        </div>
+                  )}
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="block text-xs font-medium text-jpmc-muted mb-1.5">Description <span className="text-jpmc-muted text-[10px]">(optional)</span></label>
+                  <textarea className="input-field min-h-[80px] resize-y" placeholder="Describe this fleet's purpose..."
+                    value={newFleetForm.description} onChange={e => setNewFleetForm({ ...newFleetForm, description: e.target.value })} />
+                </div>
+
+                {/* Hosting Environment */}
+                <div>
+                  <label className="block text-xs font-medium text-jpmc-muted mb-2">Hosting Environment</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { key: 'psaas', label: 'On-Prem (PSaaS)', icon: Layers, desc: 'Private data center', color: 'indigo' },
+                      { key: 'aws', label: 'Public Cloud (AWS)', icon: Cloud, desc: 'Multi-AZ cloud', color: 'orange' },
+                    ].map(opt => (
+                      <div key={opt.key}
+                        onClick={() => setNewFleetForm({ ...newFleetForm, hostEnv: opt.key })}
+                        className={`cursor-pointer p-4 rounded-lg border-2 transition-all ${
+                          newFleetForm.hostEnv === opt.key
+                            ? opt.color === 'indigo' ? 'border-indigo-500 bg-indigo-500/5' : 'border-orange-500 bg-orange-500/5'
+                            : 'border-jpmc-border/50 bg-jpmc-navy/30 hover:border-jpmc-border'
+                        }`}
+                      >
+                        <opt.icon size={18} className={
+                          newFleetForm.hostEnv === opt.key
+                            ? opt.color === 'indigo' ? 'text-indigo-400 mb-1' : 'text-orange-400 mb-1'
+                            : 'text-jpmc-muted mb-1'
+                        } />
+                        <div className="text-sm font-medium text-white">{opt.label}</div>
+                        <div className="text-[10px] text-jpmc-muted mt-0.5">{opt.desc}</div>
                       </div>
-                    )}
+                    ))}
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-jpmc-muted mb-1.5">Region</label>
-                    <select className="select-field" value={createFleetForm.region}
-                      onChange={e => setCreateFleetForm({ ...createFleetForm, region: e.target.value })}>
-                      <option value="us-east">US East</option>
-                      <option value="us-west">US West</option>
-                      <option value="eu-west">EU West</option>
-                      <option value="ap-southeast">AP Southeast</option>
-                      <option value="multi">Multi-Region</option>
-                    </select>
-                  </div>
-                  <button type="submit"
-                    disabled={!createFleetForm.name || !computedFqdn}
-                    className="btn-primary w-full py-3 disabled:opacity-40">
-                    Create Fleet
-                  </button>
-                </form>
+                </div>
+
+                {/* Auth Provider */}
+                <div>
+                  <label className="block text-xs font-medium text-jpmc-muted mb-1.5">Auth Provider</label>
+                  <select className="select-field" value={newFleetForm.authProvider}
+                    onChange={e => setNewFleetForm({ ...newFleetForm, authProvider: e.target.value })}>
+                    {['Janus', 'AuthE1.0', 'AuthE2.0', 'Sentry', 'Chase', 'N/A', 'Unauthenticated'].map(v => (
+                      <option key={v} value={v}>{v}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Submit */}
+                <button
+                  onClick={handleCreateFleet}
+                  disabled={!newFleetForm.name || !newFleetForm.portal}
+                  className="btn-primary w-full py-3 disabled:opacity-40"
+                >
+                  Create Fleet
+                </button>
               </div>
             </motion.div>
           </>
         )}
       </AnimatePresence>
+      , document.body)}
 
       {/* Search, Filter, Sort Bar */}
       <div className="flex items-center gap-3 flex-wrap">
@@ -576,13 +1659,15 @@ export default function Fleets() {
               const match = (f.name || '').toLowerCase().includes(q) ||
                 (f.subdomain || '').toLowerCase().includes(q) ||
                 (f.lob || '').toLowerCase().includes(q) ||
-                (f.auth_provider || '').toLowerCase().includes(q)
+                (f.auth_provider || '').toLowerCase().includes(q) ||
+                (f.notes || '').toLowerCase().includes(q) ||
+                (f.fleet_type || '').toLowerCase().includes(q)
               if (!match) return false
             }
             if (statusFilter !== 'all' && f.status !== statusFilter) return false
             if (gatewayFilter !== 'all') {
               const insts = f.instances || []
-              const hasGateway = insts.some(i => i.gateway_type === gatewayFilter)
+              const hasGateway = insts.some(i => (i.gateway_type || 'envoy') === gatewayFilter)
               if (!hasGateway && f.gateway_type !== gatewayFilter) return false
             }
             return true
@@ -594,29 +1679,34 @@ export default function Fleets() {
             return (order[a.status] ?? 9) - (order[b.status] ?? 9)
           })
           else if (sortBy === 'instances') filtered.sort((a, b) => (b.instances || []).length - (a.instances || []).length)
-          // Group by LOB
-          const groups = filtered.reduce((g, fleet) => {
+
+          // Separate data plane and control plane fleets
+          const dataPlane = filtered.filter(f => f.fleet_type !== 'control')
+          const controlPlane = filtered.filter(f => f.fleet_type === 'control')
+
+          // Group data plane by LOB
+          const groups = dataPlane.reduce((g, fleet) => {
             const lob = fleet.lob || 'Other'
             ;(g[lob] = g[lob] || []).push(fleet)
             return g
           }, {})
-          // Sort LOB groups deterministically
-          const lobOrder = ['Markets', 'Payments', 'Global Banking', 'Security Services', 'CIB']
+          const lobOrder = ['Markets', 'Payments', 'Global Banking', 'Security Services', 'xCIB', 'CIB']
           const sortedEntries = Object.entries(groups).sort(([a], [b]) => {
             const ai = lobOrder.indexOf(a), bi = lobOrder.indexOf(b)
             return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
           })
-          return sortedEntries.map(([lob, lobFleets]) => (
-          <div key={lob}>
-            <div className="flex items-center gap-2 mb-3">
-              <h2 className="text-xs font-bold text-jpmc-muted uppercase tracking-widest">{lob}</h2>
-              <div className="flex-1 border-t border-jpmc-border/30" />
-              <span className="text-[10px] text-jpmc-muted">{lobFleets.length} fleet{lobFleets.length !== 1 ? 's' : ''}</span>
-            </div>
-            <div className="space-y-3">
-        {lobFleets.map((fleet, idx) => {
+
+          const renderFleetCard = (fleet, idx) => {
+          const isControlPlane = fleet.fleet_type === 'control'
           const isExpanded = expandedFleet === fleet.id
           const instances = fleet.instances || []
+          const fleetEnvoyCount = instances.filter(i => (i.gateway_type || 'envoy') === 'envoy' || (!i.gateway_type && !i.context_path?.startsWith('/api'))).length
+          const fleetKongCount = instances.filter(i => i.gateway_type === 'kong' || (!i.gateway_type && i.context_path?.startsWith('/api'))).length
+          const liveNodes = isExpanded ? currentFleetNodes : (fleet.nodes || [])
+          const { envoyCount: liveEnvoy, kongCount: liveKong } = getNodeTypeCounts(liveNodes)
+          const headerEnvoy = liveEnvoy
+          const headerKong = liveKong
+
           return (
             <motion.div
               key={fleet.id}
@@ -624,25 +1714,38 @@ export default function Fleets() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 + idx * 0.05 }}
             >
-              <div className={`glass-card overflow-hidden transition-all duration-200 ${
-                fleet.status === 'degraded' ? 'border-amber-500/30' : ''
+              <div className={`overflow-hidden transition-all duration-200 ${
+                isControlPlane
+                  ? 'rounded-xl border border-dashed border-slate-500/30 bg-jpmc-dark/80'
+                  : `glass-card ${fleet.status === 'degraded' ? 'border-amber-500/30' : ''}`
               }`}>
                 {/* Fleet Header */}
                 <div
                   className="flex items-center gap-4 p-5 cursor-pointer hover:bg-jpmc-hover/50 transition-colors"
-                  onClick={() => setExpandedFleet(isExpanded ? null : fleet.id)}
+                  onClick={() => { setExpandedFleet(isExpanded ? null : fleet.id); setScaleCount(null) }}
                 >
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                    fleet.status === 'healthy'
-                      ? 'bg-emerald-500/15 border border-emerald-500/30'
-                      : 'bg-amber-500/15 border border-amber-500/30'
+                    fleet.status === 'healthy' ? 'bg-emerald-500/15 border border-emerald-500/30'
+                    : fleet.status === 'suspended' ? 'bg-amber-500/15 border border-amber-500/30'
+                    : fleet.status === 'offline' ? 'bg-red-500/15 border border-red-500/30'
+                    : fleet.status === 'degraded' ? 'bg-amber-500/15 border border-amber-500/30'
+                    : 'bg-gray-500/15 border border-gray-500/30'
                   }`}>
-                    <Server size={18} className={fleet.status === 'healthy' ? 'text-emerald-400' : 'text-amber-400'} />
+                    {fleet.status === 'suspended' ? (
+                      <Pause size={18} className="text-amber-400" />
+                    ) : fleet.status === 'offline' ? (
+                      <Power size={18} className="text-red-400" />
+                    ) : (
+                      <Server size={18} className={fleet.status === 'healthy' ? 'text-emerald-400' : 'text-amber-400'} />
+                    )}
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="text-sm font-semibold text-white">{fleet.name}</h3>
+                      {fleet.fleet_type === 'control' && (
+                        <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-slate-500/15 border border-slate-500/30 text-slate-400 font-semibold uppercase tracking-wider">CP</span>
+                      )}
                       {fleet.lob && <span className="badge badge-blue text-[9px]">{fleet.lob}</span>}
                       <StatusBadge status={fleet.status} />
                     </div>
@@ -655,22 +1758,39 @@ export default function Fleets() {
                         <MapPin size={11} />
                         {(fleet.regions || []).join(', ') || fleet.region}
                       </span>
-                      {fleet.auth_provider && (
+                      {fleet.auth_provider && fleet.auth_provider !== '' && (
                         <span className="flex items-center gap-1">
                           <Lock size={11} />
                           {fleet.auth_provider}
                         </span>
                       )}
                     </div>
+                    {isControlPlane && fleet.notes && (
+                      <p className="text-[10px] text-slate-400 mt-1 leading-relaxed line-clamp-2">{fleet.notes}</p>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-4 shrink-0">
                     <span className={`badge text-[9px] ${fleet.host_env === 'aws' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/30' : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/30'}`}>
                       {fleet.host_env === 'aws' ? 'AWS' : 'PSaaS'}
                     </span>
-                    <span className={`badge ${fleet.gateway_type === 'kong' ? 'badge-blue' : 'badge-gray'}`}>
-                      {fleet.gateway_type}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {headerEnvoy > 0 && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 font-medium">
+                          {headerEnvoy} Envoy
+                        </span>
+                      )}
+                      {headerKong > 0 && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/30 font-medium">
+                          {headerKong} Kong
+                        </span>
+                      )}
+                      {headerEnvoy === 0 && headerKong === 0 && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-gray-500/10 text-jpmc-muted border border-jpmc-border/30">
+                          No nodes
+                        </span>
+                      )}
+                    </div>
                     <div className="text-right">
                       <div className="text-lg font-bold text-white">{fleet.instances_count || instances.length}</div>
                       <div className="text-[10px] text-jpmc-muted">instances</div>
@@ -679,6 +1799,60 @@ export default function Fleets() {
                       <div className="text-lg font-bold text-white">{instances.length}</div>
                       <div className="text-[10px] text-jpmc-muted">routes</div>
                     </div>
+                    {/* Fleet Suspend/Resume/Restart -- hidden for CP fleets */}
+                    {fleet.fleet_type !== 'control' && (
+                    <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                      {fleet.status === 'suspended' ? (
+                        <button
+                          onClick={async () => {
+                            await fetch(`${API_URL}/fleets/${fleet.id}/resume`, { method: 'POST' })
+                            queryClient.invalidateQueries({ queryKey: ['fleets'] })
+                            queryClient.invalidateQueries({ queryKey: ['fleetNodes', fleet.id] })
+                          }}
+                          className="p-1.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition-colors"
+                          title="Resume fleet"
+                        >
+                          <Play size={14} />
+                        </button>
+                      ) : fleet.status === 'offline' ? (
+                        <button
+                          onClick={async () => {
+                            await fetch(`${API_URL}/fleets/${fleet.id}/resume`, { method: 'POST' })
+                            queryClient.invalidateQueries({ queryKey: ['fleets'] })
+                            queryClient.invalidateQueries({ queryKey: ['fleetNodes', fleet.id] })
+                          }}
+                          className="p-1.5 rounded-md bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition-colors"
+                          title="Restart fleet"
+                        >
+                          <RefreshCw size={14} />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={async () => {
+                            if (!confirm(`Suspend fleet "${fleet.name}"?\n\nThis will:\n- Stop all gateway containers\n- Deactivate all routes\n- Stop serving traffic for ${fleet.subdomain}`)) return
+                            await fetch(`${API_URL}/fleets/${fleet.id}/suspend`, { method: 'POST' })
+                            queryClient.invalidateQueries({ queryKey: ['fleets'] })
+                            queryClient.invalidateQueries({ queryKey: ['fleetNodes', fleet.id] })
+                          }}
+                          className="p-1.5 rounded-md hover:bg-amber-500/10 text-jpmc-muted hover:text-amber-400 transition-colors"
+                          title="Suspend fleet"
+                        >
+                          <Pause size={14} />
+                        </button>
+                      )}
+                      <button
+                        onClick={async () => {
+                          if (!confirm(`Delete fleet "${fleet.name}"?\n\nThis will permanently remove:\n- All gateway containers\n- All routes for ${fleet.subdomain}\n- All fleet configuration`)) return
+                          await fetch(`${API_URL}/fleets/${fleet.id}`, { method: 'DELETE' })
+                          queryClient.invalidateQueries({ queryKey: ['fleets'] })
+                        }}
+                        className="p-1.5 rounded-md hover:bg-red-500/10 text-jpmc-muted hover:text-red-400 transition-colors"
+                        title="Delete fleet"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                    )}
                     {isExpanded ? <ChevronDown size={16} className="text-jpmc-muted" /> : <ChevronRight size={16} className="text-jpmc-muted" />}
                   </div>
                 </div>
@@ -697,123 +1871,222 @@ export default function Fleets() {
                         {/* Production context */}
                         <div className="p-3 rounded-lg bg-jpmc-navy/50 border border-jpmc-border/20 mb-4">
                           <p className="text-[11px] text-jpmc-muted leading-relaxed">
-                            <span className="text-jpmc-text font-medium">{fleet.name}</span> serves
-                            traffic for <code className="text-blue-400 text-[10px]">{fleet.subdomain}</code>.
-                            In production this fleet runs as a {fleet.gateway_type === 'kong' ? 'Kong' : 'Envoy'} Deployment
-                            with <span className="text-jpmc-text">{instances.length} route{instances.length !== 1 ? 's' : ''}</span> configured
-                            across <span className="text-jpmc-text">3 replicas</span> in the <span className="text-jpmc-text">{fleet.region}</span> region.
-                            Route changes propagate to all pods via {fleet.gateway_type === 'kong' ? 'declarative config sync' : 'xDS'} within 5 seconds.
+                            <span className="text-jpmc-text font-medium">{fleet.name}</span>{' '}
+                            {fleet.fleet_type === 'control'
+                              ? <>is a control-plane service managed by docker-compose.</>
+                              : <>serves traffic for <code className="text-blue-400 text-[10px]">{fleet.subdomain}</code>.
+                                This fleet supports mixed gateway types with
+                                <span className="text-jpmc-text"> {instances.length} route{instances.length !== 1 ? 's' : ''}</span> configured.
+                                Route changes propagate to compatible nodes via xDS (Envoy) or declarative sync (Kong) within 5 seconds.</>
+                            }
                           </p>
+                          {fleet.notes && (
+                            <p className="text-[11px] text-jpmc-text mt-2 leading-relaxed border-t border-jpmc-border/20 pt-2">
+                              {fleet.notes}
+                            </p>
+                          )}
                         </div>
 
-                        {/* Instances Table */}
+                        {/* Running Nodes -- grouped by type */}
                         <div className="mb-4">
-                          <div className="text-xs font-medium text-jpmc-muted uppercase tracking-wider mb-3">
-                            Route Instances
-                            <span className="text-[10px] font-normal ml-2 normal-case">(each served by all pods in this fleet)</span>
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="text-xs font-medium text-jpmc-muted uppercase tracking-wider">
+                              {fleet.fleet_type === 'control' ? 'Service Nodes' : 'Running Nodes'}
+                              <span className="text-[10px] font-normal ml-2 normal-case">
+                                {fleet.fleet_type === 'control' ? '(docker-compose managed)' : '(gateway containers in this fleet)'}
+                              </span>
+                            </div>
                           </div>
-                          <div className="space-y-2">
-                            {instances.map(inst => {
-                              const isInstExpanded = expandedInstance === inst.id
-                              return (
-                                <div key={inst.id}>
-                                  <div
-                                    className="flex items-center gap-4 p-3 rounded-lg bg-jpmc-navy/50 border border-jpmc-border/30 cursor-pointer hover:bg-jpmc-hover/30 transition-colors"
-                                    onClick={() => setExpandedInstance(isInstExpanded ? null : inst.id)}
-                                  >
-                                    <span className={`w-2 h-2 rounded-full shrink-0 ${
-                                      inst.status === 'active'
-                                        ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.5)]'
-                                        : inst.status === 'offline'
-                                        ? 'bg-red-400 shadow-[0_0_6px_rgba(248,113,113,0.5)]'
-                                        : inst.status === 'warning'
-                                        ? 'bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.5)]'
-                                        : 'bg-gray-400'
-                                    }`} />
-                                    <code className="text-sm text-blue-400 min-w-[140px]">{inst.context_path}</code>
-                                    <ArrowRight size={12} className="text-jpmc-muted shrink-0" />
-                                    <span className="text-xs text-jpmc-muted font-mono flex-1">{inst.backend}</span>
-                                    <span className={`badge text-[9px] ${inst.gateway_type === 'kong' ? 'badge-blue' : 'badge-gray'}`}>
-                                      {inst.gateway_type || 'envoy'}
-                                    </span>
-                                    <StatusBadge status={inst.status} />
-                                    {(() => {
-                                      const matchedRoute = findRouteForInstance(inst, fleet)
-                                      if (!matchedRoute) return null
-                                      const isActive = matchedRoute.status === 'active'
-                                      return (
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); toggleRouteStatus(matchedRoute) }}
-                                          className={`p-1.5 rounded-md transition-colors shrink-0 ${
-                                            isActive
-                                              ? 'hover:bg-amber-500/10 text-jpmc-muted hover:text-amber-400'
-                                              : 'hover:bg-emerald-500/10 text-jpmc-muted hover:text-emerald-400'
-                                          }`}
-                                          title={isActive ? 'Suspend route' : 'Resume route'}
-                                        >
-                                          {isActive ? <Pause size={13} /> : <Play size={13} />}
-                                        </button>
-                                      )
-                                    })()}
-                                    <div className="text-right min-w-[60px]">
-                                      <div className="text-xs font-medium text-jpmc-text">{inst.latency_p99}ms</div>
-                                      <div className="text-[10px] text-jpmc-muted">p99</div>
+                          {fleet.fleet_type === 'control' ? (
+                            /* Control plane: show all nodes as read-only */
+                            currentFleetNodes.length > 0 ? (
+                              <div className="space-y-1.5">
+                                {currentFleetNodes.map(node => (
+                                  <NodeCard key={node.container_id || node.id || node.name} node={node} fleetId={fleet.id} apiUrl={API_URL} readOnly />
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="p-3 rounded-lg border border-dashed border-jpmc-border/30 text-center text-[11px] text-jpmc-muted">
+                                Loading control-plane nodes...
+                              </div>
+                            )
+                          ) : currentFleetNodes.length > 0 ? (
+                            <>
+                              {/* Envoy Gateway Nodes Section */}
+                              {(() => {
+                                const envoyNodes = currentFleetNodes.filter(n => (n.gateway_type || 'envoy') === 'envoy')
+                                if (envoyNodes.length === 0) return null
+                                return (
+                                  <div className="mb-3">
+                                    <div className="flex items-center gap-2 mb-1.5">
+                                      <span className="text-[10px] font-medium text-purple-400 uppercase tracking-wider">Envoy Gateway Nodes</span>
+                                      <span className="text-[9px] text-jpmc-muted">({envoyNodes.length})</span>
                                     </div>
-                                    {isInstExpanded
-                                      ? <ChevronDown size={14} className="text-jpmc-muted shrink-0" />
-                                      : <ChevronRight size={14} className="text-jpmc-muted shrink-0" />}
+                                    <div className="space-y-4">
+                                      {envoyNodes.map(node => (
+                                        <NodeCard key={node.container_id || node.id || node.name} node={node} fleetId={fleet.id} apiUrl={API_URL} routes={getRoutesForNode(node, instances)} />
+                                      ))}
+                                    </div>
                                   </div>
-                                  <AnimatePresence>
-                                    {isInstExpanded && (
-                                      <motion.div
-                                        initial={{ height: 0, opacity: 0 }}
-                                        animate={{ height: 'auto', opacity: 1 }}
-                                        exit={{ height: 0, opacity: 0 }}
-                                        transition={{ duration: 0.2 }}
-                                        className="overflow-hidden"
+                                )
+                              })()}
+                              {/* Kong Gateway Nodes Section */}
+                              {(() => {
+                                const kongNodes = currentFleetNodes.filter(n => (n.gateway_type || 'envoy') === 'kong')
+                                if (kongNodes.length === 0) return null
+                                return (
+                                  <div className="mb-3">
+                                    <div className="flex items-center gap-2 mb-1.5">
+                                      <span className="text-[10px] font-medium text-blue-400 uppercase tracking-wider">Kong Gateway Nodes</span>
+                                      <span className="text-[9px] text-jpmc-muted">({kongNodes.length})</span>
+                                    </div>
+                                    <div className="space-y-4">
+                                      {kongNodes.map(node => (
+                                        <NodeCard key={node.container_id || node.id || node.name} node={node} fleetId={fleet.id} apiUrl={API_URL} routes={getRoutesForNode(node, instances)} />
+                                      ))}
+                                    </div>
+                                  </div>
+                                )
+                              })()}
+                              {/* Deploy Node inline */}
+                              {(() => {
+                                const regions = [
+                                  { id: 'us-east-1', label: 'US East (N. Virginia)' },
+                                  { id: 'us-east-2', label: 'US East (Ohio)' },
+                                  { id: 'eu-west-1', label: 'EU West (Ireland)' },
+                                  { id: 'ap-southeast-1', label: 'AP Southeast (Singapore)' },
+                                ]
+                                return (
+                                  <div className="flex items-center gap-3 p-3 rounded-lg bg-jpmc-navy/30 border border-jpmc-border/20">
+                                    <div className="text-xs text-jpmc-muted">
+                                      <span className="font-medium">{currentFleetNodes.length}</span> node{currentFleetNodes.length !== 1 ? 's' : ''}
+                                    </div>
+                                    <div className="flex-1" />
+                                    {!showDeployNodeInline ? (
+                                      <button
+                                        onClick={() => setShowDeployNodeInline(true)}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-medium hover:bg-blue-500/20 transition-colors"
                                       >
-                                        <div className="ml-6 mt-1 mb-2 p-3 rounded-lg bg-jpmc-dark/50 border border-jpmc-border/20">
-                                          {(() => {
-                                            const matchedRoute = findRouteForInstance(inst, fleet)
-                                            const routeData = matchedRoute
-                                              ? { ...matchedRoute, auth_issuer: fleet.auth_provider }
-                                              : {
-                                                path: inst.context_path,
-                                                hostname: fleet.subdomain,
-                                                backend_url: inst.backend,
-                                                id: inst.route_id || inst.id,
-                                                gateway_type: inst.gateway_type,
-                                                auth_policy: fleet.auth_provider,
-                                                auth_issuer: fleet.auth_provider,
-                                                team: fleet.lob,
-                                              }
-                                            return (
-                                              <RouteDetailPanel
-                                                route={routeData}
-                                                driftStatus={matchedRoute ? getDriftStatus(matchedRoute.id) : undefined}
-                                                auditEntries={matchedRoute ? auditLog.filter(a => a.detail?.includes(matchedRoute.path)) : []}
-                                                gatewayUrl={`https://${fleet.subdomain}`}
-                                              />
-                                            )
-                                          })()}
+                                        <Plus size={12} /> Deploy Node
+                                      </button>
+                                    ) : (
+                                      <div className="flex items-center gap-3 flex-wrap">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="text-[10px] text-jpmc-muted">Type:</span>
+                                          <button
+                                            onClick={() => setDeployNodeType('envoy')}
+                                            className={`px-2 py-1 rounded-lg border text-[10px] transition-all ${
+                                              deployNodeType === 'envoy'
+                                                ? 'border-purple-500/50 bg-purple-500/10 text-purple-400'
+                                                : 'border-jpmc-border/30 text-jpmc-muted hover:border-jpmc-border/60'
+                                            }`}
+                                          >
+                                            Envoy (Web)
+                                          </button>
+                                          <button
+                                            onClick={() => setDeployNodeType('kong')}
+                                            className={`px-2 py-1 rounded-lg border text-[10px] transition-all ${
+                                              deployNodeType === 'kong'
+                                                ? 'border-blue-500/50 bg-blue-500/10 text-blue-400'
+                                                : 'border-jpmc-border/30 text-jpmc-muted hover:border-jpmc-border/60'
+                                            }`}
+                                          >
+                                            Kong (API)
+                                          </button>
                                         </div>
-                                      </motion.div>
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="text-[10px] text-jpmc-muted">DC:</span>
+                                          <select
+                                            className="select-field text-[10px] py-1 px-2 w-auto"
+                                            value={deployNodeDc}
+                                            onChange={e => setDeployNodeDc(e.target.value)}
+                                          >
+                                            {regions.map(r => (
+                                              <option key={r.id} value={r.id}>{r.label}</option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                        <button
+                                          disabled={deployingRegion !== null}
+                                          onClick={async () => {
+                                            setDeployingRegion(deployNodeDc)
+                                            await fetch(`${API_URL}/fleets/${fleet.id}/scale`, {
+                                              method: 'POST',
+                                              headers: { 'Content-Type': 'application/json' },
+                                              body: JSON.stringify({
+                                                count: currentFleetNodes.length + 1,
+                                                datacenter: deployNodeDc,
+                                                gateway_type: deployNodeType,
+                                              }),
+                                            })
+                                            queryClient.invalidateQueries({ queryKey: ['fleetNodes'] })
+                                            queryClient.invalidateQueries({ queryKey: ['fleets'] })
+                                            setDeployingRegion(null)
+                                            setShowDeployNodeInline(false)
+                                          }}
+                                          className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-medium hover:bg-emerald-500/20 transition-colors disabled:opacity-40"
+                                        >
+                                          {deployingRegion ? 'Deploying...' : 'Deploy'}
+                                        </button>
+                                        <button onClick={() => setShowDeployNodeInline(false)}
+                                          className="p-1 rounded hover:bg-jpmc-hover text-jpmc-muted">
+                                          <X size={12} />
+                                        </button>
+                                      </div>
                                     )}
-                                  </AnimatePresence>
-                                </div>
-                              )
-                            })}
-                          </div>
+                                  </div>
+                                )
+                              })()}
+                            </>
+                          ) : (
+                            <div className="p-4 rounded-lg border-2 border-dashed border-jpmc-border/30 text-center">
+                              <Monitor size={20} className="text-jpmc-muted mx-auto mb-2 opacity-50" />
+                              <div className="text-xs text-jpmc-muted">Fleet not yet deployed -- click <span className="text-blue-400 font-medium">Deploy Node</span> to spin up gateway instances</div>
+                            </div>
+                          )}
+
                         </div>
 
-                        {/* Fleet Topology */}
+                        {/* Unattached Routes */}
+                        {!isControlPlane && currentFleetNodes.length === 0 && instances.length > 0 && (
+                          <div className="mb-4">
+                            <div className="flex items-center gap-2 mb-3">
+                              <AlertTriangle size={12} className="text-amber-400" />
+                              <span className="text-xs font-medium text-amber-400 uppercase tracking-wider">
+                                Unattached Routes
+                              </span>
+                              <span className="text-[10px] font-normal text-amber-300/70 normal-case">(no nodes to serve these)</span>
+                            </div>
+                            <div className="space-y-1.5">
+                              {instances.map(inst => (
+                                <div key={inst.id}
+                                  className="flex items-center gap-3 px-3 py-2 rounded-lg bg-amber-500/5 border border-dashed border-amber-500/30">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0" />
+                                  <code className="text-xs text-blue-400 font-mono">{inst.context_path}</code>
+                                  <ArrowRight size={10} className="text-jpmc-muted shrink-0" />
+                                  <span className="text-[10px] text-jpmc-muted font-mono flex-1">{(inst.backend || '').replace('http://', '')}</span>
+                                  <span className={`text-[9px] px-1.5 py-0.5 rounded ${
+                                    (inst.gateway_type || 'envoy') === 'kong'
+                                      ? 'bg-blue-500/10 text-blue-400 border border-blue-500/30'
+                                      : 'bg-purple-500/10 text-purple-400 border border-purple-500/30'
+                                  }`}>{inst.gateway_type || 'envoy'}</span>
+                                  <span className="text-[9px] text-slate-400">unattached</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Fleet Topology -- hidden for CP fleets */}
+                        {!isControlPlane && (
                         <div>
                           <div className="text-xs font-medium text-jpmc-muted uppercase tracking-wider mb-2">
                             Request Path
-                            <span className="text-[10px] font-normal ml-2 normal-case">DNS → CDN → Perimeter → Gateway → Backend</span>
+                            <span className="text-[10px] font-normal ml-2 normal-case">DNS -> CDN -> Perimeter -> Gateway -> Backend</span>
                           </div>
-                          <FleetTopology fleet={fleet} />
+                          <FleetTopology fleet={fleet} nodes={isExpanded ? currentFleetNodes : []} />
                         </div>
+                        )}
                       </div>
                     </motion.div>
                   )}
@@ -821,10 +2094,42 @@ export default function Fleets() {
               </div>
             </motion.div>
           )
-        })}
-            </div>
-          </div>
-          ))
+          }
+
+          return (
+            <>
+              {/* Data Plane Fleets grouped by LOB */}
+              {sortedEntries.map(([lob, lobFleets]) => (
+                <div key={lob}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <h2 className="text-xs font-bold text-jpmc-muted uppercase tracking-widest">{lob}</h2>
+                    <div className="flex-1 border-t border-jpmc-border/30" />
+                    <span className="text-[10px] text-jpmc-muted">{lobFleets.length} fleet{lobFleets.length !== 1 ? 's' : ''}</span>
+                  </div>
+                  <div className="space-y-3">
+                    {lobFleets.map((fleet, idx) => renderFleetCard(fleet, idx))}
+                  </div>
+                </div>
+              ))}
+
+              {/* Control Plane Fleets */}
+              {controlPlane.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3 mt-8">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Control Plane</h2>
+                      <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-slate-500/15 border border-slate-500/30 text-slate-400 font-semibold uppercase tracking-wider">Infrastructure</span>
+                    </div>
+                    <div className="flex-1 border-t border-dashed border-slate-500/30" />
+                    <span className="text-[10px] text-slate-500">{controlPlane.length} service{controlPlane.length !== 1 ? 's' : ''}</span>
+                  </div>
+                  <div className="space-y-2">
+                    {controlPlane.map((fleet, idx) => renderFleetCard(fleet, idx))}
+                  </div>
+                </div>
+              )}
+            </>
+          )
         })()}
       </div>
     </div>

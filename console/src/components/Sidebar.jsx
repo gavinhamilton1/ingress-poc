@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   LayoutDashboard, Route, Server, Zap, Key, Activity,
-  AlertTriangle, ChevronLeft, ChevronRight, LogOut, LogIn,
+  AlertTriangle, Database, ChevronLeft, ChevronRight, LogOut, LogIn,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
@@ -15,6 +15,7 @@ const navItems = [
   { to: '/sessions', label: 'Sessions', icon: Key },
   { to: '/traces', label: 'Traces', icon: Activity },
   { to: '/drift', label: 'Drift', icon: AlertTriangle },
+  { to: '/raw-data', label: 'Raw Data', icon: Database },
 ]
 
 export default function Sidebar({ collapsed, onToggle }) {

@@ -2,30 +2,43 @@ import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Globe, Shield, Server, Cpu, Box, ChevronDown, ChevronRight,
-  ArrowRight, ExternalLink,
+  ArrowRight, ExternalLink, Braces, Network, FileText, Zap,
 } from 'lucide-react'
 import { useConfig } from '../context/ConfigContext'
 
 const SERVICE_MAP = {
-  'akamai-gtm': { label: 'GTM', icon: Globe, order: 0 },
-  'akamai-edge': { label: 'CDN/WAF', icon: Shield, order: 1 },
-  'mock-akamai-gtm': { label: 'GTM', icon: Globe, order: 0 },
-  'mock-akamai-edge': { label: 'CDN/WAF', icon: Shield, order: 1 },
-  'mock-psaas': { label: 'PSaaS', icon: Server, order: 2 },
-  'psaas': { label: 'PSaaS', icon: Server, order: 2 },
-  'kong-gateway': { label: 'Kong GW', icon: Cpu, order: 3 },
+  // Exact Go OTEL service names (dot-separated)
+  'akamai.gtm': { label: 'GTM', icon: Globe, order: 0 },
+  'akamai.edge': { label: 'CDN / WAF', icon: Shield, order: 1 },
+  'psaas.perimeter': { label: 'PSaaS', icon: Server, order: 2 },
   'envoy-gateway': { label: 'Envoy GW', icon: Cpu, order: 3 },
-  'kong': { label: 'Kong GW', icon: Cpu, order: 3 },
-  'envoy': { label: 'Envoy GW', icon: Cpu, order: 3 },
-  'svc-api': { label: 'API Backend', icon: Box, order: 4 },
+  'kong-gateway': { label: 'Kong GW', icon: Cpu, order: 3 },
+  'auth-service': { label: 'Auth', icon: Shield, order: 3.5 },
+  'opa': { label: 'OPA', icon: Shield, order: 3.5 },
   'svc-web': { label: 'Web Backend', icon: Box, order: 4 },
-  'opa': { label: 'OPA Policy', icon: Shield, order: 3.5 },
-  'auth-service': { label: 'Auth Service', icon: Shield, order: 3.5 },
+  'svc-api': { label: 'API Backend', icon: Box, order: 4 },
+}
+
+// Fallback aliases for partial matching
+const SERVICE_ALIASES = {
+  'akamai': { label: 'Akamai', icon: Globe, order: 0 },
+  'psaas': { label: 'PSaaS', icon: Server, order: 2 },
+  'envoy': { label: 'Envoy GW', icon: Cpu, order: 3 },
+  'kong': { label: 'Kong GW', icon: Cpu, order: 3 },
 }
 
 function getServiceInfo(serviceName) {
-  const lower = (serviceName || '').toLowerCase()
-  for (const [key, val] of Object.entries(SERVICE_MAP)) {
+  const name = serviceName || ''
+  // Exact match first
+  if (SERVICE_MAP[name]) return SERVICE_MAP[name]
+  // Lambda functions — service name is "lambda.{functionName}"
+  if (name.startsWith('lambda.')) {
+    const fnName = name.replace('lambda.', '')
+    return { label: `λ ${fnName}`, icon: Zap, order: 4 }
+  }
+  // Partial match via aliases
+  const lower = name.toLowerCase()
+  for (const [key, val] of Object.entries(SERVICE_ALIASES)) {
     if (lower.includes(key)) return val
   }
   return { label: serviceName, icon: Box, order: 5 }
@@ -75,7 +88,7 @@ function parseTrace(traceData) {
     if (endUs > node.maxEnd) node.maxEnd = endUs
   })
 
-  return Array.from(nodes.values())
+  const sorted = Array.from(nodes.values())
     .sort((a, b) => a.order - b.order || a.minStart - b.minStart)
     .map((node, idx, arr) => ({
       ...node,
@@ -84,14 +97,198 @@ function parseTrace(traceData) {
         ? Math.max(0, Math.round((node.minStart - arr[idx - 1].maxEnd) / 1000))
         : 0,
     }))
+
+  // If the trace ends at a gateway (no backend service span), infer the backend
+  // from the request URL so we show the full architecture
+  const hasBackend = sorted.some(n => n.order >= 4)
+  if (!hasBackend && sorted.length > 0) {
+    // Extract URL from any span to determine what served the request
+    let requestUrl = ''
+    spans.forEach(s => {
+      (s.tags || []).forEach(t => {
+        if ((t.key === 'http.url' || t.key === 'http.target') && typeof t.value === 'string' && !requestUrl) {
+          requestUrl = t.value
+        }
+      })
+    })
+
+    // Determine the inferred backend
+    let inferredLabel = 'Backend'
+    let inferredIcon = Box
+    const lastNode = sorted[sorted.length - 1]
+    const responseTime = lastNode ? Math.max(0, Math.round((lastNode.maxEnd - lastNode.minStart) / 1000) - lastNode.latencyMs) : 0
+
+    if (requestUrl.includes('console.jpm.com') || requestUrl.includes('/assets/') ||
+        /\.(js|css|html|ico|png|svg|woff)/.test(requestUrl)) {
+      inferredLabel = 'Nginx'
+      inferredIcon = FileText
+    } else if (requestUrl.includes('login.jpm.com') || requestUrl.includes('authz.jpm.com') ||
+               requestUrl.includes('secsvcs.jpm.com')) {
+      inferredLabel = 'Web Backend'
+      inferredIcon = Box
+    }
+
+    // Find HTTP status from the Envoy span to determine success
+    let inferredStatus = 'passed'
+    spans.forEach(s => {
+      (s.tags || []).forEach(t => {
+        if (t.key === 'http.status_code' && (parseInt(t.value) >= 500)) {
+          inferredStatus = 'failed'
+        }
+      })
+    })
+
+    sorted.push({
+      key: '_inferred_backend',
+      label: inferredLabel,
+      icon: inferredIcon,
+      order: 5,
+      serviceName: inferredLabel.toLowerCase(),
+      status: inferredStatus,
+      spans: [],
+      totalDuration: 0,
+      minStart: lastNode?.maxEnd || 0,
+      maxEnd: lastNode?.maxEnd || 0,
+      latencyMs: 0,
+      connectionLatencyMs: 0,
+      inferred: true, // flag so the UI can style it differently
+    })
+  }
+
+  return sorted
+}
+
+function SpanView({ spans }) {
+  return (
+    <div>
+      {spans.slice(0, 5).map((span, i) => (
+        <div key={i} className="py-2 border-b border-jpmc-border/30 last:border-0">
+          <div className="text-jpmc-text font-medium truncate mb-1">{span.operationName}</div>
+          <div className="text-[10px] text-jpmc-muted mb-1.5">
+            Duration: <span className="text-cyan-400">{Math.round(span.duration / 1000)}ms</span>
+            {' · '}Span ID: <code className="text-jpmc-text/60">{span.spanID?.slice(0, 8)}</code>
+          </div>
+          <div className="space-y-0.5">
+            {(span.tags || []).map((t, j) => (
+              <div key={j} className="flex items-start gap-1.5 text-[10px]">
+                <span className="text-jpmc-muted shrink-0 min-w-[100px]">{t.key}</span>
+                <span className={`font-mono break-all ${
+                  t.key.includes('error') && t.value === true ? 'text-red-400' :
+                  t.key.includes('status_code') && t.value >= 400 ? 'text-red-400' :
+                  t.key.includes('status_code') ? 'text-emerald-400' :
+                  'text-jpmc-text'
+                }`}>{String(t.value).substring(0, 80)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+      {spans.length > 5 && (
+        <div className="text-jpmc-muted pt-1 text-[10px]">+{spans.length - 5} more spans</div>
+      )}
+    </div>
+  )
+}
+
+function HttpView({ spans }) {
+  // Extract HTTP-specific tags across all spans
+  const httpTags = ['http.method', 'http.url', 'http.target', 'http.status_code', 'http.scheme',
+    'http.request.method', 'http.response.status_code', 'http.response.body.size',
+    'net.host.name', 'net.host.port', 'net.protocol.version', 'net.sock.peer.addr', 'net.sock.peer.port',
+    'server.address', 'url.path', 'url.scheme', 'user_agent.original',
+    'http.client_ip', 'http.protocol', 'http.response_content_length',
+    'request_size', 'response_size', 'response_flags']
+
+  // Collect unique HTTP info from all spans
+  const collected = {}
+  for (const span of spans) {
+    for (const t of (span.tags || [])) {
+      if (httpTags.includes(t.key) || t.key.startsWith('http.') || t.key.startsWith('net.') || t.key.startsWith('url.')) {
+        collected[t.key] = t.value
+      }
+    }
+  }
+
+  // Also extract custom headers (akamai, psaas, etc.)
+  const customTags = {}
+  for (const span of spans) {
+    for (const t of (span.tags || [])) {
+      if (!httpTags.includes(t.key) && !t.key.startsWith('otel.') && !t.key.startsWith('span.') &&
+          t.key !== 'component' && t.key !== 'node_id' && t.key !== 'downstream_cluster' &&
+          t.key !== 'upstream_cluster' && t.key !== 'upstream_cluster.name' && t.key !== 'zone') {
+        customTags[t.key] = t.value
+      }
+    }
+  }
+
+  const method = collected['http.method'] || collected['http.request.method'] || 'GET'
+  const url = collected['http.url'] || collected['http.target'] || collected['url.path'] || ''
+  const status = collected['http.status_code'] || collected['http.response.status_code'] || ''
+  const statusNum = parseInt(status) || 0
+
+  return (
+    <div className="space-y-3">
+      {/* Request summary */}
+      <div className="p-2 rounded-lg bg-jpmc-navy/50 border border-jpmc-border/20">
+        <div className="flex items-center gap-2 mb-1">
+          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+            method === 'GET' ? 'text-emerald-400 bg-emerald-500/15' :
+            method === 'POST' ? 'text-blue-400 bg-blue-500/15' :
+            method === 'PUT' ? 'text-amber-400 bg-amber-500/15' :
+            'text-red-400 bg-red-500/15'
+          }`}>{method}</span>
+          <code className="text-[10px] text-blue-400 break-all">{url}</code>
+        </div>
+        <div className="flex items-center gap-3 text-[10px]">
+          <span className="text-jpmc-muted">Status: <span className={statusNum >= 400 ? 'text-red-400 font-medium' : 'text-emerald-400 font-medium'}>{status}</span></span>
+          {collected['net.protocol.version'] && <span className="text-jpmc-muted">HTTP/{collected['net.protocol.version']}</span>}
+          {collected['response_size'] && <span className="text-jpmc-muted">{collected['response_size']}B</span>}
+        </div>
+      </div>
+
+      {/* Network details */}
+      {(collected['net.host.name'] || collected['server.address'] || collected['net.sock.peer.addr']) && (
+        <div>
+          <div className="text-[9px] text-jpmc-muted uppercase tracking-wider mb-1">Network</div>
+          <div className="space-y-0.5 text-[10px]">
+            {collected['net.host.name'] && <div><span className="text-jpmc-muted w-20 inline-block">Host:</span> <span className="text-jpmc-text">{collected['net.host.name']}:{collected['net.host.port'] || ''}</span></div>}
+            {collected['server.address'] && <div><span className="text-jpmc-muted w-20 inline-block">Server:</span> <span className="text-jpmc-text">{collected['server.address']}</span></div>}
+            {collected['net.sock.peer.addr'] && <div><span className="text-jpmc-muted w-20 inline-block">Peer:</span> <span className="text-jpmc-text">{collected['net.sock.peer.addr']}:{collected['net.sock.peer.port'] || ''}</span></div>}
+            {collected['http.client_ip'] && <div><span className="text-jpmc-muted w-20 inline-block">Client IP:</span> <span className="text-jpmc-text">{collected['http.client_ip']}</span></div>}
+            {collected['user_agent.original'] && <div><span className="text-jpmc-muted w-20 inline-block">UA:</span> <span className="text-jpmc-text truncate">{String(collected['user_agent.original']).substring(0, 50)}</span></div>}
+          </div>
+        </div>
+      )}
+
+      {/* Custom attributes (akamai, psaas, etc.) */}
+      {Object.keys(customTags).length > 0 && (
+        <div>
+          <div className="text-[9px] text-jpmc-muted uppercase tracking-wider mb-1">Service Attributes</div>
+          <div className="space-y-0.5 text-[10px]">
+            {Object.entries(customTags).map(([k, v]) => (
+              <div key={k} className="flex items-start gap-1.5">
+                <span className="text-jpmc-muted shrink-0 min-w-[100px]">{k}</span>
+                <span className="text-jpmc-text font-mono break-all">{String(v).substring(0, 60)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 function TraceNode({ node, index, expanded, onToggle }) {
+  const [viewMode, setViewMode] = useState('http')
   const Icon = node.icon
-  const statusColor = node.status === 'passed'
+  const isInferred = node.inferred
+  const statusColor = isInferred
+    ? 'border-dashed border-gray-500/50 bg-gray-500/5'
+    : node.status === 'passed'
     ? 'border-emerald-500/50 bg-emerald-500/10'
     : 'border-red-500/50 bg-red-500/10'
-  const statusDot = node.status === 'passed' ? 'bg-emerald-400' : 'bg-red-400'
+  const statusDot = isInferred ? 'bg-gray-400' : node.status === 'passed' ? 'bg-emerald-400' : 'bg-red-400'
+  const iconColor = isInferred ? 'text-gray-400' : node.status === 'passed' ? 'text-emerald-400' : 'text-red-400'
 
   return (
     <motion.div
@@ -101,16 +298,16 @@ function TraceNode({ node, index, expanded, onToggle }) {
       className="flex flex-col items-center"
     >
       <div
-        onClick={() => onToggle(node.key)}
-        className={`relative p-4 rounded-xl border ${statusColor} cursor-pointer hover:scale-105 transition-transform duration-150 min-w-[100px]`}
+        onClick={() => !isInferred && onToggle(node.key)}
+        className={`relative p-4 rounded-xl border ${statusColor} ${isInferred ? 'cursor-default' : 'cursor-pointer hover:scale-105'} transition-transform duration-150 min-w-[100px]`}
       >
         <div className="flex flex-col items-center gap-2">
-          <Icon size={20} className={node.status === 'passed' ? 'text-emerald-400' : 'text-red-400'} />
+          <Icon size={20} className={iconColor} />
           <span className="text-xs font-medium text-jpmc-text whitespace-nowrap">{node.label}</span>
           <span className={`w-2 h-2 rounded-full ${statusDot}`} />
         </div>
         <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[10px] text-jpmc-muted whitespace-nowrap">
-          {node.latencyMs}ms
+          {isInferred ? <span className="text-gray-500 italic">no instrumentation</span> : `${node.latencyMs}ms`}
         </div>
       </div>
 
@@ -120,24 +317,35 @@ function TraceNode({ node, index, expanded, onToggle }) {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="mt-8 glass-card p-3 text-xs w-64 overflow-hidden"
+            className="mt-8 glass-card p-3 text-xs w-80 overflow-hidden"
           >
-            <div className="text-jpmc-muted mb-2 font-medium">Span Details ({node.spans.length} spans)</div>
-            {node.spans.slice(0, 5).map((span, i) => (
-              <div key={i} className="py-1.5 border-b border-jpmc-border/30 last:border-0">
-                <div className="text-jpmc-text font-medium truncate">{span.operationName}</div>
-                <div className="text-jpmc-muted mt-0.5">
-                  {Math.round(span.duration / 1000)}ms
-                  {span.tags?.filter(t => ['http.status_code', 'http.method', 'http.url'].includes(t.key)).map(t => (
-                    <span key={t.key} className="ml-2">
-                      {t.key.split('.').pop()}: {String(t.value).substring(0, 40)}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))}
-            {node.spans.length > 5 && (
-              <div className="text-jpmc-muted pt-1">+{node.spans.length - 5} more spans</div>
+            {/* Tab bar */}
+            <div className="flex items-center gap-1 mb-3 border-b border-jpmc-border/30 pb-2">
+              <button
+                onClick={(e) => { e.stopPropagation(); setViewMode('http') }}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[10px] font-medium transition-colors ${
+                  viewMode === 'http' ? 'bg-blue-500/15 text-blue-400' : 'text-jpmc-muted hover:text-jpmc-text hover:bg-jpmc-hover'
+                }`}
+              >
+                <Network size={12} />
+                HTTP Request
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setViewMode('span') }}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[10px] font-medium transition-colors ${
+                  viewMode === 'span' ? 'bg-violet-500/15 text-violet-400' : 'text-jpmc-muted hover:text-jpmc-text hover:bg-jpmc-hover'
+                }`}
+              >
+                <Braces size={12} />
+                Span Data
+              </button>
+              <span className="ml-auto text-[9px] text-jpmc-muted">{node.spans.length} span{node.spans.length !== 1 ? 's' : ''}</span>
+            </div>
+
+            {viewMode === 'http' ? (
+              <HttpView spans={node.spans} />
+            ) : (
+              <SpanView spans={node.spans} />
             )}
           </motion.div>
         )}
@@ -167,7 +375,7 @@ function ConnectionLine({ latencyMs, index }) {
 }
 
 export default function TraceFlow({ traceId, inline = false }) {
-  const { JAEGER_URL } = useConfig()
+  const { JAEGER_URL, JAEGER_UI_URL } = useConfig()
   const [traceData, setTraceData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -220,7 +428,7 @@ export default function TraceFlow({ traceId, inline = false }) {
         <div className="text-red-400 text-sm mb-2">Failed to load trace</div>
         <div className="text-jpmc-muted text-xs">{error}</div>
         <a
-          href={`${JAEGER_URL}/trace/${traceId}`}
+          href={`${JAEGER_UI_URL}/trace/${traceId}`}
           target="_blank"
           rel="noopener noreferrer"
           className="text-blue-400 text-xs mt-2 inline-flex items-center gap-1 hover:underline"
@@ -248,7 +456,7 @@ export default function TraceFlow({ traceId, inline = false }) {
           Trace: <code className="text-blue-400">{traceId.slice(0, 16)}...</code>
         </div>
         <a
-          href={`${JAEGER_URL}/trace/${traceId}`}
+          href={`${JAEGER_UI_URL}/trace/${traceId}`}
           target="_blank"
           rel="noopener noreferrer"
           className="text-xs text-blue-400 hover:underline flex items-center gap-1"

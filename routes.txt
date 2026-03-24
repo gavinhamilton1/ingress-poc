@@ -15,3 +15,124 @@ Global Banking      IQ                  PSaaS           IQ                  http
 Security Services   SecSvcs             PSaaS           SecSvcs             https://secsvcs.jpm.com             us-east-1, us-east-2		4           Envoy       Janus
 CIB                 AuthN               PSaaS           authn               https://login.jpm.com               us-east-1, us-east-2		4           Envoy       N/A
 CIB                 AuthZ               PSaaS           authz               https://authz.jpm.com               us-east-1, us-east-2		4           Envoy       Sentry
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+=== DATA PLANE FLEETS ===
+ID              | Name              | LOB               | Subdomain                  | Host Env | Auth Provider
+fleet-jpmm      | JPMM              | Markets           | jpmm.jpm.com               | aws      | Janus
+fleet-execute   | Execute           | Markets           | execute.jpm.com            | psaas    | Janus
+fleet-access    | JPMA              | Payments          | access.jpm.com             | psaas    | AuthE1.0
+fleet-mobile    | Access Mobile     | Payments          | access-mobile.jpm.com      | psaas    | AuthE1.0
+fleet-digital   | JPMDB             | Payments          | digital-banking.jpm.com    | aws      | Sentry
+fleet-smb       | Merchant Services | Payments          | smb.jpm.com                | psaas    | Chase
+fleet-pdp       | PDP               | Payments          | developer.jpm.com          | aws      | Sentry
+fleet-iq        | IQ                | Global Banking    | iq.jpm.com                 | psaas    | Janus
+fleet-secsvcs   | SecSvcs           | Security Services | secsvcs.jpm.com            | psaas    | Janus
+fleet-authn     | AuthN             | xCIB              | login.jpm.com              | psaas    | N/A
+fleet-authz     | AuthZ             | xCIB              | authz.jpm.com              | psaas    | Sentry
+fleet-console   | Console           | xCIB              | console.jpm.com            | psaas    | N/A
+
+=== CONTROL PLANE FLEETS ===
+ID              | Name              | LOB               | Subdomain  | Host Env | Notes
+cp-mgmt         | Management API    | xCIB              | (internal) | psaas    | Central registry storing all fleet, node, route, and health state with PostgreSQL persistence
+cp-auth         | Auth Service      | xCIB              | (internal) | psaas    | Handles PKCE authorization, DPoP-bound token exchange, session management, and Envoy ext-authz validation
+cp-envoy-xds    | Envoy xDS         | xCIB              | (internal) | psaas    | Polls the registry and serves per-fleet route, cluster, and listener config to Envoy nodes via REST xDS v3
+cp-kong-sync    | Kong Sync         | xCIB              | (internal) | psaas    | Polls the registry and pushes declarative YAML config to each Kong node's admin API on change detection
+cp-shared-gw    | Shared Gateway    | xCIB              | (internal) | psaas    | Fallback Envoy and Kong instances serving routes for fleets that don't yet have dedicated nodes deployed
+cp-gtm          | Mock GTM          | xCIB              | (internal) | psaas    | Simulates Akamai GTM geo-routing by cycling datacenters and forwarding to the nearest CDN edge with TLS termination
+cp-edge         | Mock CDN/WAF      | xCIB              | (internal) | psaas    | Simulates Akamai Edge with WAF rule enforcement, bot detection, cache hit simulation, and request tagging
+cp-psaas        | Mock PSaaS        | xCIB              | (internal) | psaas    | Simulates the on-prem perimeter layer routing /api/* to Kong and all other traffic to Envoy with TLS re-origination
+cp-opa          | OPA               | xCIB              | (internal) | psaas    | Evaluates fine-grained authorization policies against user roles, actions, and resource paths for Kong API routes
+cp-watchdog     | Watchdog          | xCIB              | (internal) | psaas    | Continuously probes management-api health and tracks consecutive failures to report degraded or offline status
+cp-jaeger       | Jaeger            | xCIB              | (internal) | psaas    | Collects OpenTelemetry spans from all services and provides a query API for distributed trace visualization
+cp-dns          | CoreDNS           | xCIB              | (internal) | psaas    | Resolves all *.jpm.com hostnames to localhost so the browser can reach fleet routes without real DNS infrastructure
+cp-postgres     | PostgreSQL        | xCIB              | (internal) | psaas    | Stores all persistent state including fleets, nodes, routes, health reports, audit logs, and route-node assignments
+cp-svc-web      | svc-web           | xCIB              | (internal) | psaas    | Catch-all web backend that returns JSON metadata or serves the sample Research portal HTML for browser requests
+cp-svc-api      | svc-api           | xCIB              | (internal) | psaas    | Catch-all API backend that validates requests through OPA fine-grained authorization before returning JSON responses
+cp-console-svc  | Console Nginx     | xCIB              | (internal) | psaas    | Serves the React console SPA static assets and reverse-proxies /_proxy/* paths to management-api and Jaeger
+
+=== DATA PLANE NODES ===
+Fleet           | Node Name                | Type   | Datacenter | Port
+fleet-jpmm      | fleet-jpmm-envoy-1       | envoy  | us-east-1  | 9001
+fleet-jpmm      | fleet-jpmm-envoy-2       | envoy  | us-east-1  | 9002
+fleet-jpmm      | fleet-jpmm-kong-1        | kong   | us-east-1  | 9101
+fleet-access    | fleet-access-envoy-1     | envoy  | us-east-1  | 9003
+
+=== CONTROL PLANE NODES ===
+Fleet           | Node Name                | Type     | Datacenter | Port  | Docker Service
+cp-mgmt         | cp-mgmt-1                | service  | us-east-2  | 8003  | management-api
+cp-auth         | cp-auth-1                | service  | us-east-2  | 8001  | auth-service
+cp-envoy-xds    | cp-envoy-xds-1           | service  | us-east-2  | 8080  | envoy-control-plane
+cp-kong-sync    | cp-kong-sync-1           | service  | us-east-2  | 8102  | kong-admin-proxy
+cp-shared-gw    | cp-shared-envoy-1        | envoy    | us-east-2  | 8000  | gateway-envoy
+cp-shared-gw    | cp-shared-kong-1         | kong     | us-east-2  | 8100  | gateway-kong
+cp-gtm          | cp-gtm-1                 | service  | us-east-2  | 8010  | mock-akamai-gtm
+cp-edge         | cp-edge-1                | service  | us-east-2  | 8011  | mock-akamai-edge
+cp-psaas        | cp-psaas-1               | service  | us-east-2  | 8012  | mock-psaas
+cp-opa          | cp-opa-1                 | service  | us-east-2  | 8181  | opa
+cp-watchdog     | cp-watchdog-1            | service  | us-east-2  | 8006  | watchdog
+cp-jaeger       | cp-jaeger-1              | service  | us-east-2  | 16686 | jaeger
+cp-dns          | cp-dns-1                 | service  | us-east-2  | 5553  | dns
+cp-postgres     | cp-postgres-1            | service  | us-east-2  | 5432  | postgres
+cp-svc-web      | cp-svc-web-1             | service  | us-east-2  | 8004  | svc-web
+cp-svc-api      | cp-svc-api-1             | service  | us-east-2  | 8005  | svc-api
+cp-console-svc  | cp-console-svc-1         | service  | us-east-2  | 80    | console
+
+=== DATA PLANE ROUTES ===
+Hostname                   | Path          | Type  | Backend            | Auth Policy   | Team     | Attached To
+jpmm.jpm.com               | /research     | envoy | http://svc-web:8004 | authenticated | markets  | fleet-jpmm-envoy-1
+jpmm.jpm.com               | /sandt        | envoy | http://svc-web:8004 | authenticated | markets  | fleet-jpmm-envoy-1
+jpmm.jpm.com               | /events       | envoy | http://svc-web:8004 | authenticated | markets  | fleet-jpmm-envoy-1
+jpmm.jpm.com               | /research/api | kong  | http://svc-api:8005 | authenticated | markets  | fleet-jpmm-kong-1
+jpmm.jpm.com               | /events/api   | kong  | http://svc-api:8005 | authenticated | markets  | fleet-jpmm-kong-1
+execute.jpm.com             | /             | envoy | http://svc-web:8004 | authenticated | markets  | (shared gw)
+execute.jpm.com             | /api          | kong  | http://svc-api:8005 | authenticated | markets  | (shared gw)
+access.jpm.com              | /             | envoy | http://svc-web:8004 | authenticated | payments | fleet-access-envoy-1
+access-mobile.jpm.com       | /             | envoy | http://svc-web:8004 | authenticated | payments | (shared gw)
+digital-banking.jpm.com     | /             | envoy | http://svc-web:8004 | authenticated | payments | (shared gw)
+smb.jpm.com                 | /             | envoy | http://svc-web:8004 | authenticated | payments | (shared gw)
+developer.jpm.com           | /api          | kong  | http://svc-api:8005 | authenticated | payments | (shared gw)
+iq.jpm.com                  | /             | envoy | http://svc-web:8004 | authenticated | banking  | (shared gw)
+secsvcs.jpm.com             | /             | envoy | http://svc-web:8004 | authenticated | security | (shared gw)
+login.jpm.com               | /             | envoy | http://svc-web:8004 | public        | xCIB     | (shared gw)
+authz.jpm.com               | /             | envoy | http://svc-web:8004 | authenticated | xCIB     | (shared gw)
+console.jpm.com             | /             | envoy | http://console:80   | public        | xCIB     | (shared gw)
+*.jpm.com                   | /health       | kong  | http://svc-api:8005 | public        | platform | (shared gw)
+*.jpm.com                   | /api/public   | kong  | http://svc-api:8005 | public        | platform | (shared gw)
+
+=== CONTROL PLANE ROUTES ===
+Fleet           | Path              | Type    | Port  | Attached To          | Notes
+cp-mgmt         | /routes           | service | 8003  | cp-mgmt-1            | CRUD operations for creating, reading, updating, and deleting ingress route definitions
+cp-mgmt         | /fleets           | service | 8003  | cp-mgmt-1            | Fleet lifecycle management including creation, scaling, suspension, and node orchestration
+cp-mgmt         | /drift            | service | 8003  | cp-mgmt-1            | Compares desired route state in the registry against actual gateway state to detect configuration drift
+cp-mgmt         | /health-reports   | service | 8003  | cp-mgmt-1            | Receives health probe results from gateway control planes and updates backend health status in the registry
+cp-mgmt         | /audit-log        | service | 8003  | cp-mgmt-1            | Immutable log of all configuration changes including route creates, status changes, and fleet operations
+cp-mgmt         | /lambdas          | service | 8003  | cp-mgmt-1            | Lists all running lambda containers with their associated route, function code, and runtime status
+cp-auth         | /auth/authorize   | service | 8001  | cp-auth-1            | Validates user credentials and issues a single-use authorization code bound to a PKCE code challenge
+cp-auth         | /auth/token       | service | 8001  | cp-auth-1            | Exchanges an authorization code for a signed JWT access token after verifying the PKCE code verifier
+cp-auth         | /session/*        | service | 8001  | cp-auth-1            | Creates, queries, and revokes user sessions with optional DPoP confirmation binding for proof-of-possession
+cp-auth         | /.well-known/jwks | service | 8001  | cp-auth-1            | Publishes the IDP's EC P-256 public key in JWK Set format for downstream token signature verification
+cp-envoy-xds    | /v3/discovery:*   | service | 8080  | cp-envoy-xds-1       | Responds to Envoy xDS polling with per-fleet route, cluster, and listener configurations built from the registry
+cp-envoy-xds    | /snapshot/routes  | service | 8080  | cp-envoy-xds-1       | Debug endpoint returning the current in-memory route snapshot used for drift detection comparison
+cp-kong-sync    | /sync-status/*    | service | 8102  | cp-kong-sync-1       | Returns the current set of routes synced to each Kong instance for drift detection and debugging
+cp-opa          | /v1/data/*        | service | 8181  | cp-opa-1             | Evaluates Rego policies against request context to make fine-grained allow/deny decisions for API routes
+cp-jaeger       | /api/traces       | service | 16686 | cp-jaeger-1          | Queries stored spans by service, operation, tags, and time range for distributed trace visualization
+cp-jaeger       | /api/services     | service | 16686 | cp-jaeger-1          | Returns all service names that have reported spans for populating trace search filters
+cp-watchdog     | /status           | service | 8006  | cp-watchdog-1        | Reports management-api reachability including consecutive failure count, last success time, and probe history
+cp-dns          | :53               | service | 5553  | cp-dns-1             | Resolves *.jpm.com to 127.0.0.1 enabling browser access to fleet routes without external DNS configuration
+cp-postgres     | :5432             | service | 5432  | cp-postgres-1        | Accepts SQL connections from management-api for persisting all fleet, route, node, and audit state
+cp-svc-web      | /*                | service | 8004  | cp-svc-web-1         | Returns JSON request metadata or serves the sample Research portal HTML when Accept header includes text/html
+cp-svc-api      | /*                | service | 8005  | cp-svc-api-1         | Proxies requests through OPA policy evaluation then returns JSON with auth context and authorization result
+cp-console-svc  | /*                | service | 80    | cp-console-svc-1     | Serves the compiled React SPA and proxies /_proxy/* requests to management-api, auth-service, and Jaeger

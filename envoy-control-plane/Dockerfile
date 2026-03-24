@@ -1,8 +1,11 @@
-FROM python:3.12-slim
-WORKDIR /app
-RUN pip install --no-cache-dir setuptools
-COPY envoy-control-plane/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY shared/otel.py ./otel.py
-COPY envoy-control-plane/ .
-CMD ["python", "main.py"]
+FROM golang:latest AS builder
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY pkg/ pkg/
+COPY cmd/envoy-control-plane/ cmd/envoy-control-plane/
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app ./cmd/envoy-control-plane
+
+FROM gcr.io/distroless/static-debian12
+COPY --from=builder /app /app
+ENTRYPOINT ["/app"]

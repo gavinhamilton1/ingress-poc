@@ -12,6 +12,7 @@ import RequestTester from './pages/RequestTester'
 import Sessions from './pages/Sessions'
 import Traces from './pages/Traces'
 import DriftDashboard from './pages/DriftDashboard'
+import RawData from './pages/RawData'
 import Login from './pages/Login'
 
 function AnimatedRoutes() {
@@ -34,6 +35,7 @@ function AnimatedRoutes() {
           <Route path="/sessions" element={<Sessions />} />
           <Route path="/traces" element={<Traces />} />
           <Route path="/drift" element={<DriftDashboard />} />
+          <Route path="/raw-data" element={<RawData />} />
           <Route path="/login" element={<Login />} />
         </Routes>
       </motion.div>

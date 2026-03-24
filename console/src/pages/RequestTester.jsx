@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Send, Loader2, ChevronDown, ChevronRight, Plus, Trash2,
@@ -35,8 +36,6 @@ async function generateDpopProof(method, url, privateKey, publicJwk) {
   return `${headerB64}.${payloadB64}.${base64urlEncode(sig)}`
 }
 
-const KNOWN_PATHS = ['/api/public', '/api/readonly', '/api/markets', '/api/admin', '/web/portal', '/web/admin']
-
 const METHOD_COLORS = {
   GET: 'text-emerald-400 bg-emerald-500/15',
   POST: 'text-blue-400 bg-blue-500/15',
@@ -46,10 +45,11 @@ const METHOD_COLORS = {
 
 export default function RequestTester() {
   const { session, dpopKeys } = useAuth()
-  const { GATEWAY_URL, JAEGER_URL } = useConfig()
+  const { API_URL, GATEWAY_URL, JAEGER_URL } = useConfig()
 
   const [requests, setRequests] = useState([])
-  const [testPath, setTestPath] = useState('/api/public')
+  const [testPath, setTestPath] = useState('')
+  const [selectedRoute, setSelectedRoute] = useState(null)
   const [testMethod, setTestMethod] = useState('GET')
   const [useAuth_, setUseAuth_] = useState(true)
   const [sending, setSending] = useState(false)
@@ -58,6 +58,37 @@ export default function RequestTester() {
   const [customHeaders, setCustomHeaders] = useState([])
   const [showSuggestions, setShowSuggestions] = useState(false)
   const inputRef = useRef(null)
+
+  // Fetch all routes for the dropdown
+  const { data: allRoutes = [] } = useQuery({
+    queryKey: ['routes-for-tester'],
+    queryFn: () => fetch(`${API_URL}/routes`).then(r => r.json()).catch(() => []),
+  })
+
+  // Fetch fleets for fleet name lookup
+  const { data: fleets = [] } = useQuery({
+    queryKey: ['fleets-for-tester'],
+    queryFn: () => fetch(`${API_URL}/fleets`).then(r => r.json()).catch(() => []),
+  })
+
+  const routeSuggestions = useMemo(() => {
+    const fleetMap = {}
+    for (const f of fleets) {
+      fleetMap[f.subdomain] = f
+    }
+    return allRoutes
+      .filter(r => r.status === 'active')
+      .map(r => {
+        const h = r.hostname && r.hostname !== '*' ? r.hostname : null
+        const fleet = h ? fleetMap[h] : null
+        const label = h ? `${h}${r.path}` : r.path
+        return {
+          routeData: r, fleet, hostname: h, label,
+          searchText: `${label} ${fleet?.name || ''} ${fleet?.lob || ''} ${r.gateway_type} ${r.team}`.toLowerCase(),
+        }
+      })
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [allRoutes, fleets, GATEWAY_URL])
 
   const addHeader = () => {
     setCustomHeaders([...customHeaders, { key: '', value: '' }])
@@ -73,14 +104,30 @@ export default function RequestTester() {
     setCustomHeaders(updated)
   }
 
-  const filteredSuggestions = KNOWN_PATHS.filter(p =>
-    p.toLowerCase().includes(testPath.toLowerCase()) && p !== testPath
+  const filteredSuggestions = routeSuggestions.filter(s =>
+    testPath === '' || s.searchText.includes(testPath.toLowerCase())
   )
+
+  const selectSuggestion = (suggestion) => {
+    setSelectedRoute(suggestion)
+    setTestPath(suggestion.label)
+    setShowSuggestions(false)
+  }
 
   const sendRequest = async () => {
     setSending(true)
-    const url = `${GATEWAY_URL}${testPath}`
+    // Route through the real hostname URL so the browser sends the correct Host header
+    // (browsers forbid setting Host via fetch headers)
+    const sel = selectedRoute
+    const hostname = sel?.hostname
+    const path = sel?.routeData?.path || testPath
+    // Route through the nginx proxy — same-origin, no CORS issues
+    // For hostname routes, pass the hostname via X-Route-Host header (nginx forwards it as Host)
+    const url = `${GATEWAY_URL}${path || testPath}`
     const headers = { 'User-Agent': 'IngressConsole/1.0' }
+    if (hostname) {
+      headers['X-Route-Host'] = hostname
+    }
     let dpopProof = null
 
     if (useAuth_ && session?.session_jwt && dpopKeys) {
@@ -175,26 +222,43 @@ export default function RequestTester() {
                 ref={inputRef}
                 className="input-field font-mono"
                 value={testPath}
-                onChange={e => { setTestPath(e.target.value); setShowSuggestions(true) }}
+                onChange={e => { setTestPath(e.target.value); setSelectedRoute(null); setShowSuggestions(true) }}
                 onFocus={() => setShowSuggestions(true)}
                 onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                placeholder="/api/endpoint"
+                placeholder="Type to search routes... (e.g. jpmm, research, markets)"
               />
+              {selectedRoute && (
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                  {selectedRoute.fleet && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">{selectedRoute.fleet.name}</span>
+                  )}
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded ${selectedRoute.routeData.gateway_type === 'kong' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' : 'bg-violet-500/10 text-violet-400 border border-violet-500/20'}`}>
+                    {selectedRoute.routeData.gateway_type}
+                  </span>
+                </div>
+              )}
               <AnimatePresence>
                 {showSuggestions && filteredSuggestions.length > 0 && (
                   <motion.div
                     initial={{ opacity: 0, y: -4 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -4 }}
-                    className="absolute left-0 right-0 top-full mt-1 glass-card border border-jpmc-border z-20 max-h-40 overflow-y-auto"
+                    className="absolute left-0 right-0 top-full mt-1 glass-card border border-jpmc-border z-20 max-h-64 overflow-y-auto"
                   >
-                    {filteredSuggestions.map(p => (
+                    {filteredSuggestions.map(s => (
                       <button
-                        key={p}
-                        className="w-full text-left px-3 py-2 text-sm font-mono text-jpmc-text hover:bg-jpmc-hover transition-colors"
-                        onMouseDown={() => { setTestPath(p); setShowSuggestions(false) }}
+                        key={s.label}
+                        className="w-full text-left px-3 py-2 hover:bg-jpmc-hover transition-colors flex items-center gap-3"
+                        onMouseDown={() => selectSuggestion(s)}
                       >
-                        {p}
+                        <code className="text-xs text-blue-400 font-mono flex-1">{s.label}</code>
+                        {s.fleet && (
+                          <span className="text-[9px] text-jpmc-muted">{s.fleet.name}</span>
+                        )}
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded ${s.routeData.gateway_type === 'kong' ? 'bg-purple-500/10 text-purple-400' : 'bg-violet-500/10 text-violet-400'}`}>
+                          {s.routeData.gateway_type}
+                        </span>
+                        <span className="text-[9px] text-jpmc-muted">{s.routeData.audience || 'public'}</span>
                       </button>
                     ))}
                   </motion.div>

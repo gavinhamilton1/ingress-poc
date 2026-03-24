@@ -48,10 +48,15 @@ services:
       context: .
       dockerfile: management-api/Dockerfile
     ports: ["8003:8003"]
+    restart: unless-stopped
+    mem_limit: 512m
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       DATABASE_URL: "postgresql://ingress:ingress_poc@postgres:5432/ingress_registry"
       SVC_WEB_URL: "http://svc-web:8004"
       SVC_API_URL: "http://svc-api:8005"
+      DOCKER_NETWORK: "ingress-poc_default"
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
     depends_on:
       postgres:
@@ -83,6 +88,7 @@ services:
   gateway-kong:
     build: ./gateway-kong
     ports: ["8100:8000", "8101:8001"]
+    mem_limit: 256m
     depends_on: [auth-service, opa, jaeger]
 
   kong-admin-proxy:
@@ -160,11 +166,6 @@ services:
   console:
     build: ./console
     ports: ["3000:80"]
-    environment:
-      VITE_AUTH_SERVICE_URL: "http://localhost:8001"
-      VITE_MANAGEMENT_API_URL: "http://localhost:8003"
-      VITE_GATEWAY_URL: "http://localhost:8010"
-      VITE_JAEGER_URL: "http://localhost:16686"
     depends_on: [management-api, auth-service, mock-akamai-gtm]
 
   watchdog:
@@ -177,6 +178,13 @@ services:
       PORT: "8006"
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
     depends_on: [management-api, jaeger]
+
+networks:
+  default:
+    name: ingress-poc_default
+    labels:
+      ingress.network: "true"
+      ingress.managed: "true"
 
 volumes:
   pgdata:

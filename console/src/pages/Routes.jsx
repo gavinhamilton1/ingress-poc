@@ -28,7 +28,7 @@ export default function RoutesPage() {
   const [submitBanner, setSubmitBanner] = useState(false)
   const [errors, setErrors] = useState([])
   const [form, setForm] = useState({
-    path: '', backend_url: '', auth_policy: 'authenticated', allowed_roles: '',
+    path: '', backend_url: '', audience: '', allowed_roles: '',
     gateway_type: 'kong', team: '', methods: 'GET,POST,PUT,DELETE',
   })
 
@@ -46,6 +46,27 @@ export default function RoutesPage() {
     queryKey: ['audit-log'],
     queryFn: () => fetch(`${API_URL}/audit-log`).then(r => r.json()).catch(() => []),
   })
+
+  const { data: fleets = [] } = useQuery({
+    queryKey: ['fleets'],
+    queryFn: () => fetch(`${API_URL}/fleets`).then(r => r.json()).catch(() => []),
+  })
+
+  // Build hostname → fleet lookup
+  const fleetByHostname = {}
+  for (const f of fleets) {
+    fleetByHostname[f.subdomain] = f
+    // Also map instances to find route names
+    for (const inst of (f.instances || [])) {
+      const key = `${f.subdomain}:${inst.context_path}`
+      fleetByHostname[key] = f
+    }
+  }
+
+  const getFleetForRoute = (route) => {
+    const h = route.hostname && route.hostname !== '*' ? route.hostname : null
+    return h ? fleetByHostname[h] : null
+  }
 
   const refreshData = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['routes'] })
@@ -77,7 +98,7 @@ export default function RoutesPage() {
         setShowForm(false)
         setSubmitBanner(true)
         setTimeout(() => setSubmitBanner(false), 5000)
-        setForm({ path: '', backend_url: '', auth_policy: 'authenticated', allowed_roles: '', gateway_type: 'kong', team: '', methods: 'GET,POST,PUT,DELETE' })
+        setForm({ path: '', backend_url: '', audience: '', allowed_roles: '', gateway_type: 'kong', team: '', methods: 'GET,POST,PUT,DELETE' })
         refreshData()
       } else {
         const err = await r.json()
@@ -241,12 +262,10 @@ export default function RoutesPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-jpmc-muted mb-1.5">Auth Policy</label>
-                      <select className="select-field" value={form.auth_policy} onChange={e => setForm({ ...form, auth_policy: e.target.value })}>
-                        <option value="public">Public</option>
-                        <option value="authenticated">Authenticated</option>
-                        <option value="roles">Roles</option>
-                      </select>
+                      <label className="block text-xs font-medium text-jpmc-muted mb-1.5">Audience</label>
+                      <input className="input-field" placeholder="e.g. jpmm, execute, access"
+                        value={form.audience} onChange={e => setForm({ ...form, audience: e.target.value })} />
+                      <p className="text-[10px] text-jpmc-muted mt-1">The aud claim value required in the access token. Leave empty for unauthenticated routes.</p>
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-jpmc-muted mb-1.5">Gateway</label>
@@ -298,7 +317,7 @@ export default function RoutesPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-jpmc-border/50">
-                {['Sync', 'Path', 'Test URL', 'Auth', 'Gateway', 'Team', 'Status', 'Actions'].map(h => (
+                {['Sync', 'Fleet', 'Route', 'Path', 'Test URL', 'Audience', 'Gateway', 'Team', 'Status', 'Actions'].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-[11px] font-medium text-jpmc-muted uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -321,6 +340,30 @@ export default function RoutesPage() {
                         {driftStatus === 'drifted' && <AlertTriangle size={14} className="text-amber-400 animate-pulse-slow" />}
                         {driftStatus === 'unknown' && <span className="w-3 h-3 rounded-full bg-gray-500 inline-block" />}
                       </td>
+                      {(() => {
+                        const fleet = getFleetForRoute(route)
+                        return (
+                          <>
+                            <td className="px-4 py-3">
+                              {fleet ? (
+                                <div>
+                                  <div className="text-xs font-medium text-white">{fleet.name}</div>
+                                  <div className="text-[10px] text-jpmc-muted">{fleet.lob}</div>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-jpmc-muted">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="text-xs text-jpmc-text">
+                                {route.hostname && route.hostname !== '*'
+                                  ? route.hostname.split('.')[0] + route.path
+                                  : route.path}
+                              </div>
+                            </td>
+                          </>
+                        )
+                      })()}
                       <td className="px-4 py-3">
                         <code className="text-sm text-blue-400">{route.path}</code>
                       </td>
@@ -350,10 +393,9 @@ export default function RoutesPage() {
                       </td>
                       <td className="px-4 py-3">
                         <span className={`badge ${
-                          route.auth_policy === 'public' ? 'badge-green' :
-                          route.auth_policy === 'authenticated' ? 'badge-blue' : 'badge-amber'
+                          !route.audience ? 'badge-green' : 'badge-blue'
                         }`}>
-                          {route.auth_policy}
+                          {route.audience || 'public'}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -424,7 +466,7 @@ export default function RoutesPage() {
                           animate={{ opacity: 1 }}
                           exit={{ opacity: 0 }}
                         >
-                          <td colSpan={8} className="px-4 py-4 bg-jpmc-navy/30">
+                          <td colSpan={10} className="px-4 py-4 bg-jpmc-navy/30">
                             <RouteDetailPanel
                               route={route}
                               driftStatus={driftStatus}

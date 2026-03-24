@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JPMM Research Portal</title>
+<style>
+  :root { --bg: #0a0e1a; --card: #111827; --border: #1e293b; --text: #e2e8f0; --muted: #64748b; --blue: #3b82f6; --green: #10b981; --amber: #f59e0b; --red: #ef4444; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+  .nav { display: flex; align-items: center; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+  .nav-brand { font-size: 18px; font-weight: 700; color: white; }
+  .nav-brand span { color: var(--blue); }
+  .nav-links { display: flex; gap: 8px; margin-left: auto; }
+  .nav-link { padding: 6px 14px; border-radius: 8px; font-size: 13px; cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--muted); transition: all 0.2s; }
+  .nav-link:hover, .nav-link.active { background: rgba(59,130,246,0.1); border-color: rgba(59,130,246,0.3); color: var(--blue); }
+  .user-badge { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 8px; background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); font-size: 12px; color: var(--green); }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  .card h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+  .stat { text-align: center; padding: 16px; }
+  .stat-value { font-size: 28px; font-weight: 700; color: white; }
+  .stat-label { font-size: 11px; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .btn { padding: 8px 20px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; transition: all 0.2s; }
+  .btn-primary { background: var(--blue); color: white; }
+  .btn-primary:hover { background: #2563eb; }
+  .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .btn-outline:hover { border-color: var(--blue); color: var(--blue); }
+  .login-box { max-width: 400px; margin: 80px auto; }
+  .login-box h2 { font-size: 20px; margin-bottom: 8px; }
+  .login-box p { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .form-group select, .form-group input { width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 14px; }
+  .table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .table th { text-align: left; padding: 10px 12px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); border-bottom: 1px solid var(--border); }
+  .table td { padding: 10px 12px; border-bottom: 1px solid rgba(30,41,59,0.5); }
+  .badge { padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+  .badge-green { background: rgba(16,185,129,0.15); color: var(--green); }
+  .badge-amber { background: rgba(245,158,11,0.15); color: var(--amber); }
+  .badge-red { background: rgba(239,68,68,0.15); color: var(--red); }
+  .badge-blue { background: rgba(59,130,246,0.15); color: var(--blue); }
+  .trace-log { font-family: 'SF Mono', monospace; font-size: 11px; color: var(--muted); background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; max-height: 200px; overflow-y: auto; }
+  .trace-entry { padding: 4px 0; border-bottom: 1px solid rgba(30,41,59,0.3); display: flex; gap: 8px; }
+  .trace-entry .method { color: var(--green); min-width: 40px; }
+  .trace-entry .path { color: var(--blue); }
+  .trace-entry .status { min-width: 30px; }
+  .trace-entry .latency { color: var(--muted); margin-left: auto; }
+  .hidden { display: none; }
+  .fade-in { animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body>
+<div class="container">
+  <!-- Login Page -->
+  <div id="page-login" class="fade-in">
+    <div class="login-box">
+      <div class="card">
+        <h2>JPMM Research Portal</h2>
+        <p>Sign in with your demo credentials to access the Markets research platform.</p>
+        <div class="form-group">
+          <label>User</label>
+          <select id="login-user">
+            <option value="trader@demo.local">trader@demo.local (Trader)</option>
+            <option value="admin@demo.local">admin@demo.local (Platform Admin)</option>
+            <option value="readonly@demo.local">readonly@demo.local (Read Only)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="login-pass" value="demo1234" />
+        </div>
+        <button class="btn btn-primary" style="width:100%" onclick="doLogin()">Sign In</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- App Shell (hidden until login) -->
+  <div id="app-shell" class="hidden">
+    <nav class="nav">
+      <div class="nav-brand">JPM<span>M</span> Research</div>
+      <div class="nav-links">
+        <button class="nav-link active" onclick="showPage('dashboard')">Dashboard</button>
+        <button class="nav-link" onclick="showPage('markets')">Markets</button>
+        <button class="nav-link" onclick="showPage('positions')">Positions</button>
+        <button class="nav-link" onclick="showPage('activity')">Activity</button>
+      </div>
+      <div class="user-badge" id="user-badge"></div>
+      <button class="btn btn-outline" onclick="doLogout()">Sign Out</button>
+    </nav>
+
+    <!-- Dashboard -->
+    <div id="page-dashboard" class="fade-in">
+      <div class="grid">
+        <div class="card stat"><div class="stat-value" id="stat-indices">--</div><div class="stat-label">Global Indices</div></div>
+        <div class="card stat"><div class="stat-value" id="stat-positions">--</div><div class="stat-label">Open Positions</div></div>
+        <div class="card stat"><div class="stat-value" id="stat-alerts">--</div><div class="stat-label">Active Alerts</div></div>
+      </div>
+      <div class="card">
+        <h3>Recent Market Activity</h3>
+        <table class="table" id="market-table">
+          <thead><tr><th>Symbol</th><th>Price</th><th>Change</th><th>Volume</th><th>Status</th></tr></thead>
+          <tbody id="market-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Markets -->
+    <div id="page-markets" class="hidden fade-in">
+      <div class="card">
+        <h3>Market Research Reports</h3>
+        <table class="table">
+          <thead><tr><th>Report</th><th>Analyst</th><th>Date</th><th>Sector</th><th>Rating</th></tr></thead>
+          <tbody id="research-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Positions -->
+    <div id="page-positions" class="hidden fade-in">
+      <div class="card">
+        <h3>Portfolio Positions</h3>
+        <table class="table">
+          <thead><tr><th>Instrument</th><th>Qty</th><th>Avg Price</th><th>Current</th><th>P&L</th></tr></thead>
+          <tbody id="positions-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Activity Log -->
+    <div id="page-activity" class="hidden fade-in">
+      <div class="card">
+        <h3>Request Trace Log</h3>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Every API call from this session generates a distributed trace visible in the Ingress Console.</p>
+        <div class="trace-log" id="trace-log"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Auth and API calls go through /research prefix to match the Envoy route
+// svc-web proxies /_auth/* to auth-service internally
+const AUTH_BASE = '/research/_auth'
+const API_BASE = ''
+
+let session = null
+let traceLog = []
+
+// --- Auth ---
+async function doLogin() {
+  const email = document.getElementById('login-user').value
+  const password = document.getElementById('login-pass').value
+
+  try {
+    // PKCE authorize
+    const codeVerifier = generateRandomString(64)
+    const codeChallenge = await sha256Base64url(codeVerifier)
+
+    const authResp = await fetch(`${AUTH_BASE}/auth/authorize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, code_challenge: codeChallenge, code_challenge_method: 'S256' })
+    })
+    const authData = await authResp.json()
+    if (!authData.code) { alert('Login failed: ' + JSON.stringify(authData)); return }
+
+    // Token exchange
+    const tokenResp = await fetch(`${AUTH_BASE}/auth/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: authData.code, code_verifier: codeVerifier })
+    })
+    const tokenData = await tokenResp.json()
+
+    // Create session
+    const sessionResp = await fetch(`${AUTH_BASE}/session/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ access_token: tokenData.access_token })
+    })
+    const sessionData = await sessionResp.json()
+
+    session = {
+      jwt: sessionData.session_jwt,
+      sid: sessionData.sid,
+      email: email,
+      name: email.split('@')[0],
+      token: tokenData.access_token,
+    }
+
+    document.getElementById('page-login').classList.add('hidden')
+    document.getElementById('app-shell').classList.remove('hidden')
+    document.getElementById('user-badge').textContent = session.email
+    showPage('dashboard')
+    loadDashboard()
+  } catch (e) {
+    alert('Login error: ' + e.message)
+  }
+}
+
+function doLogout() {
+  if (session) {
+    fetch(`${AUTH_BASE}/session/revoke/${session.sid}`, { method: 'POST' }).catch(() => {})
+  }
+  session = null
+  traceLog = []
+  document.getElementById('app-shell').classList.add('hidden')
+  document.getElementById('page-login').classList.remove('hidden')
+}
+
+// --- API calls (through the ingress chain) ---
+let routeSuspended = false
+
+async function apiCall(method, path) {
+  const headers = { 'User-Agent': 'JPMM-Research/1.0', 'Accept': 'application/json' }
+  if (session) {
+    headers['Authorization'] = `Bearer ${session.jwt}`
+  }
+
+  const start = Date.now()
+  const url = `${API_BASE}${path}`
+  try {
+    const resp = await fetch(url, { method, headers })
+    const latency = Date.now() - start
+    const data = await resp.json().catch(() => ({}))
+    const traceparent = resp.headers.get('traceparent') || ''
+    const traceId = traceparent.split('-')[1] || ''
+
+    logTrace(method, path, resp.status, latency, traceId)
+
+    // Detect route suspension (404 from gateway means route was removed)
+    if (resp.status === 404 && !routeSuspended) {
+      routeSuspended = true
+      showRouteSuspendedBanner()
+    } else if (resp.status >= 200 && resp.status < 300 && routeSuspended) {
+      routeSuspended = false
+      hideRouteSuspendedBanner()
+    }
+
+    return { data, status: resp.status, latency, traceId }
+  } catch (e) {
+    logTrace(method, path, 0, Date.now() - start, '')
+    if (!routeSuspended) {
+      routeSuspended = true
+      showRouteSuspendedBanner()
+    }
+    return { data: {}, status: 0, latency: 0, traceId: '' }
+  }
+}
+
+function showRouteSuspendedBanner() {
+  let banner = document.getElementById('route-suspended-banner')
+  if (!banner) {
+    banner = document.createElement('div')
+    banner.id = 'route-suspended-banner'
+    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:linear-gradient(135deg,#dc2626,#b91c1c);color:white;padding:16px 24px;display:flex;align-items:center;gap:12px;font-family:Inter,sans-serif;box-shadow:0 4px 20px rgba(220,38,38,0.4);animation:slideDown 0.3s ease-out'
+    banner.innerHTML = `
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:14px">Service Temporarily Unavailable</div>
+        <div style="font-size:12px;opacity:0.9">We're experiencing a temporary disruption. Some features may be unavailable. Please try again shortly.</div>
+      </div>
+    `
+    const style = document.createElement('style')
+    style.textContent = '@keyframes slideDown{from{transform:translateY(-100%)}to{transform:translateY(0)}}'
+    document.head.appendChild(style)
+    document.body.prepend(banner)
+  }
+  banner.style.display = 'flex'
+}
+
+function hideRouteSuspendedBanner() {
+  const banner = document.getElementById('route-suspended-banner')
+  if (banner) {
+    banner.style.animation = 'slideUp 0.3s ease-in forwards'
+    const style = document.createElement('style')
+    style.textContent = '@keyframes slideUp{from{transform:translateY(0)}to{transform:translateY(-100%)}}'
+    document.head.appendChild(style)
+    setTimeout(() => banner.remove(), 300)
+  }
+}
+
+function logTrace(method, path, status, latency, traceId) {
+  traceLog.unshift({ method, path, status, latency, traceId, ts: new Date() })
+  if (traceLog.length > 50) traceLog.pop()
+  renderTraceLog()
+}
+
+function renderTraceLog() {
+  const el = document.getElementById('trace-log')
+  if (!el) return
+  el.innerHTML = traceLog.map(t => {
+    const statusClass = t.status >= 400 ? 'color:var(--red)' : t.status >= 200 ? 'color:var(--green)' : 'color:var(--muted)'
+    return `<div class="trace-entry">
+      <span class="method">${t.method}</span>
+      <span class="path">${t.path}</span>
+      <span class="status" style="${statusClass}">${t.status || 'ERR'}</span>
+      <span class="latency">${t.latency}ms</span>
+      ${t.traceId ? `<span style="color:var(--muted);font-size:10px">${t.traceId.slice(0,8)}</span>` : ''}
+    </div>`
+  }).join('')
+}
+
+// --- Pages ---
+function showPage(name) {
+  ['dashboard', 'markets', 'positions', 'activity'].forEach(p => {
+    const el = document.getElementById(`page-${p}`)
+    if (el) el.classList.toggle('hidden', p !== name)
+  })
+  document.querySelectorAll('.nav-link').forEach((el, i) => {
+    el.classList.toggle('active', ['dashboard', 'markets', 'positions', 'activity'][i] === name)
+  })
+  if (name === 'dashboard') loadDashboard()
+  if (name === 'markets') loadResearch()
+  if (name === 'positions') loadPositions()
+}
+
+async function loadDashboard() {
+  const [indices, positions, alerts] = await Promise.all([
+    apiCall('GET', '/research/api/indices'),
+    apiCall('GET', '/research/api/positions'),
+    apiCall('GET', '/research/api/alerts'),
+  ])
+  const allFailed = [indices, positions, alerts].every(r => r.status === 404 || r.status === 0)
+  if (allFailed) {
+    document.getElementById('stat-indices').textContent = '—'
+    document.getElementById('stat-positions').textContent = '—'
+    document.getElementById('stat-alerts').textContent = '—'
+    document.getElementById('stat-indices').style.color = 'var(--red)'
+    document.getElementById('stat-positions').style.color = 'var(--red)'
+    document.getElementById('stat-alerts').style.color = 'var(--red)'
+    return
+  }
+  document.getElementById('stat-indices').textContent = '4,217'
+  document.getElementById('stat-positions').textContent = '23'
+  document.getElementById('stat-alerts').textContent = '7'
+  document.getElementById('stat-indices').style.color = ''
+  document.getElementById('stat-positions').style.color = ''
+  document.getElementById('stat-alerts').style.color = ''
+
+  const markets = [
+    { symbol: 'SPX', price: '5,234.18', change: '+0.42%', volume: '2.1B', status: 'green' },
+    { symbol: 'NDX', price: '18,421.31', change: '+0.67%', volume: '1.8B', status: 'green' },
+    { symbol: 'DJI', price: '39,127.14', change: '-0.12%', volume: '890M', status: 'red' },
+    { symbol: 'VIX', price: '13.42', change: '-3.21%', volume: '425M', status: 'green' },
+    { symbol: 'TNX', price: '4.287', change: '+0.05%', volume: '1.2B', status: 'amber' },
+  ]
+  document.getElementById('market-body').innerHTML = markets.map(m => `
+    <tr>
+      <td style="font-weight:600">${m.symbol}</td>
+      <td>${m.price}</td>
+      <td><span class="badge badge-${m.status}">${m.change}</span></td>
+      <td style="color:var(--muted)">${m.volume}</td>
+      <td><span class="badge badge-${m.status === 'green' ? 'green' : m.status === 'red' ? 'red' : 'amber'}">${m.status === 'green' ? 'UP' : m.status === 'red' ? 'DOWN' : 'FLAT'}</span></td>
+    </tr>
+  `).join('')
+}
+
+async function loadResearch() {
+  await apiCall('GET', '/research/api/reports')
+  const reports = [
+    { title: 'Q1 2026 US Equity Outlook', analyst: 'Sarah Chen', date: 'Mar 20', sector: 'Equity', rating: 'Overweight' },
+    { title: 'Fed Rate Path Analysis', analyst: 'James Wilson', date: 'Mar 19', sector: 'Fixed Income', rating: 'Neutral' },
+    { title: 'Tech Sector Deep Dive', analyst: 'Priya Patel', date: 'Mar 18', sector: 'Technology', rating: 'Overweight' },
+    { title: 'EM Currency Dynamics', analyst: 'Carlos Mendez', date: 'Mar 17', sector: 'FX', rating: 'Underweight' },
+    { title: 'Commodity Super-Cycle', analyst: 'Lin Wei', date: 'Mar 15', sector: 'Commodities', rating: 'Overweight' },
+    { title: 'European Banking Review', analyst: 'Hans Mueller', date: 'Mar 14', sector: 'Financials', rating: 'Neutral' },
+  ]
+  document.getElementById('research-body').innerHTML = reports.map(r => `
+    <tr>
+      <td style="font-weight:500">${r.title}</td>
+      <td style="color:var(--muted)">${r.analyst}</td>
+      <td style="color:var(--muted)">${r.date}</td>
+      <td><span class="badge badge-blue">${r.sector}</span></td>
+      <td><span class="badge badge-${r.rating === 'Overweight' ? 'green' : r.rating === 'Underweight' ? 'red' : 'amber'}">${r.rating}</span></td>
+    </tr>
+  `).join('')
+}
+
+async function loadPositions() {
+  await apiCall('GET', '/research/api/positions')
+  const positions = [
+    { instrument: 'AAPL', qty: 500, avg: 178.50, current: 191.24, pl: '+7.14%' },
+    { instrument: 'GOOGL', qty: 200, avg: 142.30, current: 156.78, pl: '+10.18%' },
+    { instrument: 'JPM', qty: 1000, avg: 195.80, current: 201.45, pl: '+2.89%' },
+    { instrument: 'TSLA', qty: 300, avg: 248.90, current: 232.15, pl: '-6.73%' },
+    { instrument: 'MSFT', qty: 400, avg: 415.20, current: 428.90, pl: '+3.30%' },
+  ]
+  document.getElementById('positions-body').innerHTML = positions.map(p => `
+    <tr>
+      <td style="font-weight:600">${p.instrument}</td>
+      <td>${p.qty.toLocaleString()}</td>
+      <td>$${p.avg.toFixed(2)}</td>
+      <td>$${p.current.toFixed(2)}</td>
+      <td><span class="badge badge-${p.pl.startsWith('+') ? 'green' : 'red'}">${p.pl}</span></td>
+    </tr>
+  `).join('')
+}
+
+// --- Crypto helpers ---
+function generateRandomString(length) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'
+  let result = ''
+  const values = crypto.getRandomValues(new Uint8Array(length))
+  for (const v of values) result += chars[v % chars.length]
+  return result
+}
+
+async function sha256Base64url(str) {
+  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str))
+  const bytes = new Uint8Array(hash)
+  let binary = ''
+  bytes.forEach(b => binary += String.fromCharCode(b))
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
+}
+</script>
+</body>
+</html>
