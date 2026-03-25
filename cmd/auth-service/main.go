@@ -1,6 +1,7 @@
 package main
 
 import (
+	"embed"
 	"fmt"
 	"log"
 	"net/http"
@@ -11,6 +12,9 @@ import (
 	"github.com/jpmc/ingress-poc/pkg/middleware"
 	"github.com/jpmc/ingress-poc/pkg/otel"
 )
+
+//go:embed login.html
+var loginHTML embed.FS
 
 func main() {
 	port := os.Getenv("PORT")
@@ -38,6 +42,18 @@ func main() {
 	r := chi.NewRouter()
 	r.Use(middleware.CORS())
 	r.Use(otel.Middleware("auth-service"))
+
+	// Login page (standalone IDP UI)
+	serveLogin := func(w http.ResponseWriter, _ *http.Request) {
+		data, _ := loginHTML.ReadFile("login.html")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(data)
+	}
+	r.Get("/", serveLogin)
+	r.Get("/login", serveLogin)
+
+	// OIDC discovery
+	r.Get("/.well-known/openid-configuration", handleOIDCDiscovery(authServiceURL))
 
 	// PKCE auth endpoints
 	r.Post("/auth/authorize", handleAuthorize(store, tracer))

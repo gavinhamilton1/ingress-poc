@@ -1,0 +1,16 @@
+---
+description: No unsolicited markdown docs; no emojis/icons unless the user asks
+alwaysApply: true
+---
+
+# Markdown and documentation
+
+- Do **not** create markdown files (`.md`, `.mdc` beyond project rules, etc.) for documentation, how-to instructions, project updates, or summaries of work completed.
+- Do **not** add or expand README, CHANGELOG, CONTRIBUTING, ADRs, architecture docs, or similar unless the user **explicitly** requests that file or that content.
+- Prefer inline code comments only when necessary for the task; avoid spinning up new doc files to capture explanations or session outcomes.
+
+If the user wants documentation, they will ask for it by name or intent.
+
+# Tone and symbols
+
+- Do **not** use emojis or other decorative icons (Unicode symbols used as icons, etc.) in replies, comments, or generated text unless the user **explicitly** asks for them.

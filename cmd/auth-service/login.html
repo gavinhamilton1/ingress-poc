@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>J.P. Morgan — Sign In</title>
+<style>
+  :root {
+    --bg: #0a0e1a; --card: #111827; --border: #1e293b;
+    --text: #e2e8f0; --muted: #64748b; --blue: #3b82f6;
+    --green: #10b981; --red: #ef4444; --amber: #f59e0b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg); color: var(--text);
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    padding: 1rem;
+  }
+  .wrapper { width: 100%; max-width: 440px; }
+  .header { text-align: center; margin-bottom: 2rem; }
+  .logo {
+    width: 48px; height: 48px; border-radius: 14px; margin: 0 auto 1rem;
+    background: linear-gradient(135deg, #3b82f6, #06b6d4);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .logo svg { width: 24px; height: 24px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 4px; }
+  .subtitle { font-size: 0.8rem; color: var(--muted); }
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.5rem;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+  }
+  .label { display: block; font-size: 0.65rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.5rem; }
+  .users { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.25rem; }
+  .user-btn {
+    width: 100%; display: flex; align-items: center; gap: 0.75rem;
+    background: rgba(30,41,59,0.5); border: 1px solid var(--border);
+    border-radius: 8px; padding: 0.75rem; cursor: pointer;
+    color: var(--text); transition: all 0.15s; text-align: left;
+  }
+  .user-btn:hover { border-color: #334155; }
+  .user-btn.selected { border-color: rgba(59,130,246,0.5); background: rgba(59,130,246,0.08); }
+  .avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--border); display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; font-size: 0.75rem; color: var(--muted);
+  }
+  .user-btn.selected .avatar { background: linear-gradient(135deg, #3b82f6, #6366f1); color: #fff; }
+  .user-info { flex: 1; min-width: 0; }
+  .user-name { font-size: 0.85rem; font-weight: 500; }
+  .user-email { font-size: 0.7rem; color: var(--muted); }
+  .badges { display: flex; flex-wrap: wrap; gap: 4px; flex-shrink: 0; }
+  .badge {
+    font-size: 0.6rem; padding: 2px 6px; border-radius: 4px;
+    background: rgba(59,130,246,0.15); color: #93c5fd; font-weight: 600;
+  }
+  .badge-gray { background: rgba(100,116,139,0.2); color: #94a3b8; }
+  input[type="password"] {
+    width: 100%; padding: 0.6rem 0.75rem; border-radius: 8px;
+    border: 1px solid var(--border); background: rgba(30,41,59,0.5);
+    color: var(--text); font-size: 0.85rem; outline: none;
+    margin-bottom: 1.25rem;
+  }
+  input[type="password"]:focus { border-color: var(--blue); }
+  .btn {
+    width: 100%; padding: 0.75rem; border: none; border-radius: 8px;
+    background: linear-gradient(90deg, #2563eb, #3b82f6);
+    color: #fff; font-size: 0.85rem; font-weight: 600; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn:hover { filter: brightness(1.1); }
+  .btn:disabled { background: #374151; cursor: not-allowed; filter: none; }
+  .error {
+    margin-bottom: 1rem; padding: 0.6rem 0.75rem; border-radius: 8px;
+    background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3);
+    color: #fca5a5; font-size: 0.8rem; display: none;
+  }
+  .footer { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--border); text-align: center; }
+  .footer p { font-size: 0.65rem; color: var(--muted); line-height: 1.5; }
+
+  /* Success state */
+  .success-card { display: none; }
+  .success-card.visible { display: block; }
+  .login-card.hidden { display: none; }
+  .success-header { text-align: center; margin-bottom: 1.5rem; }
+  .check-circle {
+    width: 48px; height: 48px; border-radius: 50%; margin: 0 auto 0.75rem;
+    background: rgba(16,185,129,0.15); border: 2px solid var(--green);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .check-circle svg { width: 24px; height: 24px; stroke: var(--green); fill: none; stroke-width: 2.5; }
+  .token-section { margin-bottom: 1rem; }
+  .token-section h4 { font-size: 0.7rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.4rem; }
+  .token-box {
+    background: rgba(15,23,42,0.6); border: 1px solid var(--border); border-radius: 6px;
+    padding: 0.5rem 0.6rem; font-family: 'SF Mono', Monaco, Consolas, monospace;
+    font-size: 0.65rem; color: #93c5fd; word-break: break-all; max-height: 80px;
+    overflow-y: auto; line-height: 1.5;
+  }
+  .claim-grid { display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; font-size: 0.75rem; }
+  .claim-key { color: var(--muted); font-weight: 600; }
+  .claim-val { color: var(--text); }
+  .btn-outline {
+    width: 100%; padding: 0.6rem; border: 1px solid var(--border); border-radius: 8px;
+    background: transparent; color: var(--text); font-size: 0.8rem; cursor: pointer;
+    margin-top: 0.75rem;
+  }
+  .btn-outline:hover { border-color: #475569; background: rgba(30,41,59,0.5); }
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="header">
+    <div class="logo">
+      <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    </div>
+    <h1>J.P. Morgan Sign In</h1>
+    <p class="subtitle">OAuth 2.0 PKCE + DPoP Identity Provider</p>
+  </div>
+
+  <!-- Login Card -->
+  <div class="card login-card" id="loginCard">
+    <form id="loginForm">
+      <span class="label">Select Demo User</span>
+      <div class="users" id="userList"></div>
+
+      <span class="label">Password</span>
+      <input type="password" id="password" value="demo1234" placeholder="Enter password">
+
+      <div class="error" id="error"></div>
+
+      <button type="submit" class="btn" id="submitBtn" disabled>Sign In with PKCE + DPoP</button>
+    </form>
+    <div class="footer">
+      <p>Demo environment &middot; PKCE authorization code flow with DPoP-bound session tokens<br>ECDSA P-256 &middot; RFC 9449 &middot; RFC 7636</p>
+    </div>
+  </div>
+
+  <!-- Success Card -->
+  <div class="card success-card" id="successCard">
+    <div class="success-header">
+      <div class="check-circle">
+        <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <h2 style="font-size:1.1rem;margin-bottom:2px">Authenticated</h2>
+      <p style="font-size:0.75rem;color:var(--muted)" id="successEmail"></p>
+    </div>
+
+    <div class="token-section">
+      <h4>Session Claims</h4>
+      <div class="claim-grid" id="claimsGrid"></div>
+    </div>
+
+    <div class="token-section">
+      <h4>Session JWT</h4>
+      <div class="token-box" id="sessionToken"></div>
+    </div>
+
+    <div class="token-section">
+      <h4>Access Token</h4>
+      <div class="token-box" id="accessToken"></div>
+    </div>
+
+    <button class="btn-outline" onclick="signOut()">Sign Out</button>
+  </div>
+</div>
+
+<script>
+const BASE = '';  // relative to same origin
+let selectedEmail = '';
+
+// ── Helpers ──
+function b64url(buf) {
+  const bytes = new Uint8Array(buf);
+  let s = ''; bytes.forEach(b => s += String.fromCharCode(b));
+  return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+function decodeJwt(token) {
+  const payload = token.split('.')[1];
+  return JSON.parse(atob(payload.replace(/-/g,'+').replace(/_/g,'/')));
+}
+function uuid() {
+  return crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random()*16|0; return (c==='x'?r:(r&0x3|0x8)).toString(16);
+  });
+}
+
+// ── Load demo users ──
+fetch(BASE + '/demo/users')
+  .then(r => r.json())
+  .then(users => {
+    const list = document.getElementById('userList');
+    users.forEach(u => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'user-btn';
+      btn.innerHTML = `
+        <div class="avatar">${u.name ? u.name[0].toUpperCase() : '?'}</div>
+        <div class="user-info">
+          <div class="user-name">${u.name || u.email}</div>
+          <div class="user-email">${u.email}</div>
+        </div>
+        <div class="badges">
+          ${(u.roles||[]).map(r => `<span class="badge">${r}</span>`).join('')}
+          ${u.entity ? `<span class="badge badge-gray">${u.entity}</span>` : ''}
+        </div>
+      `;
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.user-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        selectedEmail = u.email;
+        document.getElementById('submitBtn').disabled = false;
+      });
+      list.appendChild(btn);
+    });
+  })
+  .catch(() => {
+    document.getElementById('userList').innerHTML = '<p style="color:var(--muted);font-size:0.8rem;text-align:center;padding:1rem">Failed to load demo users</p>';
+  });
+
+// ── Login Flow ──
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!selectedEmail) return;
+
+  const errEl = document.getElementById('error');
+  const btn = document.getElementById('submitBtn');
+  errEl.style.display = 'none';
+  btn.disabled = true;
+  btn.textContent = 'Authenticating…';
+
+  try {
+    // Generate PKCE
+    const codeVerifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
+    const codeChallenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(codeVerifier)));
+
+    // Generate DPoP keypair
+    const keyPair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign','verify']);
+    const publicJwk = await crypto.subtle.exportKey('jwk', keyPair.publicKey);
+
+    // Step 1: Authorize
+    const authResp = await fetch(BASE + '/auth/authorize', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: selectedEmail,
+        password: document.getElementById('password').value,
+        client_id: 'ingress-console',
+        redirect_uri: location.origin + '/callback',
+        code_challenge: codeChallenge,
+        code_challenge_method: 'S256',
+      }),
+    });
+    if (!authResp.ok) throw new Error('Invalid credentials');
+    const { code } = await authResp.json();
+
+    // Step 2: Token exchange
+    const tokenResp = await fetch(BASE + '/auth/token', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        grant_type: 'authorization_code', code,
+        redirect_uri: location.origin + '/callback',
+        client_id: 'ingress-console',
+        code_verifier: codeVerifier,
+      }),
+    });
+    if (!tokenResp.ok) throw new Error('Token exchange failed');
+    const tokenData = await tokenResp.json();
+
+    // Step 3: Create session
+    const sessionResp = await fetch(BASE + '/session/create', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ access_token: tokenData.access_token, dpop_jwk: publicJwk }),
+    });
+    if (!sessionResp.ok) throw new Error('Session creation failed');
+    const sessionData = await sessionResp.json();
+
+    // Decode claims
+    const claims = decodeJwt(sessionData.session_jwt);
+
+    // Store in sessionStorage
+    sessionStorage.setItem('idp_session', JSON.stringify({
+      session_jwt: sessionData.session_jwt,
+      access_token: tokenData.access_token,
+      sid: sessionData.sid,
+      email: claims.email, name: claims.name,
+      roles: claims.roles, entity: claims.entity,
+    }));
+
+    // Check for redirect_uri in query string
+    const params = new URLSearchParams(location.search);
+    const redirectUri = params.get('redirect_uri');
+    if (redirectUri) {
+      const sep = redirectUri.includes('?') ? '&' : '?';
+      location.href = redirectUri + sep + 'token=' + encodeURIComponent(sessionData.session_jwt);
+      return;
+    }
+
+    // Show success
+    showSuccess(claims, sessionData, tokenData);
+
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Sign In with PKCE + DPoP';
+  }
+});
+
+function showSuccess(claims, sessionData, tokenData) {
+  document.getElementById('loginCard').classList.add('hidden');
+  document.getElementById('successCard').classList.add('visible');
+  document.getElementById('successEmail').textContent = claims.email;
+  document.getElementById('sessionToken').textContent = sessionData.session_jwt;
+  document.getElementById('accessToken').textContent = tokenData.access_token;
+
+  const grid = document.getElementById('claimsGrid');
+  const rows = [
+    ['Subject', claims.sub],
+    ['Name', claims.name],
+    ['Email', claims.email],
+    ['Roles', (claims.roles||[]).join(', ')],
+    ['Entity', claims.entity],
+    ['Session ID', claims.sid || sessionData.sid],
+    ['Issuer', claims.iss],
+    ['Expires', new Date(claims.exp * 1000).toLocaleString()],
+  ];
+  grid.innerHTML = rows.map(([k,v]) => `<span class="claim-key">${k}</span><span class="claim-val">${v||'—'}</span>`).join('');
+}
+
+function signOut() {
+  sessionStorage.removeItem('idp_session');
+  document.getElementById('successCard').classList.remove('visible');
+  document.getElementById('loginCard').classList.remove('hidden');
+  document.querySelectorAll('.user-btn').forEach(b => b.classList.remove('selected'));
+  selectedEmail = '';
+  document.getElementById('submitBtn').disabled = true;
+  document.getElementById('submitBtn').textContent = 'Sign In with PKCE + DPoP';
+}
+
+// Check if already logged in
+(function() {
+  const stored = sessionStorage.getItem('idp_session');
+  if (stored) {
+    try {
+      const s = JSON.parse(stored);
+      const claims = decodeJwt(s.session_jwt);
+      if (claims.exp * 1000 > Date.now()) {
+        showSuccess(claims, { session_jwt: s.session_jwt, sid: s.sid }, { access_token: s.access_token });
+      } else {
+        sessionStorage.removeItem('idp_session');
+      }
+    } catch(e) { sessionStorage.removeItem('idp_session'); }
+  }
+})();
+</script>
+</body>
+</html>

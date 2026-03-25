@@ -72,19 +72,88 @@ function getFleetNodeTypes(fleet, nodes = []) {
   return { hasEnvoy, hasKong }
 }
 
-/* Helper: get routes (instances) that belong on a specific node based on gateway_type matching.
-   If a route has target_nodes specified, only show on those nodes. */
-function getRoutesForNode(node, instances) {
-  const nodeGwType = node.gateway_type || 'envoy'
-  const nodeId = node.container_id || node.id || node.name
-  return instances.filter(inst => {
-    // If route has explicit node assignments, only show on assigned nodes
-    const assignedIds = inst.assigned_node_ids || inst.target_nodes || []
-    if (assignedIds.length > 0) {
-      return assignedIds.includes(nodeId)
+/* Collect identifiers the API may use for a node. Assignments may store Docker ID, short ID,
+   or fleet node name (see seed fallback when no container existed yet). */
+function nodeIdentitySet(node) {
+  const set = new Set()
+  const add = (v) => {
+    if (v != null && v !== '') set.add(String(v))
+  }
+  add(node.container_id)
+  add(node.container_name)
+  add(node.name)
+  add(node.id)
+  const cid = node.container_id
+  if (cid && typeof cid === 'string') {
+    const bare = cid.replace(/^sha256:/, '')
+    if (bare.length > 12) add(bare.slice(0, 12))
+  }
+  return set
+}
+
+function dockerIdEquivalent(a, b) {
+  if (a == null || b == null) return false
+  const na = String(a).replace(/^sha256:/, '')
+  const nb = String(b).replace(/^sha256:/, '')
+  if (na === nb) return true
+  if (na.length >= 12 && nb.length >= 12 && na.slice(0, 12) === nb.slice(0, 12)) return true
+  if (na.startsWith(nb) || nb.startsWith(na)) return true
+  return false
+}
+
+function assignedNodeMatches(assignedId, nodeIdentities) {
+  const aid = String(assignedId)
+  for (const nid of nodeIdentities) {
+    if (nid === aid) return true
+    if (dockerIdEquivalent(nid, aid)) return true
+  }
+  return false
+}
+
+function normalizeAssignedNodeIds(inst) {
+  const raw = inst.assigned_node_ids ?? inst.target_nodes
+  if (raw == null) return []
+  if (Array.isArray(raw)) return raw
+  if (typeof raw === 'string') {
+    const s = raw.trim()
+    if (s.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(s)
+        return Array.isArray(parsed) ? parsed : []
+      } catch {
+        return s ? [s] : []
+      }
     }
-    // Otherwise match by gateway type (backward compat for routes without assignments)
-    const instType = inst.gateway_type || (inst.context_path?.startsWith('/api') ? 'kong' : 'envoy')
+    return s ? [s] : []
+  }
+  return []
+}
+
+function assignmentMatchesAnyFleetNode(assignedId, fleetNodes) {
+  for (const n of fleetNodes) {
+    if (assignedNodeMatches(assignedId, nodeIdentitySet(n))) return true
+  }
+  return false
+}
+
+/* Helper: routes (instances) for one node. Uses assigned_node_ids when they match this node (or any
+   live node). If assignments exist but none match *any* current fleet node (stale Docker IDs after
+   recreate), fall back to gateway_type so the UI stays consistent with still-working gateways. */
+function getRoutesForNode(node, instances, fleetNodes = []) {
+  const nodeGwType = (node.gateway_type || 'envoy').toLowerCase()
+  const nodeIdentities = nodeIdentitySet(node)
+  return instances.filter(inst => {
+    const assignedIds = normalizeAssignedNodeIds(inst)
+    if (assignedIds.length > 0) {
+      if (assignedIds.some(aid => assignedNodeMatches(aid, nodeIdentities))) return true
+      const anyStillMatchesFleet = assignedIds.some(aid => assignmentMatchesAnyFleetNode(aid, fleetNodes))
+      if (!anyStillMatchesFleet) {
+        const instType = (inst.gateway_type || (inst.context_path?.startsWith('/api') ? 'kong' : 'envoy')).toLowerCase()
+        return instType === nodeGwType
+      }
+      return false
+    }
+    const instType = (inst.gateway_type || (inst.context_path?.startsWith('/api') ? 'kong' : 'envoy')).toLowerCase()
     return instType === nodeGwType
   })
 }
@@ -608,11 +677,7 @@ function GatewayBranch({ routes, nodes = [] }) {
       {hasNodes && (
         <div className="flex flex-col gap-3">
           {nodes.map(node => {
-            const nodeGwType = node.gateway_type || 'envoy'
-            const nodeRoutes = routes.filter(inst => {
-              const instType = inst.gateway_type || (inst.context_path?.startsWith('/api') ? 'kong' : 'envoy')
-              return instType === nodeGwType
-            })
+            const nodeRoutes = getRoutesForNode(node, routes, nodes)
             return (
               <div key={node.id || node.name} className="flex items-center gap-1">
                 <AnimatedHealthLine status={(node.status || 'running') === 'running' ? 'healthy' : 'degraded'} />
@@ -1924,7 +1989,7 @@ export default function Fleets() {
                                     </div>
                                     <div className="space-y-4">
                                       {envoyNodes.map(node => (
-                                        <NodeCard key={node.container_id || node.id || node.name} node={node} fleetId={fleet.id} apiUrl={API_URL} routes={getRoutesForNode(node, instances)} />
+                                        <NodeCard key={node.container_id || node.id || node.name} node={node} fleetId={fleet.id} apiUrl={API_URL} routes={getRoutesForNode(node, instances, currentFleetNodes)} />
                                       ))}
                                     </div>
                                   </div>
@@ -1942,7 +2007,7 @@ export default function Fleets() {
                                     </div>
                                     <div className="space-y-4">
                                       {kongNodes.map(node => (
-                                        <NodeCard key={node.container_id || node.id || node.name} node={node} fleetId={fleet.id} apiUrl={API_URL} routes={getRoutesForNode(node, instances)} />
+                                        <NodeCard key={node.container_id || node.id || node.name} node={node} fleetId={fleet.id} apiUrl={API_URL} routes={getRoutesForNode(node, instances, currentFleetNodes)} />
                                       ))}
                                     </div>
                                   </div>

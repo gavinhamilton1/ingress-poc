@@ -275,9 +275,28 @@ export default function Dashboard() {
           </div>
           <FlowPulse delay={0} color={greenPulse} height={28} speed={1.6} />
 
-          {/* ── L2: Akamai GTM ── */}
-          <div className="flex justify-center">
-            <InfraNode icon={Globe} label="Akamai GTM" desc="L2 — Global Traffic Mgr" color="from-blue-500 to-blue-600" delay={0.34} health="healthy" />
+          {/* ── L2: Akamai GTM (active) + Cloudflare LB (passive failover) ── */}
+          <div className="grid grid-cols-5 items-start">
+            {/* Cloudflare LB passive stack */}
+            <div className="col-span-1 flex flex-col items-center">
+              <InfraNode icon={Cloud} label="CF LB" desc="Cloudflare LB" color="from-orange-500/50 to-orange-600/50" delay={0.36} passive />
+              <span className="text-[8px] text-orange-400/50 mt-1 font-medium uppercase tracking-wider">Passive Standby</span>
+            </div>
+
+            {/* failover label */}
+            <div className="col-span-1 flex items-center justify-center pt-4">
+              <div className="w-full border-t border-dotted border-orange-400/50 relative">
+                <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-[7px] text-orange-300/70 whitespace-nowrap uppercase tracking-wider">failover</span>
+              </div>
+            </div>
+
+            {/* Akamai GTM primary */}
+            <div className="col-span-1 flex flex-col items-center">
+              <InfraNode icon={Globe} label="Akamai GTM" desc="L2 — Global Traffic Mgr" color="from-blue-500 to-blue-600" delay={0.34} health="healthy" />
+              <span className="text-[8px] text-cyan-400 mt-1 font-medium uppercase tracking-wider">Active Primary</span>
+            </div>
+
+            <div className="col-span-2" />
           </div>
           <FlowPulse delay={0.3} color={greenPulse} height={24} speed={1.4} />
 
@@ -352,7 +371,7 @@ export default function Dashboard() {
             {/* PSaaS fleets (left) */}
             <div className="col-span-5 flex flex-col items-center">
               <div className="flex flex-wrap justify-center gap-3">
-                {fleets.filter(f => f.host_env !== 'aws').map((f, i) => {
+                {fleets.filter(f => f.fleet_type !== 'control' && f.host_env !== 'aws').map((f, i) => {
                   const fleetPulse = f.status === 'healthy' ? 'bg-emerald-400'
                     : f.status === 'degraded' ? 'bg-amber-400' : 'bg-red-400'
                   return (
@@ -362,7 +381,7 @@ export default function Dashboard() {
                     </div>
                   )
                 })}
-                {fleets.filter(f => f.host_env !== 'aws').length === 0 && (
+                {fleets.filter(f => f.fleet_type !== 'control' && f.host_env !== 'aws').length === 0 && (
                   <div className="flex flex-col items-center">
                     <FlowPulse active={false} height={22} />
                     <div className="text-[9px] text-jpmc-muted italic py-2">No PSaaS fleets</div>
@@ -377,7 +396,7 @@ export default function Dashboard() {
             {/* AWS fleets (right) */}
             <div className="col-span-5 flex flex-col items-center">
               <div className="flex flex-wrap justify-center gap-3">
-                {fleets.filter(f => f.host_env === 'aws').map((f, i) => {
+                {fleets.filter(f => f.fleet_type !== 'control' && f.host_env === 'aws').map((f, i) => {
                   const fleetPulse = f.status === 'healthy' ? 'bg-emerald-400'
                     : f.status === 'degraded' ? 'bg-amber-400' : 'bg-red-400'
                   return (
@@ -387,7 +406,7 @@ export default function Dashboard() {
                     </div>
                   )
                 })}
-                {fleets.filter(f => f.host_env === 'aws').length === 0 && (
+                {fleets.filter(f => f.fleet_type !== 'control' && f.host_env === 'aws').length === 0 && (
                   <div className="flex flex-col items-center">
                     <FlowPulse active={false} height={22} />
                     <div className="text-[9px] text-jpmc-muted italic py-2">No AWS fleets</div>
@@ -407,6 +426,63 @@ export default function Dashboard() {
           </div>
         </div>
       </GlassCard>
+
+      {/* ═══════════ Control Plane Services ═══════════ */}
+      {(() => {
+        const cpFleets = fleets.filter(f => f.fleet_type === 'control')
+        if (cpFleets.length === 0) return null
+
+        const colorMap = {
+          'cp-mgmt':       { bg: 'bg-blue-500/20',    border: 'border-blue-500/40',    text: 'text-blue-300',    dot: 'bg-blue-400' },
+          'cp-auth':       { bg: 'bg-purple-500/20',   border: 'border-purple-500/40',  text: 'text-purple-300',  dot: 'bg-purple-400' },
+          'cp-envoy-xds':  { bg: 'bg-violet-500/20',   border: 'border-violet-500/40',  text: 'text-violet-300',  dot: 'bg-violet-400' },
+          'cp-kong-sync':  { bg: 'bg-indigo-500/20',   border: 'border-indigo-500/40',  text: 'text-indigo-300',  dot: 'bg-indigo-400' },
+          'cp-shared-gw':  { bg: 'bg-cyan-500/20',     border: 'border-cyan-500/40',    text: 'text-cyan-300',    dot: 'bg-cyan-400' },
+          'cp-opa':        { bg: 'bg-emerald-500/20',  border: 'border-emerald-500/40', text: 'text-emerald-300', dot: 'bg-emerald-400' },
+          'cp-watchdog':   { bg: 'bg-amber-500/20',    border: 'border-amber-500/40',   text: 'text-amber-300',   dot: 'bg-amber-400' },
+          'cp-jaeger':     { bg: 'bg-orange-500/20',   border: 'border-orange-500/40',  text: 'text-orange-300',  dot: 'bg-orange-400' },
+          'cp-gtm':        { bg: 'bg-sky-500/20',      border: 'border-sky-500/40',     text: 'text-sky-300',     dot: 'bg-sky-400' },
+          'cp-edge':       { bg: 'bg-teal-500/20',     border: 'border-teal-500/40',    text: 'text-teal-300',    dot: 'bg-teal-400' },
+          'cp-psaas':      { bg: 'bg-rose-500/20',     border: 'border-rose-500/40',    text: 'text-rose-300',    dot: 'bg-rose-400' },
+          'cp-dns':        { bg: 'bg-lime-500/20',     border: 'border-lime-500/40',    text: 'text-lime-300',    dot: 'bg-lime-400' },
+          'cp-postgres':   { bg: 'bg-slate-500/20',    border: 'border-slate-500/40',   text: 'text-slate-300',   dot: 'bg-slate-400' },
+          'cp-svc-web':    { bg: 'bg-teal-500/20',     border: 'border-teal-500/40',    text: 'text-teal-300',    dot: 'bg-teal-400' },
+          'cp-svc-api':    { bg: 'bg-teal-500/20',     border: 'border-teal-500/40',    text: 'text-teal-300',    dot: 'bg-teal-400' },
+          'cp-console-svc':{ bg: 'bg-pink-500/20',     border: 'border-pink-500/40',    text: 'text-pink-300',    dot: 'bg-pink-400' },
+        }
+        const fallbackColor = { bg: 'bg-gray-500/20', border: 'border-gray-500/40', text: 'text-gray-300', dot: 'bg-gray-400' }
+
+        return (
+          <GlassCard title="Control Plane Services" icon={Cpu} delay={0.35}>
+            <div className="px-5 pb-5">
+              <p className="text-xs text-jpmc-muted mb-4">
+                Docker Compose-managed services that power the ingress platform — not part of the request data path
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {cpFleets.map((f, i) => {
+                  const c = colorMap[f.id] || fallbackColor
+                  const isHealthy = f.status === 'healthy'
+                  const isDegraded = f.status === 'degraded'
+                  const statusDot = isHealthy ? 'bg-emerald-400' : isDegraded ? 'bg-amber-400 animate-pulse' : 'bg-red-400'
+                  return (
+                    <motion.div
+                      key={f.id}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 0.35 + i * 0.03 }}
+                      onClick={() => navigate(`/fleets?fleet=${f.id}`)}
+                      className={`cursor-pointer px-3 py-2 rounded-lg ${c.bg} border ${c.border} hover:brightness-125 transition-all flex items-center gap-2`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${statusDot} shrink-0`} />
+                      <span className={`text-[11px] font-semibold ${c.text} whitespace-nowrap`}>{f.name}</span>
+                    </motion.div>
+                  )
+                })}
+              </div>
+            </div>
+          </GlassCard>
+        )
+      })()}
     </div>
   )
 }

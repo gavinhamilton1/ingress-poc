@@ -33,6 +33,27 @@ func writeError(w http.ResponseWriter, status int, detail string) {
 	})
 }
 
+// handleOIDCDiscovery returns the OpenID Connect discovery document.
+func handleOIDCDiscovery(issuer string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, 200, map[string]interface{}{
+			"issuer":                                issuer,
+			"authorization_endpoint":                issuer + "/auth/authorize",
+			"token_endpoint":                        issuer + "/auth/token",
+			"jwks_uri":                              issuer + "/.well-known/jwks.json",
+			"userinfo_endpoint":                     issuer + "/session/{sid}",
+			"revocation_endpoint":                   issuer + "/session/revoke/{sid}",
+			"response_types_supported":              []string{"code"},
+			"grant_types_supported":                 []string{"authorization_code"},
+			"subject_types_supported":               []string{"public"},
+			"id_token_signing_alg_values_supported": []string{"ES256"},
+			"code_challenge_methods_supported":      []string{"S256"},
+			"dpop_signing_alg_values_supported":     []string{"ES256"},
+			"token_endpoint_auth_methods_supported": []string{"none"},
+		})
+	}
+}
+
 // --- Request models ---
 
 type authorizeRequest struct {

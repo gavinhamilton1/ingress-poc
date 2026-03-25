@@ -255,7 +255,7 @@ func seedDefaults(db *sqlx.DB) {
 		// Payments / Access
 		{"/", svcWebURL, "access", "envoy", "payments", "access.jpm.com", nil, []string{"payments:read", "access:view"}, "bearer", "AuthE1.0", "/health", "active"},
 		// xCIB / AuthN
-		{"/", svcWebURL, "", "envoy", "cib", "login.jpm.com", nil, nil, "none", "N/A", "/health", "active"},
+		{"/", "http://auth-service:8001", "", "envoy", "cib", "login.jpm.com", nil, nil, "none", "N/A", "/health", "active"},
 		// xCIB / AuthZ
 		{"/", svcWebURL, "authz", "envoy", "cib", "authz.jpm.com", nil, []string{"cib:admin", "authz:manage"}, "mtls", "Sentry", "/health", "active"},
 
@@ -309,7 +309,7 @@ func seedDefaults(db *sqlx.DB) {
 		// Access — 1 envoy node
 		{"i-acc-1", "fleet-access", "/", svcWebURL, "envoy", 20},
 		// AuthN — 1 envoy node
-		{"i-authn-1", "fleet-authn", "/", svcWebURL, "envoy", 15},
+		{"i-authn-1", "fleet-authn", "/", "http://auth-service:8001", "envoy", 15},
 		// AuthZ — 1 envoy node
 		{"i-authz-1", "fleet-authz", "/", svcWebURL, "envoy", 18},
 		// Console — 2 envoy nodes
@@ -583,6 +583,41 @@ func removeSingleContainer(containerID string) {
 // are up. For each route in a fleet, it finds running nodes of the matching
 // gateway_type and creates assignments. This is called after ensureFleetContainers.
 func seedRouteNodeAssignments(db *sqlx.DB) {
+	// Clean up stale assignments whose container IDs no longer exist.
+	// After a full Docker restart, containers get new IDs, so old assignments
+	// become orphaned and prevent routes from showing on the new nodes.
+	var allAssignments []struct {
+		ID              string `db:"id"`
+		NodeContainerID string `db:"node_container_id"`
+		FleetID         string `db:"fleet_id"`
+	}
+	if err := db.Select(&allAssignments, "SELECT id, node_container_id, fleet_id FROM route_node_assignments"); err == nil && len(allAssignments) > 0 {
+		// Build set of live container IDs across all fleets
+		liveContainerIDs := map[string]bool{}
+		fleetChecked := map[string]bool{}
+		for _, a := range allAssignments {
+			if fleetChecked[a.FleetID] {
+				continue
+			}
+			fleetChecked[a.FleetID] = true
+			nodes, _ := listFleetContainers(a.FleetID)
+			for _, n := range nodes {
+				liveContainerIDs[n.ContainerID] = true
+			}
+		}
+
+		stale := 0
+		for _, a := range allAssignments {
+			if !liveContainerIDs[a.NodeContainerID] {
+				db.Exec("DELETE FROM route_node_assignments WHERE id=$1", a.ID)
+				stale++
+			}
+		}
+		if stale > 0 {
+			log.Printf("Cleaned up %d stale route-node assignments (containers no longer exist)", stale)
+		}
+	}
+
 	var count int
 	db.Get(&count, "SELECT COUNT(*) FROM route_node_assignments")
 	if count > 0 {
