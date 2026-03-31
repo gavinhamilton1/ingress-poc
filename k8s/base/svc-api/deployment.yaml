@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: svc-api
+  labels:
+    app: svc-api
+    ingress.jpmc.com/component: data-plane
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: svc-api
+  template:
+    metadata:
+      labels:
+        app: svc-api
+        ingress.jpmc.com/component: data-plane
+    spec:
+      containers:
+        - name: svc-api
+          image: ingress-poc/svc-api:latest
+          ports:
+            - containerPort: 8005
+              protocol: TCP
+          env:
+            - name: SERVICE_NAME
+              value: svc-api
+            - name: PORT
+              value: "8005"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://jaeger:4318
+          resources:
+            limits:
+              memory: 256Mi
+              cpu: 250m
+            requests:
+              memory: 128Mi
+              cpu: 100m

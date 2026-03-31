@@ -1,0 +1,15 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ingress-operator
+  labels:
+    app: ingress-operator
+    ingress.jpmc.com/component: control-plane
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ingress-operator
+subjects:
+  - kind: ServiceAccount
+    name: ingress-operator
+    namespace: ingress-cp

@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: management-api
+  labels:
+    app: management-api
+    ingress.jpmc.com/component: control-plane
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: management-api
+  template:
+    metadata:
+      labels:
+        app: management-api
+        ingress.jpmc.com/component: control-plane
+    spec:
+      serviceAccountName: management-api
+      containers:
+        - name: management-api
+          image: ingress-poc/management-api:latest
+          ports:
+            - containerPort: 8003
+              protocol: TCP
+          env:
+            - name: DATABASE_URL
+              value: postgresql://ingress:ingress_poc@postgres:5432/ingress_registry
+            - name: SVC_WEB_URL
+              value: http://svc-web:8004
+            - name: SVC_API_URL
+              value: http://svc-api:8005
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://jaeger:4318
+            - name: ORCHESTRATION_MODE
+              value: kubernetes
+            - name: GITOPS_REPO_PATH
+              value: /tmp/gitops-repos
+            - name: GITOPS_GITHUB_TOKEN
+              value: ""
+            - name: GITOPS_GITHUB_USERNAME
+              value: ""
+          resources:
+            limits:
+              memory: 512Mi
+              cpu: 500m
+            requests:
+              memory: 256Mi
+              cpu: 200m

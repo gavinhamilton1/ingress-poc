@@ -33,10 +33,11 @@ type fleetGateways struct {
 }
 
 var (
-	port             string
-	gatewayEnvoyURL  string
-	gatewayKongURL   string
-	managementAPIURL string
+	port              string
+	gatewayEnvoyURL   string
+	gatewayKongURL    string
+	managementAPIURL  string
+	orchestrationMode string
 
 	regions = []regionInfo{
 		{Region: "us-east", Datacenter: "CDC1"},
@@ -67,6 +68,7 @@ func init() {
 	if managementAPIURL == "" {
 		managementAPIURL = "http://management-api:8003"
 	}
+	orchestrationMode = os.Getenv("ORCHESTRATION_MODE")
 }
 
 // pollFleetNodes periodically fetches fleet -> node mapping from the management API
@@ -111,22 +113,33 @@ func pollFleetNodes() {
 					continue
 				}
 				gw := fleetGateways{}
-				for _, n := range f.Nodes {
-					if n.Status != "running" {
-						continue
-					}
-					// Use container name as Docker DNS hostname, internal port 8000 for envoy, 8000 for kong
-					switch n.GatewayType {
-					case "envoy":
-						if gw.EnvoyURL == "" {
-							gw.EnvoyURL = fmt.Sprintf("http://%s:8000", n.ContainerName)
+
+				if orchestrationMode == "kubernetes" {
+					// In K8s mode, the ingress-operator creates a Service
+					// named after the fleet ID in the ingress-dp namespace.
+					// Route to that service directly.
+					svcURL := fmt.Sprintf("http://%s.ingress-dp:8000", f.ID)
+					gw.EnvoyURL = svcURL
+					gw.KongURL = svcURL
+				} else {
+					// Docker mode: use container name as DNS hostname
+					for _, n := range f.Nodes {
+						if n.Status != "running" {
+							continue
 						}
-					case "kong":
-						if gw.KongURL == "" {
-							gw.KongURL = fmt.Sprintf("http://%s:8000", n.ContainerName)
+						switch n.GatewayType {
+						case "envoy":
+							if gw.EnvoyURL == "" {
+								gw.EnvoyURL = fmt.Sprintf("http://%s:8000", n.ContainerName)
+							}
+						case "kong":
+							if gw.KongURL == "" {
+								gw.KongURL = fmt.Sprintf("http://%s:8000", n.ContainerName)
+							}
 						}
 					}
 				}
+
 				if gw.EnvoyURL != "" || gw.KongURL != "" {
 					newCache[f.Subdomain] = gw
 				}

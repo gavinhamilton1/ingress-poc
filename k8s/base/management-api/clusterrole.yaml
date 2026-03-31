@@ -1,0 +1,17 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: management-api
+  labels:
+    app: management-api
+    ingress.jpmc.com/component: control-plane
+rules:
+  - apiGroups: [""]
+    resources: ["services", "configmaps", "pods", "namespaces"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["ingress.jpmc.com"]
+    resources: ["fleets", "fleets/status", "routes", "routes/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]

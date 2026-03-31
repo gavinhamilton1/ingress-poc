@@ -1,0 +1,48 @@
+# Argo CD Application Template for Per-Region Data Plane Clusters
+#
+# Copy this file and replace the following placeholders:
+#   REGION_NAME           - Region identifier (e.g., us-east-1, eu-west-1)
+#   DP_CLUSTER_SERVER_URL - The API server URL of the data-plane K8s cluster
+#   GITOPS_REPO_URL       - The Git repository URL for the GitOps repo
+#
+# Example:
+#   cp data-plane-template.yaml data-plane-us-east-1.yaml
+#   sed -i 's/REGION_NAME/us-east-1/g' data-plane-us-east-1.yaml
+#   sed -i 's|DP_CLUSTER_SERVER_URL|https://dp-us-east-1.example.com:6443|g' data-plane-us-east-1.yaml
+#   sed -i 's|GITOPS_REPO_URL|https://github.com/org/ingress-poc-gitops.git|g' data-plane-us-east-1.yaml
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ingress-dp-REGION_NAME
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: ingress-poc
+    ingress.jpmc.com/cluster-type: data-plane
+    ingress.jpmc.com/region: REGION_NAME
+spec:
+  project: default
+
+  source:
+    repoURL: "GITOPS_REPO_URL"
+    targetRevision: HEAD
+    path: clusters/data-plane-REGION_NAME
+
+  destination:
+    server: "DP_CLUSTER_SERVER_URL"
+    namespace: ingress-dp
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

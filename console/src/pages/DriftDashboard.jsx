@@ -3,17 +3,20 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   AlertTriangle, CheckCircle2, RefreshCw, Clock,
-  ArrowRight, ChevronDown, Loader2, Shield,
+  ArrowRight, ChevronDown, Loader2, Shield, GitBranch, XCircle,
 } from 'lucide-react'
 import GlassCard from '../components/GlassCard'
 import StatusBadge from '../components/StatusBadge'
 import { useConfig } from '../context/ConfigContext'
 
 export default function DriftDashboard() {
-  const { API_URL } = useConfig()
+  const { API_URL, GITOPS_URL } = useConfig()
   const queryClient = useQueryClient()
   const [showInSync, setShowInSync] = useState(false)
+  const [showGitOpsDrift, setShowGitOpsDrift] = useState(true)
   const [reconciling, setReconciling] = useState(null)
+  // reconcileResult: { [route_id]: { ok: bool, message: string } }
+  const [reconcileResult, setReconcileResult] = useState({})
 
   const { data: drift = [], isLoading, dataUpdatedAt } = useQuery({
     queryKey: ['drift'],
@@ -21,15 +24,43 @@ export default function DriftDashboard() {
     refetchInterval: 10000,
   })
 
+  const { data: fleets = [] } = useQuery({
+    queryKey: ['fleets'],
+    queryFn: () => fetch(`${API_URL}/fleets`).then(r => r.json()).catch(() => []),
+    refetchInterval: 15000,
+  })
+
+  const { data: gitopsStatus } = useQuery({
+    queryKey: ['gitopsStatus'],
+    queryFn: () => fetch(`${GITOPS_URL}/status`).then(r => r.json()).catch(() => null),
+    refetchInterval: 15000,
+  })
+
   const driftedItems = drift.filter(d => d.drift)
   const syncItems = drift.filter(d => !d.drift)
   const lastCheckTime = dataUpdatedAt ? new Date(dataUpdatedAt) : null
 
+  // GitOps drift: fleets where sync_status is not synced
+  const gitopsDriftFleets = fleets.filter(f =>
+    f.sync_status && f.sync_status !== 'synced' && f.sync_status !== ''
+  )
+
   const reconcile = async (item) => {
     setReconciling(item.route_id)
-    // In a real implementation, this would call the management API to reconcile
-    // For POC, we just refresh the drift data
-    await new Promise(r => setTimeout(r, 1000))
+    setReconcileResult(prev => ({ ...prev, [item.route_id]: null }))
+    try {
+      const resp = await fetch(`${API_URL}/routes/${item.route_id}/reconcile`, { method: 'POST' })
+      const data = await resp.json()
+      if (resp.ok) {
+        setReconcileResult(prev => ({ ...prev, [item.route_id]: { ok: true, message: data.message || 'Reconcile request registered.' } }))
+      } else {
+        setReconcileResult(prev => ({ ...prev, [item.route_id]: { ok: false, message: data.error || 'Reconcile failed.' } }))
+      }
+    } catch (e) {
+      setReconcileResult(prev => ({ ...prev, [item.route_id]: { ok: false, message: 'Could not reach management API.' } }))
+    }
+    // Allow a moment for the gateway to pick up the change before refreshing
+    await new Promise(r => setTimeout(r, 2000))
     queryClient.invalidateQueries({ queryKey: ['drift'] })
     setReconciling(null)
   }
@@ -62,7 +93,7 @@ export default function DriftDashboard() {
       </div>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <GlassCard
           title="In Sync"
           icon={CheckCircle2}
@@ -80,11 +111,19 @@ export default function DriftDashboard() {
           className={driftedItems.length > 0 ? 'border-amber-500/30' : ''}
         />
         <GlassCard
+          title="GitOps Drift"
+          icon={GitBranch}
+          value={gitopsDriftFleets.length}
+          subtitle={gitopsDriftFleets.length > 0 ? 'Fleets out of sync' : 'All fleets synced'}
+          delay={0.1}
+          className={gitopsDriftFleets.length > 0 ? 'border-orange-500/30' : 'border-emerald-500/20'}
+        />
+        <GlassCard
           title="Last Check"
           icon={Clock}
           value={lastCheckTime ? lastCheckTime.toLocaleTimeString() : '--'}
           subtitle="Auto-refreshes every 10s"
-          delay={0.1}
+          delay={0.15}
         />
       </div>
 
@@ -97,6 +136,79 @@ export default function DriftDashboard() {
           transient drift is expected during route changes.
         </p>
       </div>
+
+      {/* GitOps Drift Section */}
+      {gitopsDriftFleets.length > 0 && (
+        <div className="space-y-3">
+          <button
+            onClick={() => setShowGitOpsDrift(!showGitOpsDrift)}
+            className="flex items-center gap-2 text-sm font-semibold text-orange-400 hover:text-orange-300 transition-colors"
+          >
+            <GitBranch size={14} />
+            GitOps Drift ({gitopsDriftFleets.length} fleets)
+            <ChevronDown size={14} className={`transition-transform ${showGitOpsDrift ? '' : '-rotate-90'}`} />
+          </button>
+          <AnimatePresence>
+            {showGitOpsDrift && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden"
+              >
+                <GlassCard>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-jpmc-muted border-b border-jpmc-border/30">
+                          <th className="text-left px-4 py-2 font-medium">Fleet</th>
+                          <th className="text-left px-4 py-2 font-medium">Console State</th>
+                          <th className="text-left px-4 py-2 font-medium">Git State</th>
+                          <th className="text-left px-4 py-2 font-medium">Live State</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-jpmc-border/20">
+                        {gitopsDriftFleets.map(fleet => (
+                          <tr key={fleet.id}>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <code className="text-jpmc-text font-medium">{fleet.name}</code>
+                                <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-semibold uppercase ${
+                                  fleet.sync_status === 'progressing' ? 'bg-yellow-500/15 border border-yellow-500/30 text-yellow-400'
+                                  : fleet.sync_status === 'out-of-sync' ? 'bg-red-500/15 border border-red-500/30 text-red-400'
+                                  : 'bg-gray-500/15 border border-gray-500/30 text-gray-400'
+                                }`}>
+                                  {fleet.sync_status}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="text-jpmc-text">{fleet.status || 'unknown'}</span>
+                              <span className="text-jpmc-muted ml-2">({Math.round(fleet.instances_count || 0)} instances)</span>
+                            </td>
+                            <td className="px-4 py-3">
+                              {fleet.git_commit_sha ? (
+                                <span className="font-mono text-blue-400">{fleet.git_commit_sha.slice(0, 7)}</span>
+                              ) : (
+                                <span className="text-jpmc-muted">--</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="text-jpmc-muted">
+                                {fleet.status === 'healthy' ? 'running' : fleet.status || '--'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </GlassCard>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
 
       {/* Drifted Routes */}
       {driftedItems.length > 0 && (
@@ -137,6 +249,27 @@ export default function DriftDashboard() {
                     {reconciling === item.route_id ? 'Reconciling...' : 'Reconcile'}
                   </motion.button>
                 </div>
+
+                {/* Reconcile result banner */}
+                <AnimatePresence>
+                  {reconcileResult[item.route_id] && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className={`mb-3 px-3 py-2 rounded-lg flex items-center gap-2 text-xs ${
+                        reconcileResult[item.route_id].ok
+                          ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300'
+                          : 'bg-red-500/10 border border-red-500/30 text-red-300'
+                      }`}
+                    >
+                      {reconcileResult[item.route_id].ok
+                        ? <CheckCircle2 size={12} className="shrink-0" />
+                        : <XCircle size={12} className="shrink-0" />}
+                      {reconcileResult[item.route_id].message}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* Side-by-side comparison */}
                 <div className="grid grid-cols-2 gap-4">

@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kong-admin-proxy
+  labels:
+    app: kong-admin-proxy
+    ingress.jpmc.com/component: control-plane
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kong-admin-proxy
+  template:
+    metadata:
+      labels:
+        app: kong-admin-proxy
+        ingress.jpmc.com/component: control-plane
+    spec:
+      containers:
+        - name: kong-admin-proxy
+          image: ingress-poc/kong-admin-proxy:latest
+          ports:
+            - containerPort: 8102
+              protocol: TCP
+          env:
+            - name: MANAGEMENT_API_URL
+              value: http://management-api:8003
+            - name: KONG_ADMIN_URL
+              value: http://gateway-kong:8001
+            - name: AUTH_SERVICE_URL
+              value: http://auth-service:8001
+            - name: OPA_URL
+              value: http://opa:8181
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://jaeger:4318
+          resources:
+            limits:
+              memory: 256Mi
+              cpu: 250m
+            requests:
+              memory: 128Mi
+              cpu: 100m

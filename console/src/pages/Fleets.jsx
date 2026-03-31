@@ -7,28 +7,29 @@ import {
   Activity, ArrowRight, MapPin, Plus, X, Info,
   GitBranch, Cloud, Shield, Box, Layers, Zap, Lock, Hash,
   Pause, Play, Search, Filter, ArrowUpDown, Check, AlertTriangle,
-  Minus, Container, Monitor, Trash2, RefreshCw, Power, Edit3, Copy,
+  Minus, Container, Monitor, Trash2, RefreshCw, Power, Edit3, Copy, Settings,
 } from 'lucide-react'
 import GlassCard from '../components/GlassCard'
 import StatusBadge from '../components/StatusBadge'
 import RouteDetailPanel from '../components/RouteDetailPanel'
 import { useConfig } from '../context/ConfigContext'
 
-function InstancePill({ inst }) {
+function InstancePill({ inst, nodeDown = false }) {
   const isApi = inst.gateway_type === 'kong' || inst.context_path.startsWith('/api')
+  const effectivelyActive = inst.status === 'active' && !nodeDown
   return (
     <motion.div
       key={inst.id}
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
       className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs ${
-        inst.status === 'active'
+        effectivelyActive
           ? 'bg-emerald-500/10 border-emerald-500/30'
           : 'bg-amber-500/10 border-amber-500/30'
       }`}
     >
       <span className={`w-1.5 h-1.5 rounded-full ${
-        inst.status === 'active' ? 'bg-emerald-400' : 'bg-amber-400'
+        effectivelyActive ? 'bg-emerald-400' : 'bg-amber-400'
       }`} />
       <code className="text-jpmc-text">{inst.context_path}</code>
       <ArrowRight size={10} className="text-jpmc-muted" />
@@ -72,87 +73,11 @@ function getFleetNodeTypes(fleet, nodes = []) {
   return { hasEnvoy, hasKong }
 }
 
-/* Collect identifiers the API may use for a node. Assignments may store Docker ID, short ID,
-   or fleet node name (see seed fallback when no container existed yet). */
-function nodeIdentitySet(node) {
-  const set = new Set()
-  const add = (v) => {
-    if (v != null && v !== '') set.add(String(v))
-  }
-  add(node.container_id)
-  add(node.container_name)
-  add(node.name)
-  add(node.id)
-  const cid = node.container_id
-  if (cid && typeof cid === 'string') {
-    const bare = cid.replace(/^sha256:/, '')
-    if (bare.length > 12) add(bare.slice(0, 12))
-  }
-  return set
-}
-
-function dockerIdEquivalent(a, b) {
-  if (a == null || b == null) return false
-  const na = String(a).replace(/^sha256:/, '')
-  const nb = String(b).replace(/^sha256:/, '')
-  if (na === nb) return true
-  if (na.length >= 12 && nb.length >= 12 && na.slice(0, 12) === nb.slice(0, 12)) return true
-  if (na.startsWith(nb) || nb.startsWith(na)) return true
-  return false
-}
-
-function assignedNodeMatches(assignedId, nodeIdentities) {
-  const aid = String(assignedId)
-  for (const nid of nodeIdentities) {
-    if (nid === aid) return true
-    if (dockerIdEquivalent(nid, aid)) return true
-  }
-  return false
-}
-
-function normalizeAssignedNodeIds(inst) {
-  const raw = inst.assigned_node_ids ?? inst.target_nodes
-  if (raw == null) return []
-  if (Array.isArray(raw)) return raw
-  if (typeof raw === 'string') {
-    const s = raw.trim()
-    if (s.startsWith('[')) {
-      try {
-        const parsed = JSON.parse(s)
-        return Array.isArray(parsed) ? parsed : []
-      } catch {
-        return s ? [s] : []
-      }
-    }
-    return s ? [s] : []
-  }
-  return []
-}
-
-function assignmentMatchesAnyFleetNode(assignedId, fleetNodes) {
-  for (const n of fleetNodes) {
-    if (assignedNodeMatches(assignedId, nodeIdentitySet(n))) return true
-  }
-  return false
-}
-
-/* Helper: routes (instances) for one node. Uses assigned_node_ids when they match this node (or any
-   live node). If assignments exist but none match *any* current fleet node (stale Docker IDs after
-   recreate), fall back to gateway_type so the UI stays consistent with still-working gateways. */
-function getRoutesForNode(node, instances, fleetNodes = []) {
+/* Routes for one node: simply filter by matching gateway_type.
+   All routes in a fleet are served by all nodes of the same type. */
+function getRoutesForNode(node, instances) {
   const nodeGwType = (node.gateway_type || 'envoy').toLowerCase()
-  const nodeIdentities = nodeIdentitySet(node)
   return instances.filter(inst => {
-    const assignedIds = normalizeAssignedNodeIds(inst)
-    if (assignedIds.length > 0) {
-      if (assignedIds.some(aid => assignedNodeMatches(aid, nodeIdentities))) return true
-      const anyStillMatchesFleet = assignedIds.some(aid => assignmentMatchesAnyFleetNode(aid, fleetNodes))
-      if (!anyStillMatchesFleet) {
-        const instType = (inst.gateway_type || (inst.context_path?.startsWith('/api') ? 'kong' : 'envoy')).toLowerCase()
-        return instType === nodeGwType
-      }
-      return false
-    }
     const instType = (inst.gateway_type || (inst.context_path?.startsWith('/api') ? 'kong' : 'envoy')).toLowerCase()
     return instType === nodeGwType
   })
@@ -190,16 +115,9 @@ function NodeCard({ node, fleetId, apiUrl, onAction, readOnly = false, routes = 
     path: '', destination_type: 'backend', backend_url: '', function_code: '',
     audience: '', status: 'active', methods: ['GET', 'POST', 'PUT', 'DELETE'],
   })
-  const [showAddRoute, setShowAddRoute] = useState(false)
-  const [addRouteError, setAddRouteError] = useState('')
-  const [addRouteForm, setAddRouteForm] = useState({
-    context_path: '', destination_type: 'backend', backend_url: 'http://svc-web:8004',
-    function_code: DEFAULT_LAMBDA_CODE, methods: ['GET', 'POST', 'PUT', 'DELETE'], audience: '',
-    deploy_to_all: false,
-  })
   const sc = nodeStatusColor(pendingAction ? (pendingAction === 'stop' ? 'exited' : pendingAction === 'start' ? 'running' : 'exited') : (node.status || 'running'))
-  const isRunning = pendingAction === 'start' ? true : pendingAction === 'stop' ? false : (node.status || 'running') === 'running'
-  const cid = node.container_id || node.id
+  const isRunning = pendingAction === 'start' ? true : pendingAction === 'stop' ? false : node.status === 'running'
+  const cid = node.container_id || node.container_name || node.id
   const nodeName = node.container_name || node.name || (cid ? cid.slice(0, 12) : 'unknown')
 
   const handleAction = async (action) => {
@@ -219,44 +137,6 @@ function NodeCard({ node, fleetId, apiUrl, onAction, readOnly = false, routes = 
     queryClient.invalidateQueries({ queryKey: ['fleets'] })
     setPendingAction(null)
     if (onAction) onAction(action)
-  }
-
-  const handleAddRoute = async () => {
-    const payload = {
-      context_path: addRouteForm.context_path,
-      backend_url: addRouteForm.destination_type === 'backend' ? addRouteForm.backend_url : undefined,
-      gateway_type: node.gateway_type || 'envoy',
-      audience: addRouteForm.audience,
-      methods: addRouteForm.methods,
-      target_nodes: addRouteForm.deploy_to_all ? [] : [cid],  // empty = all nodes of same type
-    }
-    if (addRouteForm.destination_type === 'lambda') {
-      payload.function_enabled = true
-      payload.function_code = addRouteForm.function_code
-      payload.function_language = 'javascript'
-    }
-    try {
-      const r = await fetch(`${apiUrl}/fleets/${fleetId}/deploy`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      if (r.ok) {
-        setShowAddRoute(false)
-        setAddRouteError('')
-        setAddRouteForm({
-          context_path: '', destination_type: 'backend', backend_url: 'http://svc-web:8004',
-          function_code: DEFAULT_LAMBDA_CODE, methods: ['GET', 'POST', 'PUT', 'DELETE'], audience: '',
-          deploy_to_all: false,
-        })
-        queryClient.invalidateQueries({ queryKey: ['fleets'] })
-        queryClient.invalidateQueries({ queryKey: ['routes'] })
-        queryClient.invalidateQueries({ queryKey: ['fleetNodes'] })
-      } else {
-        const err = await r.json().catch(() => ({ detail: 'Deploy failed' }))
-        setAddRouteError(err.detail || `Error ${r.status}`)
-      }
-    } catch (e) { setAddRouteError(e.message || 'Network error') }
   }
 
   const regionLabel = node.datacenter || node.region || 'unassigned'
@@ -309,7 +189,7 @@ function NodeCard({ node, fleetId, apiUrl, onAction, readOnly = false, routes = 
         </div>
         {/* Node action buttons -- hidden for read-only (CP) nodes */}
         {!readOnly && (
-          <div className={`flex items-center gap-0.5 shrink-0 transition-opacity relative z-10 ${pendingAction ? 'opacity-50 pointer-events-none' : 'opacity-0 group-hover:opacity-100'}`}>
+          <div className={`flex items-center gap-0.5 shrink-0 relative z-10 ${pendingAction ? 'opacity-50 pointer-events-none' : ''}`}>
             {isRunning ? (
               <button onClick={(e) => { e.stopPropagation(); handleAction('stop') }}
                 className="p-1.5 rounded hover:bg-amber-500/10 text-jpmc-muted hover:text-amber-400 transition-colors" title="Stop node">
@@ -515,105 +395,6 @@ function NodeCard({ node, fleetId, apiUrl, onAction, readOnly = false, routes = 
           <span className="text-[9px] text-jpmc-muted italic">No routes assigned</span>
         </div>
       )}
-      {/* Add Route inline form */}
-      {!readOnly && (
-        <div className="mx-3.5 mb-2.5">
-          {!showAddRoute ? (
-            <button
-              onClick={() => setShowAddRoute(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-dashed border-jpmc-border/40 text-[10px] text-jpmc-muted hover:border-blue-500/30 hover:text-blue-400 hover:bg-blue-500/5 transition-all w-full justify-center"
-            >
-              <Plus size={10} /> Add Route
-            </button>
-          ) : (
-            <div className="p-2.5 rounded-lg bg-jpmc-navy/70 border border-blue-500/30 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-blue-400 font-medium">New Route</span>
-                <button onClick={() => setShowAddRoute(false)} className="p-0.5 rounded hover:bg-jpmc-hover text-jpmc-muted"><X size={10} /></button>
-              </div>
-              <div>
-                <label className="text-[9px] text-jpmc-muted">Context Path</label>
-                <input className="input-field text-[10px] py-1" placeholder="/my-route" value={addRouteForm.context_path}
-                  onChange={e => setAddRouteForm({...addRouteForm, context_path: e.target.value})} />
-              </div>
-              {/* Destination toggle */}
-              <div>
-                <label className="text-[9px] text-jpmc-muted mb-1 block">Destination</label>
-                <div className="flex items-center gap-2 mb-1.5">
-                  {['backend', 'lambda'].map(dt => (
-                    <button key={dt} onClick={() => setAddRouteForm({...addRouteForm, destination_type: dt})}
-                      className={`px-2 py-0.5 rounded text-[10px] border transition-all ${
-                        addRouteForm.destination_type === dt
-                          ? 'border-blue-500/50 bg-blue-500/10 text-blue-400'
-                          : 'border-jpmc-border/30 text-jpmc-muted hover:border-jpmc-border/60'
-                      }`}>
-                      {dt === 'backend' ? 'Backend URL' : 'Lambda Function'}
-                    </button>
-                  ))}
-                </div>
-                {addRouteForm.destination_type === 'backend' ? (
-                  <input className="input-field text-[10px] py-1 font-mono" placeholder="http://svc-web:8004" value={addRouteForm.backend_url}
-                    onChange={e => setAddRouteForm({...addRouteForm, backend_url: e.target.value})} />
-                ) : (
-                  <textarea
-                    className="w-full p-2 bg-[#0d1117] border border-jpmc-border/40 rounded-lg text-[10px] font-mono text-green-400 resize-y focus:outline-none focus:border-blue-500/50"
-                    style={{ minHeight: '6rem' }}
-                    spellCheck={false}
-                    value={addRouteForm.function_code}
-                    onChange={e => setAddRouteForm({...addRouteForm, function_code: e.target.value})}
-                  />
-                )}
-              </div>
-              {/* Methods */}
-              <div>
-                <label className="text-[9px] text-jpmc-muted">Methods</label>
-                <div className="flex flex-wrap gap-1 mt-0.5">
-                  {['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].map(m => (
-                    <button key={m} onClick={() => {
-                      const methods = addRouteForm.methods.includes(m)
-                        ? addRouteForm.methods.filter(x => x !== m)
-                        : [...addRouteForm.methods, m]
-                      setAddRouteForm({...addRouteForm, methods})
-                    }}
-                      className={`px-1.5 py-0.5 rounded text-[9px] border transition-all ${
-                        addRouteForm.methods.includes(m)
-                          ? 'border-blue-500/50 bg-blue-500/10 text-blue-400'
-                          : 'border-jpmc-border/30 text-jpmc-muted'
-                      }`}>{m}</button>
-                  ))}
-                </div>
-              </div>
-              {/* Audience */}
-              <div>
-                <label className="text-[9px] text-jpmc-muted">Audience</label>
-                <input className="input-field text-[10px] py-1" placeholder="e.g. jpmm, execute, access"
-                  value={addRouteForm.audience}
-                  onChange={e => setAddRouteForm({...addRouteForm, audience: e.target.value})} />
-                <p className="text-[8px] text-jpmc-muted mt-0.5">JWT aud claim. Leave empty for unauthenticated.</p>
-              </div>
-              {/* Error message */}
-              {addRouteError && (
-                <div className="p-1.5 rounded bg-red-500/10 border border-red-500/30 text-[10px] text-red-400">
-                  {addRouteError}
-                </div>
-              )}
-              {/* Deploy to all nodes checkbox */}
-              <label className="flex items-center gap-2 cursor-pointer py-1">
-                <input type="checkbox" checked={addRouteForm.deploy_to_all}
-                  onChange={e => setAddRouteForm({...addRouteForm, deploy_to_all: e.target.checked})}
-                  className="w-3 h-3 rounded border-jpmc-border" />
-                <span className="text-[10px] text-jpmc-text">Deploy to all {node.gateway_type || 'envoy'} nodes in this fleet</span>
-              </label>
-              <button
-                disabled={!addRouteForm.context_path}
-                onClick={handleAddRoute}
-                className="btn-primary text-[10px] py-1 px-3 w-full disabled:opacity-40">
-                {addRouteForm.deploy_to_all ? 'Deploy to All Nodes' : 'Deploy to This Node'}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
     </motion.div>
   )
 }
@@ -677,19 +458,23 @@ function GatewayBranch({ routes, nodes = [] }) {
       {hasNodes && (
         <div className="flex flex-col gap-3">
           {nodes.map(node => {
-            const nodeRoutes = getRoutesForNode(node, routes, nodes)
+            const nodeRoutes = getRoutesForNode(node, routes)
             return (
               <div key={node.id || node.name} className="flex items-center gap-1">
                 <AnimatedHealthLine status={(node.status || 'running') === 'running' ? 'healthy' : 'degraded'} />
                 <NodeTopoCard node={node} />
                 {nodeRoutes.length > 0 && (
                   <div className="flex flex-col gap-0.5">
-                    {nodeRoutes.map(inst => (
-                      <div key={inst.id} className="flex items-center gap-1">
-                        <AnimatedHealthLine status={instHealthStatus(inst)} />
-                        <InstancePill inst={inst} />
-                      </div>
-                    ))}
+                    {nodeRoutes.map(inst => {
+                      const nodeDown = node.status && node.status !== 'running'
+                      const effectiveStatus = nodeDown ? 'degraded' : instHealthStatus(inst)
+                      return (
+                        <div key={inst.id} className="flex items-center gap-1">
+                          <AnimatedHealthLine status={effectiveStatus} />
+                          <InstancePill inst={inst} nodeDown={nodeDown} />
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>
@@ -1020,43 +805,117 @@ export default function Fleets() {
   const [deployingRegion, setDeployingRegion] = useState(null)
   const [deployNodeType, setDeployNodeType] = useState('envoy')
   const [deployNodeDc, setDeployNodeDc] = useState('us-east-1')
+
+  // Fleet-level add route
+  const [showAddFleetRoute, setShowAddFleetRoute] = useState(null) // null, 'envoy', or 'kong'
+  const makeEmptyFleetRouteForm = (gwType = null) => ({
+    context_path: '', destination_type: 'backend',
+    backend_url: gwType === 'kong' ? 'http://svc-api:8005' : 'http://svc-web:8004',
+    function_code: DEFAULT_LAMBDA_CODE, audience: '',
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    // Envoy-specific
+    timeout_ms: 30000,
+    retry_count: 3,
+    retry_on: ['5xx', 'gateway-error', 'connect-failure'],
+    cors_enabled: false,
+    cors_origins: '*',
+    rate_limit_rps: 0,
+    priority: 0,
+    // Kong-specific
+    strip_path: false,
+    kong_rate_limit_rps: 0,
+    kong_rate_limit_rpm: 0,
+    kong_rate_limit_rph: 0,
+    upstream_connect_timeout_ms: 60000,
+    upstream_read_timeout_ms: 60000,
+    upstream_write_timeout_ms: 60000,
+    plugins: [],
+  })
+  const [fleetRouteForm, setFleetRouteForm] = useState(makeEmptyFleetRouteForm())
+  const [fleetRouteError, setFleetRouteError] = useState('')
+  const [fleetRouteSuccess, setFleetRouteSuccess] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [gatewayFilter, setGatewayFilter] = useState('all')
   const [sortBy, setSortBy] = useState('lob')
 
   // ========== New Fleet slide-over ==========
   const [showNewFleet, setShowNewFleet] = useState(false)
-  const [newFleetForm, setNewFleetForm] = useState({
+  const defaultFleetForm = {
     name: '', lob: 'Markets', portal: '', description: '',
     hostEnv: 'psaas', authProvider: 'Janus',
-  })
+    gatewayType: 'envoy', trafficType: 'web',
+    regions: ['us-east-1'],
+    resourceProfile: 'medium', containerCount: 2,
+    autoscaleEnabled: false, autoscaleMin: 2, autoscaleMax: 16, autoscaleCpuThreshold: 70,
+  }
+  const [newFleetForm, setNewFleetForm] = useState({ ...defaultFleetForm })
   const [newFleetSuccess, setNewFleetSuccess] = useState(false)
+  const [editingFleet, setEditingFleet] = useState(null) // null = create mode, fleet object = edit mode
+  const [fleetFormSections, setFleetFormSections] = useState({ gateway: false, regions: false, scaling: false })
   const newFleetFqdn = newFleetForm.portal ? `${newFleetForm.portal}.jpm.com` : ''
 
-  const handleCreateFleet = async () => {
+  const AVAILABLE_REGIONS = ['us-east-1', 'us-east-2', 'eu-west-1', 'ap-southeast-1']
+
+  const openEditFleet = (fleet) => {
+    let fleetRegions = ['us-east-1']
+    try { if (fleet.regions) fleetRegions = JSON.parse(fleet.regions) } catch {}
+    setEditingFleet(fleet)
+    setNewFleetForm({
+      name: fleet.name || '', lob: fleet.lob || 'Markets',
+      portal: (fleet.subdomain || '').replace('.jpm.com', ''),
+      description: fleet.description || '', hostEnv: fleet.host_env || 'psaas',
+      authProvider: fleet.auth_provider || 'Janus',
+      gatewayType: fleet.gateway_type || 'envoy', trafficType: fleet.traffic_type || 'web',
+      regions: fleetRegions,
+      resourceProfile: fleet.resource_profile || 'medium', containerCount: 2,
+      autoscaleEnabled: fleet.autoscale_enabled || false,
+      autoscaleMin: fleet.autoscale_min || 2, autoscaleMax: fleet.autoscale_max || 16,
+      autoscaleCpuThreshold: fleet.autoscale_cpu_threshold || 70,
+    })
+    setShowNewFleet(true)
+  }
+
+  const handleCreateOrUpdateFleet = async () => {
     try {
-      const resp = await fetch(`${API_URL}/fleets`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newFleetForm.name,
-          subdomain: newFleetFqdn,
-          lob: newFleetForm.lob,
-          description: newFleetForm.description,
-          host_env: newFleetForm.hostEnv,
-          auth_provider: newFleetForm.authProvider,
-        }),
-      })
+      const isEdit = !!editingFleet
+      const payload = {
+        name: newFleetForm.name,
+        subdomain: newFleetFqdn,
+        lob: newFleetForm.lob,
+        description: newFleetForm.description,
+        host_env: newFleetForm.hostEnv,
+        auth_provider: newFleetForm.authProvider,
+        gateway_type: newFleetForm.gatewayType,
+        traffic_type: newFleetForm.trafficType,
+        regions: newFleetForm.regions,
+        resource_profile: newFleetForm.resourceProfile,
+        container_count: newFleetForm.containerCount,
+        autoscale_enabled: newFleetForm.autoscaleEnabled,
+        autoscale_min: newFleetForm.autoscaleMin,
+        autoscale_max: newFleetForm.autoscaleMax,
+        autoscale_cpu_threshold: newFleetForm.autoscaleCpuThreshold,
+      }
+      const resp = await fetch(
+        isEdit ? `${API_URL}/fleets/${editingFleet.id}` : `${API_URL}/fleets`,
+        {
+          method: isEdit ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }
+      )
       if (!resp.ok) return
       setNewFleetSuccess(true)
       queryClient.invalidateQueries({ queryKey: ['fleets'] })
       setTimeout(() => {
         setNewFleetSuccess(false)
         setShowNewFleet(false)
-        setNewFleetForm({ name: '', lob: 'Markets', portal: '', description: '', hostEnv: 'psaas', authProvider: 'Janus' })
+        setEditingFleet(null)
+        setNewFleetForm({ ...defaultFleetForm })
       }, 2500)
     } catch {}
   }
+  // Backwards compat alias
+  const handleCreateFleet = handleCreateOrUpdateFleet
 
   // ========== Deploy Node slide-over ==========
   const [showDeployNode, setShowDeployNode] = useState(false)
@@ -1278,8 +1137,8 @@ export default function Fleets() {
               horizontally-scaled gateway pods behind an internal <span className="text-jpmc-text">ClusterIP Service</span>.
               A fleet can host both <span className="text-purple-400">Envoy (web)</span> and <span className="text-blue-400">Kong (API)</span> nodes.
               Routes are pushed to compatible nodes via the xDS control plane (Envoy) or declarative config sync (Kong).
-              In production, fleet changes are committed to <span className="text-jpmc-text">Bitbucket</span> and
-              reconciled by <span className="text-jpmc-text">ArgoCD</span> -- this PoC writes directly to the gateway control plane.
+              Fleet changes are committed to <span className="text-jpmc-text">GitHub</span> and
+              reconciled by <span className="text-jpmc-text">Argo CD</span> to the data-plane cluster.
             </p>
           </div>
         </div>
@@ -1352,14 +1211,14 @@ export default function Fleets() {
               {/* Scrollable content */}
               <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6">
                 {/* GitOps notice */}
-                <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 mb-4">
-                  <div className="flex items-center gap-2 text-amber-400 text-xs font-medium mb-1">
+                <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30 mb-4">
+                  <div className="flex items-center gap-2 text-blue-400 text-xs font-medium mb-1">
                     <GitBranch size={12} />
-                    GitOps PoC Mode
+                    GitOps Deployment
                   </div>
-                  <p className="text-[11px] text-amber-300/70">
-                    In production this deploy would create a PR in Bitbucket, pass CI validation,
-                    and be reconciled by ArgoCD. This PoC writes directly to the control plane.
+                  <p className="text-[11px] text-blue-300/70">
+                    This deploy commits a Fleet CRD manifest to the fleet's GitHub repo and applies it
+                    directly to the data-plane cluster. Argo CD reconciles the desired state continuously.
                   </p>
                 </div>
 
@@ -1551,7 +1410,7 @@ export default function Fleets() {
         {showNewFleet && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/40 z-[9998]" onClick={() => setShowNewFleet(false)} />
+              className="fixed inset-0 bg-black/40 z-[9998]" onClick={() => { setShowNewFleet(false); setEditingFleet(null); setNewFleetForm({ ...defaultFleetForm }) }} />
             <motion.div
               initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
@@ -1560,8 +1419,8 @@ export default function Fleets() {
               {/* Header */}
               <div className="p-6 pb-4 shrink-0">
                 <div className="flex items-center justify-between mb-2">
-                  <h2 className="text-lg font-bold text-white">Create New Fleet</h2>
-                  <button onClick={() => setShowNewFleet(false)} className="p-1.5 rounded-md hover:bg-jpmc-hover text-jpmc-muted">
+                  <h2 className="text-lg font-bold text-white">{editingFleet ? 'Edit Fleet' : 'Create New Fleet'}</h2>
+                  <button onClick={() => { setShowNewFleet(false); setEditingFleet(null); setNewFleetForm({ ...defaultFleetForm }) }} className="p-1.5 rounded-md hover:bg-jpmc-hover text-jpmc-muted">
                     <X size={18} />
                   </button>
                 </div>
@@ -1582,7 +1441,7 @@ export default function Fleets() {
                       >
                         <Check size={36} className="text-emerald-400" />
                       </motion.div>
-                      <div className="text-lg font-bold text-emerald-300">Fleet Created Successfully</div>
+                      <div className="text-lg font-bold text-emerald-300">{editingFleet ? 'Fleet Updated' : 'Fleet Created Successfully'}</div>
                       <div className="text-sm text-emerald-400/70 mt-1">Deploy nodes and routes to start serving traffic</div>
                     </motion.div>
                   </motion.div>
@@ -1670,13 +1529,155 @@ export default function Fleets() {
                   </select>
                 </div>
 
+                {/* Gateway Configuration (collapsible) */}
+                <div className="border border-jpmc-border/30 rounded-lg overflow-hidden">
+                  <button type="button" onClick={() => setFleetFormSections(s => ({ ...s, gateway: !s.gateway }))}
+                    className="w-full flex items-center justify-between p-3 text-sm font-medium text-jpmc-muted hover:text-white transition-colors">
+                    <span>Gateway Configuration</span>
+                    <ChevronDown size={14} className={`transition-transform ${fleetFormSections.gateway ? 'rotate-180' : ''}`} />
+                  </button>
+                  {fleetFormSections.gateway && (
+                    <div className="px-3 pb-3 space-y-3">
+                      {/* Gateway Type */}
+                      <div>
+                        <label className="block text-xs font-medium text-jpmc-muted mb-1.5">Gateway Type</label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {['envoy', 'kong', 'mixed'].map(gt => (
+                            <div key={gt} onClick={() => setNewFleetForm({ ...newFleetForm, gatewayType: gt })}
+                              className={`cursor-pointer p-3 rounded-lg border-2 text-center transition-all ${
+                                newFleetForm.gatewayType === gt
+                                  ? 'border-blue-500 bg-blue-500/10 text-blue-300'
+                                  : 'border-jpmc-border/50 bg-jpmc-navy/30 text-jpmc-muted hover:border-jpmc-border'
+                              }`}>
+                              <div className="text-sm font-medium capitalize">{gt}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      {/* Traffic Type */}
+                      <div>
+                        <label className="block text-xs font-medium text-jpmc-muted mb-1.5">Traffic Type</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[{ key: 'web', label: 'Web' }, { key: 'api', label: 'API' }].map(tt => (
+                            <div key={tt.key} onClick={() => setNewFleetForm({ ...newFleetForm, trafficType: tt.key })}
+                              className={`cursor-pointer p-3 rounded-lg border-2 text-center transition-all ${
+                                newFleetForm.trafficType === tt.key
+                                  ? 'border-blue-500 bg-blue-500/10 text-blue-300'
+                                  : 'border-jpmc-border/50 bg-jpmc-navy/30 text-jpmc-muted hover:border-jpmc-border'
+                              }`}>
+                              <div className="text-sm font-medium">{tt.label}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Regions (collapsible) */}
+                <div className="border border-jpmc-border/30 rounded-lg overflow-hidden">
+                  <button type="button" onClick={() => setFleetFormSections(s => ({ ...s, regions: !s.regions }))}
+                    className="w-full flex items-center justify-between p-3 text-sm font-medium text-jpmc-muted hover:text-white transition-colors">
+                    <span>Regions ({newFleetForm.regions.length} selected)</span>
+                    <ChevronDown size={14} className={`transition-transform ${fleetFormSections.regions ? 'rotate-180' : ''}`} />
+                  </button>
+                  {fleetFormSections.regions && (
+                    <div className="px-3 pb-3 space-y-2">
+                      {AVAILABLE_REGIONS.map(region => (
+                        <label key={region} className="flex items-center gap-2 cursor-pointer p-2 rounded-md hover:bg-jpmc-hover">
+                          <input type="checkbox" checked={newFleetForm.regions.includes(region)}
+                            onChange={e => {
+                              const regions = e.target.checked
+                                ? [...newFleetForm.regions, region]
+                                : newFleetForm.regions.filter(r => r !== region)
+                              setNewFleetForm({ ...newFleetForm, regions: regions.length ? regions : [region] })
+                            }}
+                            className="rounded border-jpmc-border text-blue-500" />
+                          <span className="text-sm text-jpmc-text">{region}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Scaling (collapsible) */}
+                <div className="border border-jpmc-border/30 rounded-lg overflow-hidden">
+                  <button type="button" onClick={() => setFleetFormSections(s => ({ ...s, scaling: !s.scaling }))}
+                    className="w-full flex items-center justify-between p-3 text-sm font-medium text-jpmc-muted hover:text-white transition-colors">
+                    <span>Scaling &amp; Resources</span>
+                    <ChevronDown size={14} className={`transition-transform ${fleetFormSections.scaling ? 'rotate-180' : ''}`} />
+                  </button>
+                  {fleetFormSections.scaling && (
+                    <div className="px-3 pb-3 space-y-3">
+                      {/* Resource Profile */}
+                      <div>
+                        <label className="block text-xs font-medium text-jpmc-muted mb-1.5">Resource Profile</label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { key: 'small', label: 'Small', desc: '256Mi / 0.25 CPU' },
+                            { key: 'medium', label: 'Medium', desc: '512Mi / 0.5 CPU' },
+                            { key: 'large', label: 'Large', desc: '1Gi / 1 CPU' },
+                          ].map(rp => (
+                            <div key={rp.key} onClick={() => setNewFleetForm({ ...newFleetForm, resourceProfile: rp.key })}
+                              className={`cursor-pointer p-2.5 rounded-lg border-2 text-center transition-all ${
+                                newFleetForm.resourceProfile === rp.key
+                                  ? 'border-blue-500 bg-blue-500/10'
+                                  : 'border-jpmc-border/50 bg-jpmc-navy/30 hover:border-jpmc-border'
+                              }`}>
+                              <div className="text-xs font-medium text-white">{rp.label}</div>
+                              <div className="text-[10px] text-jpmc-muted">{rp.desc}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      {/* Initial Replicas */}
+                      {!editingFleet && (
+                        <div>
+                          <label className="block text-xs font-medium text-jpmc-muted mb-1.5">Initial Replicas</label>
+                          <input type="number" min="1" max="50" className="input-field w-24"
+                            value={newFleetForm.containerCount}
+                            onChange={e => setNewFleetForm({ ...newFleetForm, containerCount: parseInt(e.target.value) || 2 })} />
+                        </div>
+                      )}
+                      {/* Autoscale */}
+                      <div>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input type="checkbox" checked={newFleetForm.autoscaleEnabled}
+                            onChange={e => setNewFleetForm({ ...newFleetForm, autoscaleEnabled: e.target.checked })}
+                            className="rounded border-jpmc-border text-blue-500" />
+                          <span className="text-xs font-medium text-jpmc-muted">Enable Autoscaling</span>
+                        </label>
+                        {newFleetForm.autoscaleEnabled && (
+                          <div className="mt-2 grid grid-cols-3 gap-2">
+                            <div>
+                              <label className="block text-[10px] text-jpmc-muted mb-1">Min</label>
+                              <input type="number" min="1" className="input-field text-xs" value={newFleetForm.autoscaleMin}
+                                onChange={e => setNewFleetForm({ ...newFleetForm, autoscaleMin: parseInt(e.target.value) || 2 })} />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-jpmc-muted mb-1">Max</label>
+                              <input type="number" min="1" className="input-field text-xs" value={newFleetForm.autoscaleMax}
+                                onChange={e => setNewFleetForm({ ...newFleetForm, autoscaleMax: parseInt(e.target.value) || 16 })} />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-jpmc-muted mb-1">CPU %</label>
+                              <input type="number" min="10" max="95" className="input-field text-xs" value={newFleetForm.autoscaleCpuThreshold}
+                                onChange={e => setNewFleetForm({ ...newFleetForm, autoscaleCpuThreshold: parseInt(e.target.value) || 70 })} />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {/* Submit */}
                 <button
-                  onClick={handleCreateFleet}
+                  onClick={handleCreateOrUpdateFleet}
                   disabled={!newFleetForm.name || !newFleetForm.portal}
                   className="btn-primary w-full py-3 disabled:opacity-40"
                 >
-                  Create Fleet
+                  {editingFleet ? 'Update Fleet' : 'Create Fleet'}
                 </button>
               </div>
             </motion.div>
@@ -1813,6 +1814,21 @@ export default function Fleets() {
                       )}
                       {fleet.lob && <span className="badge badge-blue text-[9px]">{fleet.lob}</span>}
                       <StatusBadge status={fleet.status} />
+                      {fleet.sync_status && (
+                        <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wider ${
+                          fleet.sync_status === 'synced' ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-400'
+                          : fleet.sync_status === 'progressing' ? 'bg-yellow-500/15 border border-yellow-500/30 text-yellow-400'
+                          : fleet.sync_status === 'out-of-sync' ? 'bg-red-500/15 border border-red-500/30 text-red-400'
+                          : 'bg-gray-500/15 border border-gray-500/30 text-gray-400'
+                        }`}>
+                          {fleet.sync_status}
+                        </span>
+                      )}
+                      {fleet.git_commit_sha && (
+                        <span className="text-[8px] px-1.5 py-0.5 rounded bg-slate-500/10 border border-slate-500/30 text-slate-400 font-mono">
+                          {fleet.git_commit_sha.slice(0, 7)}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 text-xs text-jpmc-muted">
                       <span className="flex items-center gap-1">
@@ -1867,17 +1883,18 @@ export default function Fleets() {
                     {/* Fleet Suspend/Resume/Restart -- hidden for CP fleets */}
                     {fleet.fleet_type !== 'control' && (
                     <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                      {fleet.status === 'suspended' ? (
+                      {fleet.status === 'healthy' || fleet.status === 'degraded' ? (
                         <button
                           onClick={async () => {
-                            await fetch(`${API_URL}/fleets/${fleet.id}/resume`, { method: 'POST' })
+                            if (!confirm(`Suspend fleet "${fleet.name}"?\n\nThis will:\n- Stop all gateway containers\n- Deactivate all routes\n- Stop serving traffic for ${fleet.subdomain}`)) return
+                            await fetch(`${API_URL}/fleets/${fleet.id}/suspend`, { method: 'POST' })
                             queryClient.invalidateQueries({ queryKey: ['fleets'] })
                             queryClient.invalidateQueries({ queryKey: ['fleetNodes', fleet.id] })
                           }}
-                          className="p-1.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition-colors"
-                          title="Resume fleet"
+                          className="p-1.5 rounded-md hover:bg-amber-500/10 text-jpmc-muted hover:text-amber-400 transition-colors"
+                          title="Suspend fleet"
                         >
-                          <Play size={14} />
+                          <Pause size={14} />
                         </button>
                       ) : fleet.status === 'offline' ? (
                         <button
@@ -1894,17 +1911,23 @@ export default function Fleets() {
                       ) : (
                         <button
                           onClick={async () => {
-                            if (!confirm(`Suspend fleet "${fleet.name}"?\n\nThis will:\n- Stop all gateway containers\n- Deactivate all routes\n- Stop serving traffic for ${fleet.subdomain}`)) return
-                            await fetch(`${API_URL}/fleets/${fleet.id}/suspend`, { method: 'POST' })
+                            await fetch(`${API_URL}/fleets/${fleet.id}/resume`, { method: 'POST' })
                             queryClient.invalidateQueries({ queryKey: ['fleets'] })
                             queryClient.invalidateQueries({ queryKey: ['fleetNodes', fleet.id] })
                           }}
-                          className="p-1.5 rounded-md hover:bg-amber-500/10 text-jpmc-muted hover:text-amber-400 transition-colors"
-                          title="Suspend fleet"
+                          className="p-1.5 rounded-md hover:bg-emerald-500/10 text-jpmc-muted hover:text-emerald-400 transition-colors"
+                          title="Start fleet"
                         >
-                          <Pause size={14} />
+                          <Play size={14} />
                         </button>
                       )}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); openEditFleet(fleet) }}
+                        className="p-1.5 rounded-md hover:bg-blue-500/10 text-jpmc-muted hover:text-blue-400 transition-colors"
+                        title="Edit fleet"
+                      >
+                        <Settings size={14} />
+                      </button>
                       <button
                         onClick={async () => {
                           if (!confirm(`Delete fleet "${fleet.name}"?\n\nThis will permanently remove:\n- All gateway containers\n- All routes for ${fleet.subdomain}\n- All fleet configuration`)) return
@@ -1989,7 +2012,7 @@ export default function Fleets() {
                                     </div>
                                     <div className="space-y-4">
                                       {envoyNodes.map(node => (
-                                        <NodeCard key={node.container_id || node.id || node.name} node={node} fleetId={fleet.id} apiUrl={API_URL} routes={getRoutesForNode(node, instances, currentFleetNodes)} />
+                                        <NodeCard key={node.container_id || node.id || node.name} node={node} fleetId={fleet.id} apiUrl={API_URL} routes={getRoutesForNode(node, instances)} />
                                       ))}
                                     </div>
                                   </div>
@@ -2007,13 +2030,13 @@ export default function Fleets() {
                                     </div>
                                     <div className="space-y-4">
                                       {kongNodes.map(node => (
-                                        <NodeCard key={node.container_id || node.id || node.name} node={node} fleetId={fleet.id} apiUrl={API_URL} routes={getRoutesForNode(node, instances, currentFleetNodes)} />
+                                        <NodeCard key={node.container_id || node.id || node.name} node={node} fleetId={fleet.id} apiUrl={API_URL} routes={getRoutesForNode(node, instances)} />
                                       ))}
                                     </div>
                                   </div>
                                 )
                               })()}
-                              {/* Deploy Node inline */}
+                              {/* Deploy Node inline + Fleet Route buttons */}
                               {(() => {
                                 const regions = [
                                   { id: 'us-east-1', label: 'US East (N. Virginia)' },
@@ -2021,12 +2044,92 @@ export default function Fleets() {
                                   { id: 'eu-west-1', label: 'EU West (Ireland)' },
                                   { id: 'ap-southeast-1', label: 'AP Southeast (Singapore)' },
                                 ]
+                                const fleetHasEnvoy = currentFleetNodes.some(n => (n.gateway_type || 'envoy') === 'envoy')
+                                const fleetHasKong = currentFleetNodes.some(n => (n.gateway_type || 'envoy') === 'kong')
+                                const handleFleetRouteSubmit = async () => {
+                                  setFleetRouteError('')
+                                  const payload = {
+                                    context_path: fleetRouteForm.context_path,
+                                    backend_url: fleetRouteForm.destination_type === 'backend' ? fleetRouteForm.backend_url : undefined,
+                                    gateway_type: showAddFleetRoute, // 'envoy' or 'kong'
+                                    audience: fleetRouteForm.audience,
+                                    methods: fleetRouteForm.methods,
+                                  }
+                                  if (fleetRouteForm.destination_type === 'lambda') {
+                                    payload.function_enabled = true
+                                    payload.function_code = fleetRouteForm.function_code
+                                    payload.function_language = 'javascript'
+                                  }
+                                  if (showAddFleetRoute === 'envoy') {
+                                    payload.timeout_ms = Number(fleetRouteForm.timeout_ms) || 30000
+                                    payload.retry_count = Number(fleetRouteForm.retry_count) || 0
+                                    payload.retry_on = fleetRouteForm.retry_on
+                                    payload.cors_enabled = fleetRouteForm.cors_enabled
+                                    if (fleetRouteForm.cors_enabled) payload.cors_origins = fleetRouteForm.cors_origins || '*'
+                                    if (Number(fleetRouteForm.rate_limit_rps) > 0) payload.rate_limit_rps = Number(fleetRouteForm.rate_limit_rps)
+                                    payload.priority = Number(fleetRouteForm.priority) || 0
+                                  } else if (showAddFleetRoute === 'kong') {
+                                    payload.strip_path = fleetRouteForm.strip_path
+                                    if (Number(fleetRouteForm.kong_rate_limit_rps) > 0) payload.rate_limit_rps = Number(fleetRouteForm.kong_rate_limit_rps)
+                                    if (Number(fleetRouteForm.kong_rate_limit_rpm) > 0) payload.rate_limit_rpm = Number(fleetRouteForm.kong_rate_limit_rpm)
+                                    if (Number(fleetRouteForm.kong_rate_limit_rph) > 0) payload.rate_limit_rph = Number(fleetRouteForm.kong_rate_limit_rph)
+                                    payload.upstream_connect_timeout_ms = Number(fleetRouteForm.upstream_connect_timeout_ms) || 60000
+                                    payload.upstream_read_timeout_ms = Number(fleetRouteForm.upstream_read_timeout_ms) || 60000
+                                    payload.upstream_write_timeout_ms = Number(fleetRouteForm.upstream_write_timeout_ms) || 60000
+                                    if (fleetRouteForm.plugins.length > 0) payload.plugins = fleetRouteForm.plugins
+                                  }
+                                  try {
+                                    const r = await fetch(`${API_URL}/fleets/${fleet.id}/deploy`, {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify(payload),
+                                    })
+                                    if (r.ok) {
+                                      setShowAddFleetRoute(null)
+                                      setFleetRouteForm(makeEmptyFleetRouteForm())
+                                      queryClient.invalidateQueries({ queryKey: ['fleets'] })
+                                      queryClient.invalidateQueries({ queryKey: ['routes'] })
+                                      queryClient.invalidateQueries({ queryKey: ['fleetNodes'] })
+                                      setFleetRouteSuccess('Route deployed successfully')
+                                      setTimeout(() => setFleetRouteSuccess(''), 3000)
+                                    } else {
+                                      const err = await r.json().catch(() => ({ detail: 'Deploy failed' }))
+                                      setFleetRouteError(err.detail || `Error ${r.status}`)
+                                    }
+                                  } catch (e) { setFleetRouteError(e.message || 'Network error') }
+                                }
                                 return (
-                                  <div className="flex items-center gap-3 p-3 rounded-lg bg-jpmc-navy/30 border border-jpmc-border/20">
+                                  <>
+                                  <div className="flex items-center gap-3 p-3 rounded-lg bg-jpmc-navy/30 border border-jpmc-border/20 flex-wrap">
                                     <div className="text-xs text-jpmc-muted">
                                       <span className="font-medium">{currentFleetNodes.length}</span> node{currentFleetNodes.length !== 1 ? 's' : ''}
                                     </div>
                                     <div className="flex-1" />
+                                    {/* Fleet-level Add Route buttons */}
+                                    {fleetHasEnvoy && (
+                                      <button
+                                        onClick={() => {
+                                          setShowAddFleetRoute('envoy')
+                                          setFleetRouteForm(makeEmptyFleetRouteForm('envoy'))
+                                          setFleetRouteError('')
+                                        }}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors text-purple-400 border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20"
+                                      >
+                                        <Plus size={12} /> Web Route
+                                      </button>
+                                    )}
+                                    {fleetHasKong && (
+                                      <button
+                                        onClick={() => {
+                                          setShowAddFleetRoute('kong')
+                                          setFleetRouteForm(makeEmptyFleetRouteForm('kong'))
+                                          setFleetRouteError('')
+                                        }}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors text-blue-400 border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20"
+                                      >
+                                        <Plus size={12} /> API Route
+                                      </button>
+                                    )}
                                     {!showDeployNodeInline ? (
                                       <button
                                         onClick={() => setShowDeployNodeInline(true)}
@@ -2100,6 +2203,282 @@ export default function Fleets() {
                                       </div>
                                     )}
                                   </div>
+                                  {/* Fleet-level success message */}
+                                  {fleetRouteSuccess && (
+                                    <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-[11px] text-emerald-400 text-center">
+                                      {fleetRouteSuccess}
+                                    </div>
+                                  )}
+                                  {/* Fleet-level Add Route form */}
+                                  {showAddFleetRoute && (
+                                    <div className="p-3 rounded-lg bg-jpmc-navy/70 border border-jpmc-border/40 space-y-2.5 mt-2">
+                                      <div className="flex items-center justify-between">
+                                        <span className={`text-[11px] font-medium ${showAddFleetRoute === 'kong' ? 'text-blue-400' : 'text-purple-400'}`}>
+                                          New {showAddFleetRoute === 'kong' ? 'API' : 'Web'} Route
+                                        </span>
+                                        <button onClick={() => setShowAddFleetRoute(null)} className="p-0.5 rounded hover:bg-jpmc-hover text-jpmc-muted"><X size={10} /></button>
+                                      </div>
+                                      {/* Context Path */}
+                                      <div>
+                                        <label className="text-[9px] text-jpmc-muted">Context Path</label>
+                                        <input className="bg-jpmc-navy/50 border border-jpmc-border/50 rounded px-2 py-1 text-xs text-white w-full" placeholder="/my-route"
+                                          value={fleetRouteForm.context_path}
+                                          onChange={e => setFleetRouteForm({...fleetRouteForm, context_path: e.target.value})} />
+                                      </div>
+                                      {/* Destination toggle */}
+                                      <div>
+                                        <label className="text-[9px] text-jpmc-muted mb-1 block">Destination</label>
+                                        <div className="flex items-center gap-2 mb-1.5">
+                                          {['backend', 'lambda'].map(dt => (
+                                            <button key={dt} onClick={() => setFleetRouteForm({...fleetRouteForm, destination_type: dt})}
+                                              className={`px-2 py-0.5 rounded text-[10px] border transition-all ${
+                                                fleetRouteForm.destination_type === dt
+                                                  ? 'border-blue-500/50 bg-blue-500/10 text-blue-400'
+                                                  : 'border-jpmc-border/30 text-jpmc-muted hover:border-jpmc-border/60'
+                                              }`}>
+                                              {dt === 'backend' ? 'Backend' : 'Lambda'}
+                                            </button>
+                                          ))}
+                                        </div>
+                                        {fleetRouteForm.destination_type === 'backend' ? (
+                                          <input className="bg-jpmc-navy/50 border border-jpmc-border/50 rounded px-2 py-1 text-xs text-white font-mono w-full"
+                                            placeholder={showAddFleetRoute === 'kong' ? 'http://svc-api:8005' : 'http://svc-web:8004'}
+                                            value={fleetRouteForm.backend_url}
+                                            onChange={e => setFleetRouteForm({...fleetRouteForm, backend_url: e.target.value})} />
+                                        ) : (
+                                          <div className="space-y-1.5">
+                                            <div className="flex flex-wrap gap-1">
+                                              {LAMBDA_TEMPLATES.map(t => (
+                                                <button key={t.name} type="button"
+                                                  onClick={() => setFleetRouteForm({...fleetRouteForm, function_code: t.code})}
+                                                  className="px-1.5 py-0.5 rounded border border-jpmc-border/40 text-[9px] text-jpmc-muted hover:bg-jpmc-hover hover:text-jpmc-text transition-colors">
+                                                  {t.name}
+                                                </button>
+                                              ))}
+                                            </div>
+                                            <textarea
+                                              className="w-full p-2 bg-[#0d1117] border border-jpmc-border/40 rounded-lg text-[10px] font-mono text-green-400 resize-y focus:outline-none focus:border-blue-500/50"
+                                              style={{ minHeight: '8rem' }}
+                                              spellCheck={false}
+                                              value={fleetRouteForm.function_code}
+                                              onChange={e => setFleetRouteForm({...fleetRouteForm, function_code: e.target.value})}
+                                            />
+                                          </div>
+                                        )}
+                                      </div>
+                                      {/* Audience */}
+                                      <div>
+                                        <label className="text-[9px] text-jpmc-muted">Audience</label>
+                                        <input className="bg-jpmc-navy/50 border border-jpmc-border/50 rounded px-2 py-1 text-xs text-white w-full" placeholder="e.g. jpmm"
+                                          value={fleetRouteForm.audience}
+                                          onChange={e => setFleetRouteForm({...fleetRouteForm, audience: e.target.value})} />
+                                        <p className="text-[8px] text-jpmc-muted mt-0.5">JWT aud claim. Leave empty for unauthenticated.</p>
+                                      </div>
+                                      {/* Methods */}
+                                      <div>
+                                        <label className="text-[9px] text-jpmc-muted">Methods</label>
+                                        <div className="flex flex-wrap gap-1 mt-0.5">
+                                          {['GET', 'POST', 'PUT', 'DELETE'].map(m => (
+                                            <button key={m} onClick={() => {
+                                              const methods = fleetRouteForm.methods.includes(m)
+                                                ? fleetRouteForm.methods.filter(x => x !== m)
+                                                : [...fleetRouteForm.methods, m]
+                                              setFleetRouteForm({...fleetRouteForm, methods})
+                                            }}
+                                              className={`px-1.5 py-0.5 rounded text-[9px] border transition-all ${
+                                                fleetRouteForm.methods.includes(m)
+                                                  ? 'border-blue-500/50 bg-blue-500/10 text-blue-400'
+                                                  : 'border-jpmc-border/30 text-jpmc-muted'
+                                              }`}>{m}</button>
+                                          ))}
+                                        </div>
+                                      </div>
+                                      {/* ── Envoy-specific config ── */}
+                                      {showAddFleetRoute === 'envoy' && (
+                                        <div className="pt-2 border-t border-jpmc-border/30 space-y-2.5">
+                                          <div className="text-[9px] font-semibold uppercase tracking-wider text-purple-400/70">Envoy Configuration</div>
+                                          {/* Timeout */}
+                                          <div className="grid grid-cols-2 gap-2">
+                                            <div>
+                                              <label className="text-[9px] text-jpmc-muted">Timeout (ms)</label>
+                                              <input type="number" min="0" step="1000"
+                                                className="bg-jpmc-navy/50 border border-jpmc-border/50 rounded px-2 py-1 text-xs text-white w-full"
+                                                value={fleetRouteForm.timeout_ms}
+                                                onChange={e => setFleetRouteForm({...fleetRouteForm, timeout_ms: e.target.value})} />
+                                            </div>
+                                            <div>
+                                              <label className="text-[9px] text-jpmc-muted">Retry Count</label>
+                                              <input type="number" min="0" max="10"
+                                                className="bg-jpmc-navy/50 border border-jpmc-border/50 rounded px-2 py-1 text-xs text-white w-full"
+                                                value={fleetRouteForm.retry_count}
+                                                onChange={e => setFleetRouteForm({...fleetRouteForm, retry_count: e.target.value})} />
+                                            </div>
+                                          </div>
+                                          {/* Retry On */}
+                                          <div>
+                                            <label className="text-[9px] text-jpmc-muted block mb-1">Retry On</label>
+                                            <div className="flex flex-wrap gap-1">
+                                              {['5xx', 'gateway-error', 'connect-failure', 'reset', 'retriable-4xx'].map(cond => (
+                                                <button key={cond} onClick={() => {
+                                                  const retry_on = fleetRouteForm.retry_on.includes(cond)
+                                                    ? fleetRouteForm.retry_on.filter(x => x !== cond)
+                                                    : [...fleetRouteForm.retry_on, cond]
+                                                  setFleetRouteForm({...fleetRouteForm, retry_on})
+                                                }}
+                                                  className={`px-1.5 py-0.5 rounded text-[9px] border transition-all ${
+                                                    fleetRouteForm.retry_on.includes(cond)
+                                                      ? 'border-purple-500/50 bg-purple-500/10 text-purple-400'
+                                                      : 'border-jpmc-border/30 text-jpmc-muted hover:border-jpmc-border/60'
+                                                  }`}>{cond}</button>
+                                              ))}
+                                            </div>
+                                          </div>
+                                          {/* CORS */}
+                                          <div>
+                                            <div className="flex items-center gap-2 mb-1">
+                                              <label className="text-[9px] text-jpmc-muted">CORS</label>
+                                              <button onClick={() => setFleetRouteForm({...fleetRouteForm, cors_enabled: !fleetRouteForm.cors_enabled})}
+                                                className={`w-7 h-3.5 rounded-full border transition-all relative ${
+                                                  fleetRouteForm.cors_enabled ? 'bg-purple-500/40 border-purple-500/60' : 'bg-jpmc-navy/60 border-jpmc-border/40'
+                                                }`}>
+                                                <span className={`absolute top-0.5 w-2.5 h-2.5 rounded-full transition-all ${
+                                                  fleetRouteForm.cors_enabled ? 'left-3.5 bg-purple-400' : 'left-0.5 bg-jpmc-muted'
+                                                }`} />
+                                              </button>
+                                              <span className={`text-[9px] ${fleetRouteForm.cors_enabled ? 'text-purple-400' : 'text-jpmc-muted'}`}>
+                                                {fleetRouteForm.cors_enabled ? 'Enabled' : 'Disabled'}
+                                              </span>
+                                            </div>
+                                            {fleetRouteForm.cors_enabled && (
+                                              <input className="bg-jpmc-navy/50 border border-jpmc-border/50 rounded px-2 py-1 text-xs text-white w-full"
+                                                placeholder="Allowed origins (e.g. * or https://app.jpm.com)"
+                                                value={fleetRouteForm.cors_origins}
+                                                onChange={e => setFleetRouteForm({...fleetRouteForm, cors_origins: e.target.value})} />
+                                            )}
+                                          </div>
+                                          {/* Rate Limit + Priority */}
+                                          <div className="grid grid-cols-2 gap-2">
+                                            <div>
+                                              <label className="text-[9px] text-jpmc-muted">Rate Limit RPS <span className="opacity-50">(0=off)</span></label>
+                                              <input type="number" min="0"
+                                                className="bg-jpmc-navy/50 border border-jpmc-border/50 rounded px-2 py-1 text-xs text-white w-full"
+                                                value={fleetRouteForm.rate_limit_rps}
+                                                onChange={e => setFleetRouteForm({...fleetRouteForm, rate_limit_rps: e.target.value})} />
+                                            </div>
+                                            <div>
+                                              <label className="text-[9px] text-jpmc-muted">Priority</label>
+                                              <div className="flex gap-1 mt-1">
+                                                {[{v:0,l:'Normal'},{v:1,l:'High'}].map(({v,l}) => (
+                                                  <button key={v} onClick={() => setFleetRouteForm({...fleetRouteForm, priority: v})}
+                                                    className={`flex-1 px-1.5 py-0.5 rounded text-[9px] border transition-all ${
+                                                      fleetRouteForm.priority === v
+                                                        ? 'border-purple-500/50 bg-purple-500/10 text-purple-400'
+                                                        : 'border-jpmc-border/30 text-jpmc-muted hover:border-jpmc-border/60'
+                                                    }`}>{l}</button>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* ── Kong-specific config ── */}
+                                      {showAddFleetRoute === 'kong' && (
+                                        <div className="pt-2 border-t border-jpmc-border/30 space-y-2.5">
+                                          <div className="text-[9px] font-semibold uppercase tracking-wider text-blue-400/70">Kong Configuration</div>
+                                          {/* Strip Path */}
+                                          <div className="flex items-center gap-2">
+                                            <label className="text-[9px] text-jpmc-muted">Strip Path</label>
+                                            <button onClick={() => setFleetRouteForm({...fleetRouteForm, strip_path: !fleetRouteForm.strip_path})}
+                                              className={`w-7 h-3.5 rounded-full border transition-all relative ${
+                                                fleetRouteForm.strip_path ? 'bg-blue-500/40 border-blue-500/60' : 'bg-jpmc-navy/60 border-jpmc-border/40'
+                                              }`}>
+                                              <span className={`absolute top-0.5 w-2.5 h-2.5 rounded-full transition-all ${
+                                                fleetRouteForm.strip_path ? 'left-3.5 bg-blue-400' : 'left-0.5 bg-jpmc-muted'
+                                              }`} />
+                                            </button>
+                                            <span className="text-[9px] text-jpmc-muted">Remove context path prefix before forwarding</span>
+                                          </div>
+                                          {/* Rate Limiting */}
+                                          <div>
+                                            <label className="text-[9px] text-jpmc-muted block mb-1">Rate Limiting <span className="opacity-50">(0=off)</span></label>
+                                            <div className="grid grid-cols-3 gap-2">
+                                              {[
+                                                {key:'kong_rate_limit_rps',label:'Per Second'},
+                                                {key:'kong_rate_limit_rpm',label:'Per Minute'},
+                                                {key:'kong_rate_limit_rph',label:'Per Hour'},
+                                              ].map(({key,label}) => (
+                                                <div key={key}>
+                                                  <label className="text-[8px] text-jpmc-muted">{label}</label>
+                                                  <input type="number" min="0"
+                                                    className="bg-jpmc-navy/50 border border-jpmc-border/50 rounded px-2 py-1 text-xs text-white w-full"
+                                                    value={fleetRouteForm[key]}
+                                                    onChange={e => setFleetRouteForm({...fleetRouteForm, [key]: e.target.value})} />
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                          {/* Upstream Timeouts */}
+                                          <div>
+                                            <label className="text-[9px] text-jpmc-muted block mb-1">Upstream Timeouts (ms)</label>
+                                            <div className="grid grid-cols-3 gap-2">
+                                              {[
+                                                {key:'upstream_connect_timeout_ms',label:'Connect'},
+                                                {key:'upstream_read_timeout_ms',label:'Read'},
+                                                {key:'upstream_write_timeout_ms',label:'Write'},
+                                              ].map(({key,label}) => (
+                                                <div key={key}>
+                                                  <label className="text-[8px] text-jpmc-muted">{label}</label>
+                                                  <input type="number" min="0" step="1000"
+                                                    className="bg-jpmc-navy/50 border border-jpmc-border/50 rounded px-2 py-1 text-xs text-white w-full"
+                                                    value={fleetRouteForm[key]}
+                                                    onChange={e => setFleetRouteForm({...fleetRouteForm, [key]: e.target.value})} />
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                          {/* Plugins */}
+                                          <div>
+                                            <label className="text-[9px] text-jpmc-muted block mb-1">Plugins</label>
+                                            <div className="flex flex-wrap gap-1">
+                                              {['rate-limiting','cors','jwt','key-auth','oauth2','proxy-cache','request-transformer','response-transformer'].map(plugin => (
+                                                <button key={plugin} onClick={() => {
+                                                  const plugins = fleetRouteForm.plugins.includes(plugin)
+                                                    ? fleetRouteForm.plugins.filter(x => x !== plugin)
+                                                    : [...fleetRouteForm.plugins, plugin]
+                                                  setFleetRouteForm({...fleetRouteForm, plugins})
+                                                }}
+                                                  className={`px-1.5 py-0.5 rounded text-[9px] border transition-all ${
+                                                    fleetRouteForm.plugins.includes(plugin)
+                                                      ? 'border-blue-500/50 bg-blue-500/10 text-blue-400'
+                                                      : 'border-jpmc-border/30 text-jpmc-muted hover:border-jpmc-border/60'
+                                                  }`}>{plugin}</button>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* Error */}
+                                      {fleetRouteError && (
+                                        <div className="p-1.5 rounded bg-red-500/10 border border-red-500/30 text-[10px] text-red-400">
+                                          {fleetRouteError}
+                                        </div>
+                                      )}
+                                      {/* Actions */}
+                                      <div className="flex gap-2">
+                                        <button
+                                          disabled={!fleetRouteForm.context_path}
+                                          onClick={handleFleetRouteSubmit}
+                                          className="btn-primary text-[10px] py-1 px-3 disabled:opacity-40">
+                                          Deploy Route
+                                        </button>
+                                        <button onClick={() => setShowAddFleetRoute(null)}
+                                          className="text-[10px] py-1 px-3 rounded border border-jpmc-border/40 text-jpmc-muted hover:bg-jpmc-hover">Cancel</button>
+                                      </div>
+                                    </div>
+                                  )}
+                                  </>
                                 )
                               })()}
                             </>

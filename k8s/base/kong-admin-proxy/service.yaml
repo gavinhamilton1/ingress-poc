@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kong-admin-proxy
+  labels:
+    app: kong-admin-proxy
+    ingress.jpmc.com/component: control-plane
+spec:
+  selector:
+    app: kong-admin-proxy
+  ports:
+    - port: 8102
+      targetPort: 8102
+      protocol: TCP
+  type: ClusterIP

@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mock-akamai-edge
+  labels:
+    app: mock-akamai-edge
+    ingress.jpmc.com/component: data-plane
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mock-akamai-edge
+  template:
+    metadata:
+      labels:
+        app: mock-akamai-edge
+        ingress.jpmc.com/component: data-plane
+    spec:
+      containers:
+        - name: mock-akamai-edge
+          image: ingress-poc/mock-akamai-edge:latest
+          ports:
+            - containerPort: 8011
+              protocol: TCP
+          env:
+            - name: GATEWAY_ENVOY_URL
+              value: http://mock-psaas:8012
+            - name: GATEWAY_KONG_URL
+              value: http://mock-psaas:8012
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://jaeger:4318
+          resources:
+            limits:
+              memory: 128Mi
+              cpu: 100m
+            requests:
+              memory: 64Mi
+              cpu: 50m

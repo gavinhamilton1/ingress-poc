@@ -26,6 +26,9 @@ type Route struct {
 	FunctionLanguage  string          `db:"function_language" json:"function_language"`
 	LambdaContainerID string          `db:"lambda_container_id" json:"lambda_container_id"`
 	LambdaPort        int             `db:"lambda_port" json:"lambda_port"`
+	GitCommitSHA      string          `db:"git_commit_sha" json:"git_commit_sha,omitempty"`
+	GitManifestPath   string          `db:"git_manifest_path" json:"git_manifest_path,omitempty"`
+	SyncStatus        string          `db:"sync_status" json:"sync_status,omitempty"`
 	CreatedAt         float64         `db:"created_at" json:"created_at"`
 	UpdatedAt         float64         `db:"updated_at" json:"updated_at"`
 }
@@ -90,6 +93,9 @@ type Fleet struct {
 	AutoscaleCPUThresh   int             `db:"autoscale_cpu_threshold" json:"autoscale_cpu_threshold"`
 	Notes                string          `db:"notes" json:"notes"`
 	FleetType            string          `db:"fleet_type" json:"fleet_type"`
+	GitCommitSHA         string          `db:"git_commit_sha" json:"git_commit_sha,omitempty"`
+	GitManifestPath      string          `db:"git_manifest_path" json:"git_manifest_path,omitempty"`
+	SyncStatus           string          `db:"sync_status" json:"sync_status,omitempty"`
 	CreatedAt            float64         `db:"created_at" json:"created_at"`
 	UpdatedAt            float64         `db:"updated_at" json:"updated_at"`
 }
@@ -132,7 +138,6 @@ type FleetInstance struct {
 	LatencyP99  float64 `db:"latency_p99" json:"latency_p99"`
 	RouteID            string          `db:"route_id" json:"route_id"`
 	CreatedAt          float64         `db:"created_at" json:"created_at"`
-	AssignedNodeIDs    []string        `db:"-" json:"assigned_node_ids,omitempty"`
 	FunctionCode       string          `db:"-" json:"function_code,omitempty"`
 	FunctionLanguage   string          `db:"-" json:"function_language,omitempty"`
 	LambdaContainerID  string          `db:"-" json:"lambda_container_id,omitempty"`

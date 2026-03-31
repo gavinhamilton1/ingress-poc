@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: watchdog
+  labels:
+    app: watchdog
+    ingress.jpmc.com/component: control-plane
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: watchdog
+  template:
+    metadata:
+      labels:
+        app: watchdog
+        ingress.jpmc.com/component: control-plane
+    spec:
+      containers:
+        - name: watchdog
+          image: ingress-poc/watchdog:latest
+          ports:
+            - containerPort: 8006
+              protocol: TCP
+          env:
+            - name: MANAGEMENT_API_URL
+              value: http://management-api:8003
+            - name: PORT
+              value: "8006"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://jaeger:4318
+          resources:
+            limits:
+              memory: 256Mi
+              cpu: 250m
+            requests:
+              memory: 128Mi
+              cpu: 100m

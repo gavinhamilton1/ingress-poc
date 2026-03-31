@@ -1,0 +1,138 @@
+# Strategic merge patches to expose services via NodePort.
+# NodePort values match the kind extraPortMappings in cp-config.yaml.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: console
+spec:
+  type: NodePort
+  ports:
+    - port: 80
+      targetPort: 80
+      nodePort: 30080
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: management-api
+spec:
+  type: NodePort
+  ports:
+    - port: 8003
+      targetPort: 8003
+      nodePort: 30003
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+spec:
+  type: NodePort
+  ports:
+    - port: 8001
+      targetPort: 8001
+      nodePort: 30001
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger
+spec:
+  type: NodePort
+  ports:
+    - name: ui
+      port: 16686
+      targetPort: 16686
+      nodePort: 30686
+      protocol: TCP
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-envoy
+spec:
+  type: NodePort
+  ports:
+    - name: proxy
+      port: 8000
+      targetPort: 8000
+      nodePort: 30000
+      protocol: TCP
+    - name: admin
+      port: 9901
+      targetPort: 9901
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-kong
+spec:
+  type: NodePort
+  ports:
+    - name: proxy
+      port: 8000
+      targetPort: 8000
+      nodePort: 30100
+      protocol: TCP
+    - name: admin
+      port: 8001
+      targetPort: 8001
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mock-akamai-gtm
+spec:
+  type: NodePort
+  ports:
+    - name: http
+      port: 8010
+      targetPort: 8010
+      nodePort: 30010
+      protocol: TCP
+    - name: https
+      port: 8443
+      targetPort: 8443
+      protocol: TCP
+    - name: http-browser
+      port: 80
+      targetPort: 8010
+      nodePort: 30011
+      protocol: TCP
+    - name: https-browser
+      port: 443
+      targetPort: 8443
+      nodePort: 30443
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dns
+spec:
+  type: NodePort
+  ports:
+    - name: dns-udp
+      port: 53
+      targetPort: 53
+      nodePort: 30053
+      protocol: UDP
+    - name: dns-tcp
+      port: 53
+      targetPort: 53
+      nodePort: 30053
+      protocol: TCP

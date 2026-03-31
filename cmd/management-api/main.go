@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -26,12 +27,16 @@ var (
 
 	envoyControlPlaneURL string
 	kongAdminProxyURL    string
+	kongAdminURL         string
 )
+
+var orch Orchestrator
 
 func main() {
 	port := getEnvOr("PORT", "8003")
 	envoyControlPlaneURL = getEnvOr("ENVOY_CONTROL_PLANE_URL", "http://envoy-control-plane:8080")
 	kongAdminProxyURL = getEnvOr("KONG_ADMIN_PROXY_URL", "http://kong-admin-proxy:8102")
+	kongAdminURL = getEnvOr("KONG_ADMIN_URL", "http://gateway-kong:8001")
 
 	tp, t := appOtel.InitOTEL("management-api")
 	tracer = t
@@ -39,6 +44,14 @@ func main() {
 
 	db = initDB()
 	seedDefaults(db)
+
+	orchMode := getEnvOr("ORCHESTRATION_MODE", "docker")
+	var err error
+	orch, err = NewOrchestrator(orchMode)
+	if err != nil {
+		log.Fatalf("Failed to initialize orchestrator: %v", err)
+	}
+	log.Printf("Orchestration mode: %s", orchMode)
 
 	r := chi.NewRouter()
 	r.Use(appMiddleware.CORS())
@@ -65,6 +78,7 @@ func main() {
 	r.Get("/fleets", listFleets)
 	r.Get("/fleets/{fleet_id}", getFleet)
 	r.Post("/fleets", createFleet)
+	r.Put("/fleets/{fleet_id}", updateFleet)
 	r.Delete("/fleets/{fleet_id}", deleteFleet)
 	r.Post("/fleets/{fleet_id}/deploy", deployToFleet)
 	r.Get("/fleets/{fleet_id}/nodes", getFleetNodes)
@@ -80,6 +94,7 @@ func main() {
 
 	// Route-node assignments
 	r.Get("/routes/{id}/nodes", getRouteNodes)
+	r.Post("/routes/{id}/reconcile", reconcileRoute)
 
 	// Health Reports
 	r.Post("/health-reports", receiveHealthReports)
@@ -87,6 +102,17 @@ func main() {
 
 	// Lambdas
 	r.Get("/lambdas", listLambdas)
+
+	// GitOps
+	r.Get("/gitops/status", getGitOpsStatus)
+	r.Get("/gitops/commits", getRecentCommits)
+	r.Get("/gitops/repos", getGitOpsRepos)
+	r.Post("/gitops/sync", triggerSync)
+	r.Post("/fleets/{fleet_id}/gitops/sync", syncFleetToGit) // rebuild fleet manifest from DB → git
+	r.Get("/gitops/diff/{fleet_id}", getGitOpsDiff)
+	r.Post("/gitops/reconcile", triggerReconcile)          // manual Git→DB reconcile (Git is authoritative)
+	r.Get("/gitops/reconcile/status", getReconcileStatus)  // last reconcile result
+	r.Post("/gitops/migrate-route-names", migrateRouteNames) // rename UUID route files to path-based names
 
 	// Health
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -100,6 +126,13 @@ func main() {
 	// Background tasks
 	go detectDrift()
 	go computeFleetStatus()
+
+	// Start K8s reconciler — syncs DB fleet/node status with actual pod states every 10s
+	if _, ok := orch.(*K8sOrchestrator); ok {
+		startReconciler(10 * time.Second)
+		// Start GitOps reconciler — syncs DB fleet_nodes + routes from Git every 5 minutes
+		startGitOpsReconciler(5 * time.Minute)
+	}
 
 	log.Printf("management-api listening on :%s", port)
 	log.Fatal(http.ListenAndServe(":"+port, r))
@@ -238,8 +271,7 @@ func createRoute(w http.ResponseWriter, r *http.Request) {
 			funcName = "func"
 		}
 
-		networkName := getEnvOr("DOCKER_NETWORK", "")
-		cid, port, err := createLambdaContainer(id, funcName, functionCode, networkName)
+		cid, port, err := orch.CreateLambdaContainer(id, funcName, functionCode)
 		if err != nil {
 			log.Printf("Warning: failed to create lambda container for route %s: %v", id, err)
 		} else {
@@ -290,6 +322,12 @@ func createRoute(w http.ResponseWriter, r *http.Request) {
 
 	var route Route
 	db.Get(&route, "SELECT * FROM routes WHERE id=$1", id)
+
+	// Write Route CRD to GitOps repo (no-op in Docker mode).
+	if err := orch.WriteRouteCRD(route, route.Hostname); err != nil {
+		log.Printf("Warning: failed to write route CRD for %s: %v", id, err)
+	}
+
 	writeJSON(w, 201, route)
 }
 
@@ -350,15 +388,14 @@ func updateRoute(w http.ResponseWriter, r *http.Request) {
 		if codeStr != "" && updated.LambdaContainerID != "" {
 			// Remove old container
 			log.Printf("Redeploying lambda for route %s (container %s)", id, updated.LambdaContainerID[:12])
-			removeLambdaContainer(updated.LambdaContainerID)
+			orch.RemoveLambdaContainer(updated.LambdaContainerID)
 
 			// Create new container with updated code
 			funcName := strings.TrimPrefix(updated.Path, "/")
 			if funcName == "" {
 				funcName = "lambda"
 			}
-			networkName := getEnvOr("DOCKER_NETWORK", "")
-			newContainerID, newPort, err := createLambdaContainer(id, funcName, codeStr, networkName)
+			newContainerID, newPort, err := orch.CreateLambdaContainer(id, funcName, codeStr)
 			if err != nil {
 				log.Printf("Warning: failed to redeploy lambda for route %s: %v", id, err)
 			} else {
@@ -374,8 +411,7 @@ func updateRoute(w http.ResponseWriter, r *http.Request) {
 			if funcName == "" {
 				funcName = "lambda"
 			}
-			networkName := getEnvOr("DOCKER_NETWORK", "")
-			newContainerID, newPort, err := createLambdaContainer(id, funcName, codeStr, networkName)
+			newContainerID, newPort, err := orch.CreateLambdaContainer(id, funcName, codeStr)
 			if err != nil {
 				log.Printf("Warning: failed to create lambda for route %s: %v", id, err)
 			} else {
@@ -390,6 +426,12 @@ func updateRoute(w http.ResponseWriter, r *http.Request) {
 
 	var route Route
 	db.Get(&route, "SELECT * FROM routes WHERE id=$1", id)
+
+	// Update Route CRD in GitOps repo (no-op in Docker mode).
+	if err := orch.WriteRouteCRD(route, route.Hostname); err != nil {
+		log.Printf("Warning: failed to update route CRD for %s: %v", id, err)
+	}
+
 	writeJSON(w, 200, route)
 }
 
@@ -426,10 +468,17 @@ func deleteRoute(w http.ResponseWriter, r *http.Request) {
 	var existing Route
 	found := db.Get(&existing, "SELECT * FROM routes WHERE id=$1", id) == nil
 
+	// Remove Route CRD from GitOps repo BEFORE DB delete (needs route in DB to find fleet).
+	if found {
+		if err := orch.DeleteRouteCRD(id); err != nil {
+			log.Printf("Warning: failed to delete route CRD for %s: %v", id, err)
+		}
+	}
+
 	if found {
 		// Clean up lambda container if one exists
 		if existing.LambdaContainerID != "" {
-			if err := removeLambdaContainer(existing.LambdaContainerID); err != nil {
+			if err := orch.RemoveLambdaContainer(existing.LambdaContainerID); err != nil {
 				log.Printf("Warning: failed to remove lambda container %s for route %s: %v",
 					existing.LambdaContainerID, id, err)
 			}
@@ -547,12 +596,9 @@ func listFleets(w http.ResponseWriter, r *http.Request) {
 		if instances == nil {
 			instances = []FleetInstance{}
 		}
-		// Enrich instances with route data (node assignments, function code, methods, audience)
+		// Enrich instances with route data (function code, methods, audience)
 		for i, inst := range instances {
 			if inst.RouteID != "" {
-				var nodeIDs []string
-				db.Select(&nodeIDs, "SELECT node_container_id FROM route_node_assignments WHERE route_id=$1 AND status='active'", inst.RouteID)
-				instances[i].AssignedNodeIDs = nodeIDs
 				// Fetch route fields that fleet_instances doesn't have
 				var route Route
 				if db.Get(&route, "SELECT * FROM routes WHERE id=$1", inst.RouteID) == nil {
@@ -567,7 +613,7 @@ func listFleets(w http.ResponseWriter, r *http.Request) {
 		// Merge DB nodes with live Docker status
 		var dbNodes []FleetNodeRecord
 		db.Select(&dbNodes, "SELECT * FROM fleet_nodes WHERE fleet_id=$1 ORDER BY node_name", f.ID)
-		liveNodes, _ := listFleetContainers(f.ID)
+		liveNodes, _ := orch.ListFleetNodes(f.ID)
 		liveMap := map[string]FleetNode{}
 		for _, n := range liveNodes {
 			liveMap[n.ContainerName] = n
@@ -635,7 +681,7 @@ func getFleet(w http.ResponseWriter, r *http.Request) {
 		instances = []FleetInstance{}
 	}
 	// Include live nodes with their gateway_type clearly set
-	nodes, _ := listFleetContainers(fleetID)
+	nodes, _ := orch.ListFleetNodes(fleetID)
 	if nodes == nil {
 		nodes = []FleetNode{}
 	}
@@ -705,8 +751,7 @@ func createFleet(w http.ResponseWriter, r *http.Request) {
 
 	// Spin up gateway containers for this fleet
 	containerCount := intOr(body, "container_count", 2)
-	networkName := getEnvOr("DOCKER_NETWORK", "")
-	nodes, err := createFleetContainers(id, gatewayType, containerCount, networkName)
+	nodes, err := orch.CreateFleetNodes(id, gatewayType, containerCount)
 	if err != nil {
 		log.Printf("Warning: could not create fleet containers for %s: %v", id, err)
 		// Fleet is created in DB even if containers fail — caller can retry via /scale
@@ -719,6 +764,88 @@ func createFleet(w http.ResponseWriter, r *http.Request) {
 		"nodes":     nodes,
 		"container_count": len(nodes),
 	})
+}
+
+func updateFleet(w http.ResponseWriter, r *http.Request) {
+	fleetID := chi.URLParam(r, "fleet_id")
+	var existing Fleet
+	if err := db.Get(&existing, "SELECT * FROM fleets WHERE id=$1", fleetID); err != nil {
+		writeJSON(w, 404, map[string]string{"detail": "Fleet not found"})
+		return
+	}
+
+	var body map[string]interface{}
+	json.NewDecoder(r.Body).Decode(&body)
+	now := float64(time.Now().Unix())
+
+	// Build SET clause dynamically
+	sets := []string{"updated_at=$1"}
+	args := []interface{}{now}
+	n := 1
+
+	fieldMap := map[string]string{
+		"name": "name", "subdomain": "subdomain", "lob": "lob",
+		"host_env": "host_env", "gateway_type": "gateway_type",
+		"region": "region", "auth_provider": "auth_provider",
+		"description": "description", "traffic_type": "traffic_type",
+		"tls_termination": "tls_termination", "waf_profile": "waf_profile",
+		"resource_profile": "resource_profile", "health_check_path": "health_check_path",
+		"authn_mechanism": "authn_mechanism", "tls_required": "tls_required",
+		"notes": "notes", "status": "status",
+	}
+	for jsonKey, col := range fieldMap {
+		if v, ok := body[jsonKey]; ok {
+			n++
+			sets = append(sets, fmt.Sprintf("%s=$%d", col, n))
+			args = append(args, v)
+		}
+	}
+	// Boolean fields
+	for _, key := range []string{"http2_enabled", "autoscale_enabled"} {
+		if v, ok := body[key]; ok {
+			n++
+			col := key
+			sets = append(sets, fmt.Sprintf("%s=$%d", col, n))
+			args = append(args, v)
+		}
+	}
+	// Integer fields
+	for _, key := range []string{"connection_limit", "timeout_connect_ms", "timeout_request_ms",
+		"rate_limit_rps", "health_check_interval_s", "autoscale_min", "autoscale_max", "autoscale_cpu_threshold"} {
+		if v, ok := body[key]; ok {
+			n++
+			col := key
+			sets = append(sets, fmt.Sprintf("%s=$%d", col, n))
+			args = append(args, v)
+		}
+	}
+	// JSON array fields
+	for _, jsonKey := range []string{"regions", "kong_plugins", "default_authz_scopes"} {
+		if v, ok := body[jsonKey]; ok {
+			n++
+			j, _ := json.Marshal(v)
+			sets = append(sets, fmt.Sprintf("%s=$%d", jsonKey, n))
+			args = append(args, string(j))
+		}
+	}
+
+	n++
+	args = append(args, fleetID)
+	query := fmt.Sprintf("UPDATE fleets SET %s WHERE id=$%d", strings.Join(sets, ","), n)
+	db.MustExec(query, args...)
+
+	var updatedFleet Fleet
+	db.Get(&updatedFleet, "SELECT * FROM fleets WHERE id=$1", fleetID)
+
+	// Update Fleet CRD in GitOps repo (no-op in Docker mode).
+	if err := orch.UpdateFleetManifest(updatedFleet); err != nil {
+		log.Printf("Warning: failed to update fleet manifest for %s: %v", fleetID, err)
+	}
+
+	addAudit(fleetID, "UPDATE", strOr(body["actor"], "system"),
+		fmt.Sprintf("Updated fleet %s", updatedFleet.Name))
+
+	writeJSON(w, 200, updatedFleet)
 }
 
 func deployToFleet(w http.ResponseWriter, r *http.Request) {
@@ -763,8 +890,7 @@ func deployToFleet(w http.ResponseWriter, r *http.Request) {
 			funcName = "func"
 		}
 
-		networkName := getEnvOr("DOCKER_NETWORK", "")
-		cid, port, err := createLambdaContainer(routeID, funcName, functionCode, networkName)
+		cid, port, err := orch.CreateLambdaContainer(routeID, funcName, functionCode)
 		if err != nil {
 			log.Printf("Warning: failed to create lambda container for deploy %s: %v", routeID, err)
 		} else {
@@ -776,19 +902,8 @@ func deployToFleet(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Resolve target_nodes: if empty, find all running nodes of the matching gateway type in the fleet
-	requestedTargetNodes := toStringSlice(body["target_nodes"])
-	if len(requestedTargetNodes) == 0 {
-		// Auto-discover running nodes of the matching type in this fleet
-		fleetNodes, err := listFleetContainers(fleetID)
-		if err == nil {
-			for _, n := range fleetNodes {
-				if n.Status == "running" && n.GatewayType == gwType {
-					requestedTargetNodes = append(requestedTargetNodes, n.ContainerID)
-				}
-			}
-		}
-	}
+	// Routes are fleet-wide: all nodes of the matching gateway type serve the route.
+	// No per-node targeting needed.
 
 	db.MustExec(`INSERT INTO fleet_instances (id, fleet_id, context_path, backend, gateway_type, status, latency_p99, route_id, created_at)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
@@ -797,7 +912,7 @@ func deployToFleet(w http.ResponseWriter, r *http.Request) {
 	methods, _ := json.Marshal(toStringSliceOr(body["methods"], []string{"GET", "POST", "PUT", "DELETE"}))
 	roles, _ := json.Marshal(toStringSlice(body["allowed_roles"]))
 	scopes, _ := json.Marshal([]string{})
-	targetNodes, _ := json.Marshal(requestedTargetNodes)
+	targetNodes, _ := json.Marshal([]string{}) // Fleet-wide: no per-node targeting
 
 	db.MustExec(`INSERT INTO routes (id, path, hostname, backend_url, audience, allowed_roles, methods,
 		status, team, created_by, gateway_type, health_path, authn_mechanism, auth_issuer, authz_scopes,
@@ -812,17 +927,18 @@ func deployToFleet(w http.ResponseWriter, r *http.Request) {
 		functionCode, functionLanguage, lambdaContainerIDVal, lambdaPortVal,
 		now, now)
 
-	// Create route_node_assignments for each target node
-	assignedNodes := []string{}
-	for _, nodeID := range requestedTargetNodes {
-		db.MustExec(`INSERT INTO route_node_assignments (id, route_id, node_container_id, fleet_id, status, created_at)
-			VALUES ($1, $2, $3, $4, 'active', $5)`,
-			uuid.New().String(), routeID, nodeID, fleetID, now)
-		assignedNodes = append(assignedNodes, nodeID)
-	}
+	assignedNodes := []string{} // Fleet-wide: no per-node assignments
 
 	addAudit(routeID, "CREATE", "fleet-deploy",
 		fmt.Sprintf("Deployed %s to fleet %s (%s), assigned to %d nodes", contextPath, f.Name, f.Subdomain, len(assignedNodes)))
+
+	// Write Route CRD to GitOps repo (no-op in Docker mode).
+	var deployedRoute Route
+	if err := db.Get(&deployedRoute, "SELECT * FROM routes WHERE id=$1", routeID); err == nil {
+		if err := orch.WriteRouteCRD(deployedRoute, f.Subdomain); err != nil {
+			log.Printf("Warning: failed to write route CRD for fleet deploy %s: %v", routeID, err)
+		}
+	}
 
 	resp := map[string]interface{}{
 		"id": instID, "fleet_id": fleetID, "context_path": contextPath,
@@ -861,8 +977,8 @@ func deleteFleet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Remove all Docker containers for this fleet (gateway instances)
-	if err := removeFleetContainers(fleetID); err != nil {
+	// Remove all containers for this fleet (gateway instances)
+	if err := orch.RemoveFleetNodes(fleetID); err != nil {
 		log.Printf("Warning: error removing fleet containers for %s: %v", fleetID, err)
 	}
 
@@ -871,7 +987,7 @@ func deleteFleet(w http.ResponseWriter, r *http.Request) {
 	db.Select(&fleetRoutes, "SELECT * FROM routes WHERE hostname=$1", f.Subdomain)
 	for _, route := range fleetRoutes {
 		if route.LambdaContainerID != "" {
-			if err := removeLambdaContainer(route.LambdaContainerID); err != nil {
+			if err := orch.RemoveLambdaContainer(route.LambdaContainerID); err != nil {
 				log.Printf("Warning: failed to remove lambda %s: %v", route.LambdaContainerID, err)
 			}
 		}
@@ -929,8 +1045,8 @@ func getFleetNodes(w http.ResponseWriter, r *http.Request) {
 	var dbNodes []FleetNodeRecord
 	db.Select(&dbNodes, "SELECT * FROM fleet_nodes WHERE fleet_id=$1 ORDER BY node_name", fleetID)
 
-	// Get live Docker containers
-	liveNodes, _ := listFleetContainers(fleetID)
+	// Get live containers
+	liveNodes, _ := orch.ListFleetNodes(fleetID)
 	liveMap := map[string]FleetNode{}
 	for _, n := range liveNodes {
 		liveMap[n.ContainerName] = n
@@ -1010,15 +1126,13 @@ func scaleFleet(w http.ResponseWriter, r *http.Request) {
 		gatewayType = "envoy" // default to envoy if fleet has no type set
 	}
 
-	networkName := getEnvOr("DOCKER_NETWORK", "")
-
 	// If a datacenter is specified, override the auto-assignment for new nodes
 	dc := strOr(body["datacenter"], "")
 	if dc != "" {
 		overrideDatacenter = dc
 	}
 
-	nodes, err := scaleFleetContainers(fleetID, gatewayType, desiredCount, networkName)
+	nodes, err := orch.ScaleFleetNodes(fleetID, gatewayType, desiredCount)
 	if err != nil {
 		log.Printf("Error scaling fleet %s: %v", fleetID, err)
 		writeJSON(w, 500, map[string]string{"detail": fmt.Sprintf("Failed to scale fleet: %v", err)})
@@ -1029,7 +1143,7 @@ func scaleFleet(w http.ResponseWriter, r *http.Request) {
 	overrideDatacenter = ""
 
 	// Update instances_count in the fleet record (total across all types)
-	allNodes, _ := listFleetContainers(fleetID)
+	allNodes, _ := orch.ListFleetNodes(fleetID)
 	now := float64(time.Now().Unix())
 	db.MustExec("UPDATE fleets SET instances_count=$1, updated_at=$2 WHERE id=$3",
 		float64(len(allNodes)), now, fleetID)
@@ -1054,12 +1168,12 @@ func handleSuspendFleet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 1. Stop all fleet gateway containers
-	if err := stopFleetContainers(fleetID); err != nil {
+	if err := orch.StopFleetNodes(fleetID); err != nil {
 		log.Printf("Error stopping fleet containers for %s: %v", f.Name, err)
 	}
 
 	// 2. Stop lambda containers for this fleet's routes
-	stopLambdaContainersForFleet(db, fleetID)
+	orch.StopLambdaContainersForFleet(fleetID)
 
 	// 3. Set all routes for this fleet to inactive
 	now := float64(time.Now().Unix())
@@ -1090,12 +1204,12 @@ func handleResumeFleet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 1. Start all fleet gateway containers
-	if err := startFleetContainers(fleetID); err != nil {
+	if err := orch.StartFleetNodes(fleetID); err != nil {
 		log.Printf("Error starting fleet containers for %s: %v", f.Name, err)
 	}
 
 	// 2. Start lambda containers for this fleet's routes
-	startLambdaContainersForFleet(db, fleetID)
+	orch.StartLambdaContainersForFleet(fleetID)
 
 	// 3. Reactivate all routes for this fleet
 	now := float64(time.Now().Unix())
@@ -1121,55 +1235,116 @@ func handleResumeFleet(w http.ResponseWriter, r *http.Request) {
 
 func handleStopNode(w http.ResponseWriter, r *http.Request) {
 	containerID := chi.URLParam(r, "container_id")
-	resp, err := dockerRequest("POST", "/v1.46/containers/"+containerID+"/stop?t=5", nil)
-	if err != nil {
-		writeJSON(w, 500, map[string]string{"detail": fmt.Sprintf("Failed to stop node: %v", err)})
-		return
+	fleetID := chi.URLParam(r, "fleet_id")
+
+	if dOrch, ok := orch.(*DockerOrchestrator); ok {
+		_ = dOrch
+		resp, err := dockerRequest("POST", "/v1.46/containers/"+containerID+"/stop?t=5", nil)
+		if err != nil {
+			writeJSON(w, 500, map[string]string{"detail": fmt.Sprintf("Failed to stop node: %v", err)})
+			return
+		}
+		resp.Body.Close()
+		if resp.StatusCode != 204 && resp.StatusCode != 304 {
+			writeJSON(w, resp.StatusCode, map[string]string{"detail": fmt.Sprintf("Docker returned status %d", resp.StatusCode)})
+			return
+		}
+	} else {
+		// K8s mode: scale down the deployment by 1 replica (actually removes a pod)
+		db.MustExec("UPDATE fleet_nodes SET status='stopped' WHERE node_name=$1", containerID)
+		var runningCount int
+		db.Get(&runningCount, "SELECT COUNT(*) FROM fleet_nodes WHERE fleet_id=$1 AND status='running'", fleetID)
+		var totalCount int
+		db.Get(&totalCount, "SELECT COUNT(*) FROM fleet_nodes WHERE fleet_id=$1", fleetID)
+		// Scale deployment to match running node count
+		if err := scaleFleetDeployment(fleetID, int32(runningCount)); err != nil {
+			log.Printf("Failed to scale deployment %s: %v", fleetID, err)
+		}
+		if runningCount == 0 {
+			db.MustExec("UPDATE fleets SET status='suspended' WHERE id=$1", fleetID)
+		} else if runningCount < totalCount {
+			db.MustExec("UPDATE fleets SET status='degraded' WHERE id=$1", fleetID)
+		}
 	}
-	resp.Body.Close()
-	if resp.StatusCode != 204 && resp.StatusCode != 304 {
-		writeJSON(w, resp.StatusCode, map[string]string{"detail": fmt.Sprintf("Docker returned status %d", resp.StatusCode)})
-		return
-	}
-	addAudit(containerID, "NODE_STOPPED", "system", fmt.Sprintf("Container %.12s stopped", containerID))
+
+	addAudit(containerID, "NODE_STOPPED", "system", fmt.Sprintf("Node %s stopped", containerID))
 	writeJSON(w, 200, map[string]interface{}{"stopped": true, "container_id": containerID})
 }
 
 func handleStartNode(w http.ResponseWriter, r *http.Request) {
 	containerID := chi.URLParam(r, "container_id")
-	resp, err := dockerRequest("POST", "/v1.46/containers/"+containerID+"/start", nil)
-	if err != nil {
-		writeJSON(w, 500, map[string]string{"detail": fmt.Sprintf("Failed to start node: %v", err)})
-		return
+	fleetID := chi.URLParam(r, "fleet_id")
+
+	if dOrch, ok := orch.(*DockerOrchestrator); ok {
+		_ = dOrch
+		resp, err := dockerRequest("POST", "/v1.46/containers/"+containerID+"/start", nil)
+		if err != nil {
+			writeJSON(w, 500, map[string]string{"detail": fmt.Sprintf("Failed to start node: %v", err)})
+			return
+		}
+		resp.Body.Close()
+		if resp.StatusCode != 204 && resp.StatusCode != 304 {
+			writeJSON(w, resp.StatusCode, map[string]string{"detail": fmt.Sprintf("Docker returned status %d", resp.StatusCode)})
+			return
+		}
+	} else {
+		// K8s mode: mark node as running, then scale up deployment to match
+		db.MustExec("UPDATE fleet_nodes SET status='running' WHERE node_name=$1", containerID)
+		var runningCount int
+		db.Get(&runningCount, "SELECT COUNT(*) FROM fleet_nodes WHERE fleet_id=$1 AND status='running'", fleetID)
+		if err := scaleFleetDeployment(fleetID, int32(runningCount)); err != nil {
+			log.Printf("Failed to scale deployment %s: %v", fleetID, err)
+		}
+		// Calculate fleet status based on node states
+		var stoppedCount int
+		db.Get(&stoppedCount, "SELECT COUNT(*) FROM fleet_nodes WHERE fleet_id=$1 AND status!='running'", fleetID)
+		if stoppedCount == 0 {
+			db.MustExec("UPDATE fleets SET status='healthy' WHERE id=$1", fleetID)
+		} else {
+			db.MustExec("UPDATE fleets SET status='degraded' WHERE id=$1", fleetID)
+		}
 	}
-	resp.Body.Close()
-	if resp.StatusCode != 204 && resp.StatusCode != 304 {
-		writeJSON(w, resp.StatusCode, map[string]string{"detail": fmt.Sprintf("Docker returned status %d", resp.StatusCode)})
-		return
-	}
-	addAudit(containerID, "NODE_STARTED", "system", fmt.Sprintf("Container %.12s started", containerID))
+
+	addAudit(containerID, "NODE_STARTED", "system", fmt.Sprintf("Node %s started", containerID))
 	writeJSON(w, 200, map[string]interface{}{"started": true, "container_id": containerID})
 }
 
 func handleDeleteNode(w http.ResponseWriter, r *http.Request) {
 	containerID := chi.URLParam(r, "container_id")
-	// Stop first
-	stopResp, _ := dockerRequest("POST", "/v1.46/containers/"+containerID+"/stop?t=5", nil)
-	if stopResp != nil {
-		stopResp.Body.Close()
+	fleetID := chi.URLParam(r, "fleet_id")
+
+	if dOrch, ok := orch.(*DockerOrchestrator); ok {
+		_ = dOrch
+		// Stop first
+		stopResp, _ := dockerRequest("POST", "/v1.46/containers/"+containerID+"/stop?t=5", nil)
+		if stopResp != nil {
+			stopResp.Body.Close()
+		}
+		// Remove
+		rmResp, err := dockerRequest("DELETE", "/v1.46/containers/"+containerID+"?force=true&v=true", nil)
+		if err != nil {
+			writeJSON(w, 500, map[string]string{"detail": fmt.Sprintf("Failed to delete node: %v", err)})
+			return
+		}
+		rmResp.Body.Close()
+	} else {
+		// K8s mode: remove the node from the fleet manifest and scale down
+		var f Fleet
+		if err := db.Get(&f, "SELECT * FROM fleets WHERE id=$1", fleetID); err == nil {
+			// Scale down by 1 to remove this node
+			currentCount := int(f.InstancesCount)
+			if currentCount > 0 {
+				orch.ScaleFleetNodes(fleetID, f.GatewayType, currentCount-1)
+			}
+		}
+		// Remove node from DB
+		db.MustExec("DELETE FROM fleet_nodes WHERE node_name=$1", containerID)
 	}
-	// Remove
-	rmResp, err := dockerRequest("DELETE", "/v1.46/containers/"+containerID+"?force=true&v=true", nil)
-	if err != nil {
-		writeJSON(w, 500, map[string]string{"detail": fmt.Sprintf("Failed to delete node: %v", err)})
-		return
-	}
-	rmResp.Body.Close()
 
 	// Remove route_node_assignments for this node
 	db.MustExec("DELETE FROM route_node_assignments WHERE node_container_id=$1", containerID)
 
-	addAudit(containerID, "NODE_DELETED", "system", fmt.Sprintf("Container %.12s deleted", containerID))
+	addAudit(containerID, "NODE_DELETED", "system", fmt.Sprintf("Node %s deleted", containerID))
 	writeJSON(w, 200, map[string]interface{}{"deleted": true, "container_id": containerID})
 }
 
@@ -1203,10 +1378,8 @@ func handleDeploySingleNode(w http.ResponseWriter, r *http.Request) {
 		overrideContainerName = customName
 	}
 
-	networkName := getEnvOr("DOCKER_NETWORK", "")
-
 	// Find existing containers to determine next index
-	existing, _ := listFleetContainers(fleetID)
+	existing, _ := orch.ListFleetNodes(fleetID)
 	// Filter to same gateway type to find the next index
 	maxIndex := 0
 	for _, n := range existing {
@@ -1216,7 +1389,7 @@ func handleDeploySingleNode(w http.ResponseWriter, r *http.Request) {
 	}
 	startIndex := maxIndex + 1
 
-	nodes, err := createFleetContainersStartingAt(fleetID, gatewayType, 1, startIndex, networkName)
+	nodes, err := orch.DeploySingleNode(fleetID, gatewayType, dc, customName, startIndex)
 	overrideDatacenter = ""
 	overrideContainerName = ""
 
@@ -1227,7 +1400,7 @@ func handleDeploySingleNode(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update instances_count
-	allNodes, _ := listFleetContainers(fleetID)
+	allNodes, _ := orch.ListFleetNodes(fleetID)
 	now := float64(time.Now().Unix())
 	db.MustExec("UPDATE fleets SET instances_count=$1, updated_at=$2 WHERE id=$3",
 		float64(len(allNodes)), now, fleetID)
@@ -1272,7 +1445,7 @@ func getRouteNodes(w http.ResponseWriter, r *http.Request) {
 		ea := enrichedAssignment{RouteNodeAssignment: a}
 		// Try to look up live container info
 		if a.FleetID != "" {
-			nodes, _ := listFleetContainers(a.FleetID)
+			nodes, _ := orch.ListFleetNodes(a.FleetID)
 			for _, n := range nodes {
 				if n.ContainerID == a.NodeContainerID {
 					ea.NodeName = n.ContainerName
@@ -1293,6 +1466,179 @@ func getRouteNodes(w http.ResponseWriter, r *http.Request) {
 		"assignments": enriched,
 		"count":       len(enriched),
 	})
+}
+
+// reconcileRoute forces a route back to its desired active state.
+// POST /routes/{id}/reconcile
+func reconcileRoute(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var route Route
+	if err := db.Get(&route, "SELECT * FROM routes WHERE id=$1", id); err != nil {
+		writeJSON(w, 404, map[string]string{"error": "route not found"})
+		return
+	}
+
+	// Ensure route is active — touch updated_at so the control-plane polling loop
+	// picks up any stale/incorrect gateway state on its next cycle (≤5s).
+	db.Exec("UPDATE routes SET status='active', updated_at=NOW() WHERE id=$1", id)
+
+	synced := false
+	syncMsg := ""
+
+	if route.GatewayType == "kong" {
+		// 1. Try to trigger an immediate sync via the kong-admin-proxy.
+		proxyClient := &http.Client{Timeout: 3 * time.Second}
+		proxyResp, proxyErr := proxyClient.Post(kongAdminProxyURL+"/sync/trigger", "application/json", nil)
+		if proxyErr == nil && proxyResp.StatusCode < 300 {
+			proxyResp.Body.Close()
+			synced = true
+			syncMsg = "Kong sync triggered — route will be active within 5 seconds."
+		} else {
+			if proxyResp != nil {
+				proxyResp.Body.Close()
+			}
+			// 2. Proxy unreachable — push the route directly to Kong admin API.
+			if err := pushRouteDirectlyToKong(route); err != nil {
+				syncMsg = fmt.Sprintf("Direct Kong push failed: %v", err)
+			} else {
+				synced = true
+				syncMsg = "Route pushed directly to Kong gateway."
+				// Immediately reflect the reconciled state in actual_routes so the
+				// drift dashboard clears without waiting for the next detectDrift cycle.
+				now := float64(time.Now().Unix())
+				var activeKongRoutes []Route
+				if db.Select(&activeKongRoutes, "SELECT * FROM routes WHERE gateway_type='kong' AND status='active'") == nil {
+					for _, kr := range activeKongRoutes {
+						var existing ActualRoute
+						err2 := db.Get(&existing, "SELECT * FROM actual_routes WHERE route_id=$1", kr.ID)
+						if err2 == nil {
+							db.Exec(`UPDATE actual_routes SET actual_status='active', actual_backend=$1, drift=false, drift_detail='In sync', last_checked=$2 WHERE id=$3`,
+								kr.BackendURL, now, existing.ID)
+						} else {
+							db.Exec(`INSERT INTO actual_routes (id, route_id, gateway_type, path, actual_status, actual_backend, drift, drift_detail, last_checked)
+								VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+								uuid.New().String(), kr.ID, kr.GatewayType, kr.Path,
+								"active", kr.BackendURL, false, "In sync", now)
+						}
+					}
+				}
+			}
+		}
+	} else {
+		// For Envoy routes the control plane polls every 5s — touching updated_at is sufficient.
+		syncMsg = "Route marked active in Registry. Envoy will update within 5 seconds."
+		synced = true
+	}
+
+	writeJSON(w, 200, map[string]interface{}{
+		"route_id": id,
+		"path":     route.Path,
+		"hostname": route.Hostname,
+		"action":   "reconciled",
+		"synced":   synced,
+		"message":  syncMsg,
+	})
+}
+
+// pushRouteDirectlyToKong rebuilds the full Kong declarative config from all
+// active Kong routes in the DB and POSTs it directly to Kong's /config endpoint,
+// bypassing the kong-admin-proxy. Used when the proxy is unavailable.
+func pushRouteDirectlyToKong(_ Route) error {
+	// Fetch ALL active Kong routes so we push a complete declarative config
+	// (Kong DB-less mode replaces everything on POST /config).
+	var routes []Route
+	if err := db.Select(&routes, "SELECT * FROM routes WHERE gateway_type='kong' AND status='active'"); err != nil {
+		return fmt.Errorf("db fetch: %w", err)
+	}
+
+	config := buildKongConfig(routes)
+
+	body, _ := json.Marshal(config)
+	req, err := http.NewRequest("POST", kongAdminURL+"/config", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("kong unreachable: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		rb, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("kong /config returned %d: %s", resp.StatusCode, string(rb))
+	}
+	return nil
+}
+
+// buildKongConfig converts a slice of DB routes into Kong declarative config.
+// Mirrors the logic in cmd/kong-admin-proxy/main.go buildDeclarativeConfig.
+func buildKongConfig(routes []Route) map[string]interface{} {
+	var services []map[string]interface{}
+	var routesList []map[string]interface{}
+	var upstreams []map[string]interface{}
+	seenUpstreams := map[string]bool{}
+
+	for _, r := range routes {
+		hostname := r.Hostname
+		if hostname == "" {
+			hostname = "*"
+		}
+		hostSlug := strings.ReplaceAll(strings.ReplaceAll(hostname, ".", "-"), "*", "wildcard")
+		pathSlug := strings.Trim(strings.ReplaceAll(r.Path, "/", "-"), "-")
+		if pathSlug == "" {
+			pathSlug = "root"
+		}
+		svcName := "svc-" + hostSlug + "-" + pathSlug
+		upstreamName := "upstream-" + hostSlug + "-" + pathSlug
+
+		backend := strings.TrimRight(r.BackendURL, "/")
+		noScheme := backend
+		if idx := strings.Index(backend, "://"); idx >= 0 {
+			noScheme = backend[idx+3:]
+		}
+		backendHost := noScheme
+		backendPort := 80
+		if i := strings.LastIndex(noScheme, ":"); i >= 0 {
+			backendHost = noScheme[:i]
+			fmt.Sscanf(noScheme[i+1:], "%d", &backendPort)
+		}
+
+		if !seenUpstreams[upstreamName] {
+			seenUpstreams[upstreamName] = true
+			upstreams = append(upstreams, map[string]interface{}{
+				"name":    upstreamName,
+				"targets": []map[string]interface{}{{"target": fmt.Sprintf("%s:%d", backendHost, backendPort), "weight": 100}},
+			})
+		}
+
+		services = append(services, map[string]interface{}{
+			"name": svcName,
+			"host": upstreamName,
+			"port": backendPort,
+		})
+
+		routeEntry := map[string]interface{}{
+			"name":       "route-" + hostSlug + "-" + pathSlug,
+			"service":    svcName,
+			"paths":      []string{r.Path},
+			"methods":    []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"},
+			"strip_path": false,
+		}
+		if hostname != "*" && hostname != "" {
+			routeEntry["hosts"] = []string{hostname}
+		}
+		routesList = append(routesList, routeEntry)
+	}
+
+	return map[string]interface{}{
+		"_format_version": "2.1",
+		"services":        services,
+		"upstreams":       upstreams,
+		"routes":          routesList,
+	}
 }
 
 // getNodeRoutes returns routes deployed to a specific node.
@@ -1378,7 +1724,7 @@ func listHealthReports(w http.ResponseWriter, r *http.Request) {
 // --- Lambdas ---
 
 func listLambdas(w http.ResponseWriter, r *http.Request) {
-	containers, err := listLambdaContainers()
+	containers, err := orch.ListLambdaContainers()
 	if err != nil {
 		log.Printf("Error listing lambda containers: %v", err)
 		writeJSON(w, 500, map[string]string{"detail": "Failed to list lambda containers"})
@@ -1418,7 +1764,6 @@ func restoreLambdaContainers() {
 		return
 	}
 
-	networkName := getEnvOr("DOCKER_NETWORK", "")
 	restored := 0
 
 	for _, route := range routes {
@@ -1448,7 +1793,7 @@ func restoreLambdaContainers() {
 			funcName = "func"
 		}
 
-		cid, port, err := createLambdaContainer(route.ID, funcName, route.FunctionCode, networkName)
+		cid, port, err := orch.CreateLambdaContainer(route.ID, funcName, route.FunctionCode)
 		if err != nil {
 			log.Printf("Warning: failed to restore lambda container for route %s: %v", route.ID, err)
 			continue
@@ -1489,21 +1834,31 @@ func detectDrift() {
 				var items []map[string]interface{}
 				json.Unmarshal(body, &items)
 				for _, item := range items {
-					if path, ok := item["path"].(string); ok {
-						envoyRoutes[path] = item
+					path, _ := item["path"].(string)
+					hostname, _ := item["hostname"].(string)
+					if hostname == "" {
+						hostname = "*"
+					}
+					if path != "" {
+						envoyRoutes[hostname+":"+path] = item
 					}
 				}
 			}
 
-			// Fetch Kong sync status
+			// Fetch Kong sync status. If the proxy is unreachable we leave
+			// kongProxyReachable=false and skip updating Kong routes in actual_routes —
+			// this prevents false "absent" drift when the proxy is temporarily down.
+			kongProxyReachable := false
 			if resp, err := client.Get(kongAdminProxyURL + "/sync-status/routes"); err == nil {
 				defer resp.Body.Close()
 				body, _ := io.ReadAll(resp.Body)
 				var items []map[string]interface{}
-				json.Unmarshal(body, &items)
-				for _, item := range items {
-					if path, ok := item["path"].(string); ok {
-						kongRoutes[path] = item
+				if json.Unmarshal(body, &items) == nil {
+					kongProxyReachable = true
+					for _, item := range items {
+						if path, ok := item["path"].(string); ok {
+							kongRoutes[path] = item
+						}
 					}
 				}
 			}
@@ -1512,15 +1867,14 @@ func detectDrift() {
 			now := float64(time.Now().Unix())
 			for _, route := range routes {
 				var actual map[string]interface{}
+				routeHostname := route.Hostname
+				if routeHostname == "" {
+					routeHostname = "*"
+				}
 				if route.GatewayType == "envoy" {
-					actual = envoyRoutes[route.Path]
+					actual = envoyRoutes[routeHostname+":"+route.Path]
 				} else {
-					// Kong uses hostname:path compound keys
-					hostname := route.Hostname
-					if hostname == "" {
-						hostname = "*"
-					}
-					actual = kongRoutes[hostname+":"+route.Path]
+					actual = kongRoutes[routeHostname+":"+route.Path]
 				}
 
 				drift := false
@@ -1567,6 +1921,13 @@ func detectDrift() {
 					if b, ok := actual["backend_url"].(string); ok {
 						actualBackend = b
 					}
+				}
+
+				// When the Kong proxy is unreachable we have no fresh data for Kong
+				// routes — skip updating actual_routes to avoid overwriting a
+				// successful direct-push with a false "absent" entry.
+				if route.GatewayType == "kong" && !kongProxyReachable {
+					continue
 				}
 
 				var existing ActualRoute
@@ -1639,8 +2000,8 @@ func computeFleetStatus() {
 					continue
 				}
 
-				// Check if fleet has any running nodes (Docker containers)
-				nodes, _ := listFleetContainers(fleet.ID)
+				// Check if fleet has any running nodes
+				nodes, _ := orch.ListFleetNodes(fleet.ID)
 				hasRunningNodes := len(nodes) > 0
 
 				// If fleet has no running nodes, mark as not_deployed

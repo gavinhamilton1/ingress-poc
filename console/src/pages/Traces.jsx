@@ -113,24 +113,55 @@ export default function Traces() {
       const svc = processes[s.processID]?.serviceName || ''
       return isBackendService(svc) && s.operationName !== s.processID
     })
-    // Extract the request path from Envoy or backend span tags
+    // Extract the request path and host from span tags.
+    // Supports both old OTel HTTP conventions (http.url, http.target) and
+    // the current conventions (url.path, server.address).
+    // psaas.hostname is the most authoritative source for the original request hostname.
     let requestPath = ''
     let requestHost = ''
     for (const s of spans) {
-      for (const t of (s.tags || [])) {
-        if (t.key === 'http.url' && typeof t.value === 'string' && !t.value.includes('/_proxy/')) {
-          try {
-            const u = new URL(t.value)
-            if (!requestPath || u.pathname.length > 1) {
-              requestPath = u.pathname
-              requestHost = u.hostname
-            }
-          } catch {}
+      const tagMap = {}
+      for (const t of (s.tags || [])) tagMap[t.key] = t.value
+
+      // Current OTel convention: url.path (+ server.address for host)
+      const urlPath = tagMap['url.path']
+      if (typeof urlPath === 'string' && urlPath.startsWith('/') && !urlPath.includes('/_proxy/')) {
+        if (!requestPath || urlPath.length > requestPath.length) {
+          requestPath = urlPath
         }
-        if (t.key === 'http.target' && typeof t.value === 'string' && t.value.startsWith('/') && !t.value.includes('/_proxy/')) {
-          if (!requestPath || t.value.length > requestPath.length) requestPath = t.value
+        // Try server.address from any span that carries a real URL path —
+        // not just the first one — so we still pick it up even if another
+        // span with the same-length path was seen first.
+        if (!requestHost) {
+          const addr = tagMap['server.address']
+          if (addr && addr.includes('.') && !addr.includes('mock-')) {
+            requestHost = addr
+          }
         }
       }
+
+      // Legacy OTel convention: http.url (full URL)
+      const httpUrl = tagMap['http.url']
+      if (typeof httpUrl === 'string' && !httpUrl.includes('/_proxy/')) {
+        try {
+          const u = new URL(httpUrl)
+          if (!requestPath || u.pathname.length > requestPath.length) {
+            requestPath = u.pathname
+            if (!requestHost) requestHost = u.hostname
+          }
+        } catch {}
+      }
+
+      // Legacy OTel convention: http.target
+      const httpTarget = tagMap['http.target']
+      if (typeof httpTarget === 'string' && httpTarget.startsWith('/') && !httpTarget.includes('/_proxy/')) {
+        if (!requestPath || httpTarget.length > requestPath.length) requestPath = httpTarget
+      }
+
+      // psaas.hostname is set by the perimeter to the original request Host header —
+      // the most reliable source for the public-facing hostname.
+      const psaasHost = tagMap['psaas.hostname']
+      if (psaasHost && !requestHost) requestHost = psaasHost
     }
 
     const endpointService = endpointSpan ? (processes[endpointSpan.processID]?.serviceName || 'unknown') : null

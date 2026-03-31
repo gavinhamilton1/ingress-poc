@@ -14,6 +14,7 @@ export default function Sessions() {
   const { data: sessions = [] } = useQuery({
     queryKey: ['sessions'],
     queryFn: () => fetch(`${AUTH_URL}/sessions`).then(r => r.json()).catch(() => []),
+    refetchInterval: 5000,
   })
 
   const revoke = async (sid) => {

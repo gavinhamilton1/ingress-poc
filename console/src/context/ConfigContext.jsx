@@ -9,6 +9,7 @@ const defaultConfig = {
   JAEGER_URL: import.meta.env.VITE_JAEGER_URL || '/_proxy/jaeger',
   JAEGER_UI_URL: import.meta.env.VITE_JAEGER_UI_URL || 'http://localhost:16686',
   WATCHDOG_URL: import.meta.env.VITE_WATCHDOG_URL || '/_proxy/watchdog',
+  GITOPS_URL: import.meta.env.VITE_GITOPS_URL || '/_proxy/management/gitops',
 }
 
 export function ConfigProvider({ children }) {

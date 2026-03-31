@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: console-nginx-config
+  labels:
+    app: console
+    ingress.jpmc.com/component: control-plane
+data:
+  default.conf: |
+    # Use kube-dns for service resolution inside the cluster.
+    # Docker Compose uses 127.0.0.11; Kubernetes uses the cluster DNS IP.
+    resolver 10.96.0.10 valid=10s;
+
+    server {
+        listen 80;
+        server_name _;
+        root /usr/share/nginx/html;
+        index index.html;
+
+        # Internal proxy -- same-origin calls from the console
+        location /_proxy/management/ {
+            set $mgmt_upstream management-api.ingress-cp.svc.cluster.local;
+            rewrite ^/_proxy/management/(.*) /$1 break;
+            proxy_pass http://$mgmt_upstream:8003;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+        }
+
+        location /_proxy/auth/ {
+            set $auth_upstream auth-service.ingress-cp.svc.cluster.local;
+            rewrite ^/_proxy/auth/(.*) /$1 break;
+            proxy_pass http://$auth_upstream:8001;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+        }
+
+        location /_proxy/gateway/ {
+            set $gtm_upstream mock-akamai-gtm.ingress-cp.svc.cluster.local;
+            rewrite ^/_proxy/gateway/(.*) /$1 break;
+            proxy_pass http://$gtm_upstream:8010;
+            proxy_set_header Host $http_x_route_host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header User-Agent $http_user_agent;
+        }
+
+        location /_proxy/jaeger/ {
+            set $jaeger_upstream jaeger.ingress-cp.svc.cluster.local;
+            rewrite ^/_proxy/jaeger/(.*) /$1 break;
+            proxy_pass http://$jaeger_upstream:16686;
+            proxy_set_header Host jaeger;
+        }
+
+        location /_proxy/watchdog/ {
+            set $watchdog_upstream watchdog.ingress-cp.svc.cluster.local;
+            rewrite ^/_proxy/watchdog/(.*) /$1 break;
+            proxy_pass http://$watchdog_upstream:8006;
+            proxy_set_header Host $host;
+        }
+
+        # Static assets
+        location /assets/ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
+
+        # SPA fallback
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+    }

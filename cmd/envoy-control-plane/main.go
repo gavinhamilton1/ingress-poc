@@ -135,7 +135,23 @@ func fleetKeyFromRequest(r *http.Request) (string, []byte) {
 // Helpers
 // ---------------------------------------------------------------------------
 
+// qualifyHostname ensures a bare hostname (no dots) gets a FQDN suffix so it
+// resolves correctly from any namespace. Fleet gateway pods run in
+// ingress-dp but backend services are in ingress-cp.
+func qualifyHostname(host string) string {
+	if host == "" || strings.Contains(host, ".") || host == "localhost" {
+		return host // Already qualified, external, or localhost
+	}
+	// Bare hostname — qualify with the control-plane namespace
+	ns := os.Getenv("BACKEND_NAMESPACE")
+	if ns == "" {
+		ns = "ingress-cp"
+	}
+	return host + "." + ns + ".svc.cluster.local"
+}
+
 // parseHostPort splits a URL like "http://host:port" into (host, port int).
+// The returned host is qualified with a FQDN suffix for cross-namespace DNS.
 func parseHostPort(raw string) (string, int) {
 	noScheme := raw
 	if idx := strings.Index(raw, "://"); idx >= 0 {
@@ -147,6 +163,7 @@ func parseHostPort(raw string) (string, int) {
 		host = noScheme[:i]
 		fmt.Sscanf(noScheme[i+1:], "%d", &portVal)
 	}
+	host = qualifyHostname(host)
 	return host, portVal
 }
 
@@ -769,27 +786,37 @@ func handleDiscoveryListeners(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleSnapshotRoutes(w http.ResponseWriter, r *http.Request) {
-	// Support optional ?fleet query param for debugging.
+	// Optional ?fleet param for per-fleet queries. Without it, return all routes
+	// across all fleet snapshots (used by the drift detector in management-api).
 	fleetKey := r.URL.Query().Get("fleet")
-	if fleetKey == "" {
-		fleetKey = globalFleetKey
-	}
 
 	mu.RLock()
 	defer mu.RUnlock()
 
-	snap := getSnapshot(fleetKey)
 	var result []map[string]interface{}
-	for _, route := range snap.routes {
-		if toString(route["gateway_type"]) == "envoy" && toString(route["status"]) == "active" {
-			result = append(result, map[string]interface{}{
-				"path":         toString(route["path"]),
-				"backend_url":  toString(route["backend_url"]),
-				"status":       toString(route["status"]),
-				"gateway_type": toString(route["gateway_type"]),
-			})
+	addRoutesFromSnap := func(snap *fleetSnapshot) {
+		for _, route := range snap.routes {
+			if toString(route["gateway_type"]) == "envoy" && toString(route["status"]) == "active" {
+				result = append(result, map[string]interface{}{
+					"path":         toString(route["path"]),
+					"hostname":     toString(route["hostname"]),
+					"backend_url":  toString(route["backend_url"]),
+					"status":       toString(route["status"]),
+					"gateway_type": toString(route["gateway_type"]),
+				})
+			}
 		}
 	}
+
+	if fleetKey != "" {
+		addRoutesFromSnap(getSnapshot(fleetKey))
+	} else {
+		// Return routes from all fleet snapshots (global + per-fleet).
+		for _, snap := range snapshots {
+			addRoutesFromSnap(snap)
+		}
+	}
+
 	if result == nil {
 		result = []map[string]interface{}{}
 	}

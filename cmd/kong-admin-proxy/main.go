@@ -76,6 +76,8 @@ var (
 			syncedRoutes: map[string]map[string]string{},
 		},
 	}
+	// triggerSync receives a signal to kick off an immediate sync cycle.
+	triggerSyncCh = make(chan struct{}, 1)
 )
 
 // getFleetState returns or creates state for the given fleet key.
@@ -310,17 +312,42 @@ func discoverFleets(ctx context.Context, headers http.Header) map[string][]kongN
 		if fleetID == "" {
 			continue
 		}
-		fleetKey := "fleet-" + fleetID
+		fleetKey := fleetID
 
-		// Get Kong nodes for this fleet.
-		nStatus, nBody, nErr := getJSON(ctx, managementAPIURL+"/fleets/"+fleetID+"/nodes?type=kong", headers)
+		// Get nodes for this fleet.
+		nStatus, nBody, nErr := getJSON(ctx, managementAPIURL+"/fleets/"+fleetID+"/nodes", headers)
 		if nErr != nil || nStatus != 200 {
 			continue
 		}
 
-		var nodes []kongNode
-		if err := json.Unmarshal(nBody, &nodes); err != nil {
+		// Response is {"fleet_id":..., "nodes":[...], "count":...}
+		var resp struct {
+			Nodes []struct {
+				ContainerID   string `json:"container_id"`
+				ContainerName string `json:"container_name"`
+				FleetID       string `json:"fleet_id"`
+				GatewayType   string `json:"gateway_type"`
+				AdminURL      string `json:"admin_url"`
+				Host          string `json:"host"`
+				Port          int    `json:"port"`
+			} `json:"nodes"`
+		}
+		if err := json.Unmarshal(nBody, &resp); err != nil {
 			continue
+		}
+
+		// Keep only Kong nodes.
+		var nodes []kongNode
+		for _, n := range resp.Nodes {
+			if n.GatewayType == "kong" {
+				nodes = append(nodes, kongNode{
+					ID:       n.ContainerID,
+					FleetID:  n.FleetID,
+					AdminURL: n.AdminURL,
+					Host:     n.Host,
+					Port:     n.Port,
+				})
+			}
 		}
 
 		if len(nodes) > 0 {
@@ -370,7 +397,11 @@ func syncRoutes(tracer trace.Tracer) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
-	for ; ; <-ticker.C {
+	for {
+		select {
+		case <-ticker.C:
+		case <-triggerSyncCh:
+		}
 		func() {
 			ctx, span := tracer.Start(context.Background(), "kong.sync")
 			defer span.End()
@@ -388,14 +419,23 @@ func syncRoutes(tracer trace.Tracer) {
 			// ----------------------------------------------------------
 			fleetNodes := discoverFleets(ctx, headers)
 			for fleetKey, nodes := range fleetNodes {
+				// Deduplicate admin URLs for this fleet so we don't push the same
+				// config twice when multiple nodes share the same Kong instance.
+				seen := map[string]bool{}
 				for _, node := range nodes {
 					adminURL := node.AdminURL
 					if adminURL == "" && node.Host != "" && node.Port > 0 {
 						adminURL = fmt.Sprintf("http://%s:%d", node.Host, node.Port)
 					}
+					// In single-Kong deployments (e.g., local K8s dev) there may be no
+					// per-node admin URL — fall back to the shared Kong admin endpoint.
 					if adminURL == "" {
+						adminURL = kongAdminURL
+					}
+					if seen[adminURL] {
 						continue
 					}
+					seen[adminURL] = true
 					syncFleet(ctx, tracer, fleetKey, adminURL, headers)
 				}
 			}
@@ -702,30 +742,54 @@ func diffKeys(a, b map[string]bool) []string {
 // ---------------------------------------------------------------------------
 
 func handleSyncStatusRoutes(w http.ResponseWriter, r *http.Request) {
-	// Support optional ?fleet query param for debugging.
+	// Optional ?fleet param for per-fleet queries. Without it, return all routes
+	// across all fleets (used by the drift detector in management-api).
 	fleetKey := r.URL.Query().Get("fleet")
-	if fleetKey == "" {
-		fleetKey = globalFleetKey
-	}
 
 	mu.RLock()
 	defer mu.RUnlock()
 
-	state := getFleetState(fleetKey)
 	var result []map[string]interface{}
-	for path, info := range state.syncedRoutes {
-		result = append(result, map[string]interface{}{
-			"path":         path,
-			"backend_url":  info["backend_url"],
-			"status":       "active",
-			"gateway_type": "kong",
-		})
+	if fleetKey != "" {
+		// Return routes for the specified fleet only.
+		state := getFleetState(fleetKey)
+		for path, info := range state.syncedRoutes {
+			result = append(result, map[string]interface{}{
+				"path":         path,
+				"backend_url":  info["backend_url"],
+				"status":       "active",
+				"gateway_type": "kong",
+			})
+		}
+	} else {
+		// Return all routes from all fleet states (global + per-fleet).
+		for _, state := range fleetStates {
+			for path, info := range state.syncedRoutes {
+				result = append(result, map[string]interface{}{
+					"path":         path,
+					"backend_url":  info["backend_url"],
+					"status":       "active",
+					"gateway_type": "kong",
+				})
+			}
+		}
 	}
 	if result == nil {
 		result = []map[string]interface{}{}
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)
+}
+
+func handleSyncTrigger(w http.ResponseWriter, r *http.Request) {
+	// Non-blocking send — if a sync is already queued, this is a no-op.
+	select {
+	case triggerSyncCh <- struct{}{}:
+	default:
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	w.Write([]byte(`{"triggered":true}`))
 }
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -769,6 +833,9 @@ func main() {
 
 	// Drift detection
 	r.Get("/sync-status/routes", handleSyncStatusRoutes)
+
+	// Manual sync trigger (called by management-api reconcile)
+	r.Post("/sync/trigger", handleSyncTrigger)
 
 	// Health
 	r.Get("/health", handleHealth)

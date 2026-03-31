@@ -1,0 +1,47 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: ingress-cp
+
+resources:
+  - ../../base
+
+patches:
+  # Convert key services to NodePort for kind access
+  - path: nodeport-patches.yaml
+
+  # Set imagePullPolicy: Never on all Deployments
+  # (kind loads images directly into cluster nodes)
+  - path: image-pull-policy-patch.yaml
+    target:
+      kind: Deployment
+
+  # Override ORCHESTRATION_MODE for local dev.
+  # Set to "docker" for Docker-based orchestration or "kubernetes" for GitOps.
+  # GitHub credentials are loaded from the gitops-github secret (create it
+  # separately — see README for instructions).
+  - target:
+      kind: Deployment
+      name: management-api
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/env/4/value
+        value: "kubernetes"
+      - op: replace
+        path: /spec/template/spec/containers/0/env/6
+        value:
+          name: GITOPS_GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: gitops-github
+              key: token
+              optional: true
+      - op: replace
+        path: /spec/template/spec/containers/0/env/7
+        value:
+          name: GITOPS_GITHUB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: gitops-github
+              key: username
+              optional: true

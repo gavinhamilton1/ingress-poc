@@ -30,7 +30,9 @@ export default function RoutesPage() {
   const [form, setForm] = useState({
     path: '', backend_url: '', audience: '', allowed_roles: '',
     gateway_type: 'kong', team: '', methods: 'GET,POST,PUT,DELETE',
+    targetFleetId: '', deployToAll: true, targetNodes: [],
   })
+  const [fleetNodes, setFleetNodes] = useState([])
 
   const { data: routes = [] } = useQuery({
     queryKey: ['routes'],
@@ -81,13 +83,33 @@ export default function RoutesPage() {
     return 'in sync'
   }
 
+  // Fetch fleet nodes when a target fleet is selected
+  const fetchFleetNodes = async (fleetId) => {
+    if (!fleetId) { setFleetNodes([]); return }
+    try {
+      const resp = await fetch(`${API_URL}/fleets/${fleetId}/nodes`)
+      const nodes = await resp.json()
+      setFleetNodes(Array.isArray(nodes) ? nodes.filter(n => n.status === 'running') : [])
+    } catch { setFleetNodes([]) }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setErrors([])
+    // Build hostname from selected fleet
+    const selectedFleet = form.targetFleetId ? fleets.find(f => f.id === form.targetFleetId) : null
+    const hostname = selectedFleet ? selectedFleet.subdomain : form.hostname || '*'
+
     const data = {
-      ...form,
+      path: form.path,
+      backend_url: form.backend_url,
+      audience: form.audience,
+      gateway_type: form.gateway_type,
+      team: form.team,
+      hostname,
       allowed_roles: form.allowed_roles ? form.allowed_roles.split(',').map(s => s.trim()) : [],
       methods: form.methods.split(',').map(s => s.trim()),
+      target_nodes: form.deployToAll ? [] : form.targetNodes,
     }
     try {
       const r = await fetch(`${API_URL}/routes`, {
@@ -98,7 +120,8 @@ export default function RoutesPage() {
         setShowForm(false)
         setSubmitBanner(true)
         setTimeout(() => setSubmitBanner(false), 5000)
-        setForm({ path: '', backend_url: '', audience: '', allowed_roles: '', gateway_type: 'kong', team: '', methods: 'GET,POST,PUT,DELETE' })
+        setForm({ path: '', backend_url: '', audience: '', allowed_roles: '', gateway_type: 'kong', team: '', methods: 'GET,POST,PUT,DELETE', targetFleetId: '', deployToAll: true, targetNodes: [] })
+        setFleetNodes([])
         refreshData()
       } else {
         const err = await r.json()
@@ -164,11 +187,10 @@ export default function RoutesPage() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-sm flex items-center gap-2"
+            className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-300 text-sm flex items-center gap-2"
           >
             <GitBranch size={16} />
-            In production this change would be committed to Bitbucket and applied by ArgoCD.
-            In this POC the Management API writes directly to the gateway control plane.
+            Route changes are committed to the fleet's GitHub repo and applied to the data-plane cluster via Argo CD.
           </motion.div>
         )}
       </AnimatePresence>
@@ -241,13 +263,13 @@ export default function RoutesPage() {
                 </div>
 
                 {/* GitOps notice */}
-                <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 mb-6">
-                  <div className="flex items-center gap-2 text-amber-400 text-xs font-medium mb-1">
+                <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30 mb-6">
+                  <div className="flex items-center gap-2 text-blue-400 text-xs font-medium mb-1">
                     <Info size={12} />
-                    GitOps POC Mode
+                    GitOps Deployment
                   </div>
-                  <p className="text-[11px] text-amber-300/70">
-                    Changes write directly to the gateway. In production this would go through a Git commit workflow.
+                  <p className="text-[11px] text-blue-300/70">
+                    Route CRD manifests are committed to the fleet's GitHub repo and applied to the cluster. Argo CD reconciles continuously.
                   </p>
                 </div>
 
@@ -287,6 +309,67 @@ export default function RoutesPage() {
                     <label className="block text-xs font-medium text-jpmc-muted mb-1.5">Methods</label>
                     <input className="input-field" value={form.methods} onChange={e => setForm({ ...form, methods: e.target.value })} />
                   </div>
+
+                  {/* Target Fleet */}
+                  <div>
+                    <label className="block text-xs font-medium text-jpmc-muted mb-1.5">Target Fleet <span className="text-jpmc-muted text-[10px]">(optional)</span></label>
+                    <select className="select-field" value={form.targetFleetId}
+                      onChange={e => {
+                        const fleetId = e.target.value
+                        setForm({ ...form, targetFleetId: fleetId, deployToAll: true, targetNodes: [] })
+                        fetchFleetNodes(fleetId)
+                      }}>
+                      <option value="">No fleet (standalone route)</option>
+                      {fleets.map(f => (
+                        <option key={f.id} value={f.id}>{f.name} ({f.subdomain})</option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-jpmc-muted mt-1">
+                      Selecting a fleet auto-sets the hostname and enables node targeting.
+                    </p>
+                  </div>
+
+                  {/* Target Nodes (shown when fleet is selected) */}
+                  {form.targetFleetId && (
+                    <div className="p-3 rounded-lg bg-jpmc-navy/50 border border-jpmc-border/30 space-y-2">
+                      <label className="block text-xs font-medium text-jpmc-muted mb-1">Deploy to</label>
+                      <div className="flex gap-3">
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <input type="radio" name="deployTarget" checked={form.deployToAll}
+                            onChange={() => setForm({ ...form, deployToAll: true, targetNodes: [] })}
+                            className="text-blue-500" />
+                          <span className="text-xs text-jpmc-text">All nodes in fleet</span>
+                        </label>
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <input type="radio" name="deployTarget" checked={!form.deployToAll}
+                            onChange={() => setForm({ ...form, deployToAll: false })}
+                            className="text-blue-500" />
+                          <span className="text-xs text-jpmc-text">Specific nodes</span>
+                        </label>
+                      </div>
+                      {!form.deployToAll && (
+                        <div className="mt-2 space-y-1">
+                          {fleetNodes.length === 0 ? (
+                            <p className="text-[10px] text-jpmc-muted">No running nodes found in this fleet.</p>
+                          ) : fleetNodes.map(node => (
+                            <label key={node.container_id} className="flex items-center gap-2 p-1.5 rounded hover:bg-jpmc-hover cursor-pointer">
+                              <input type="checkbox"
+                                checked={form.targetNodes.includes(node.container_id)}
+                                onChange={e => {
+                                  const nodes = e.target.checked
+                                    ? [...form.targetNodes, node.container_id]
+                                    : form.targetNodes.filter(id => id !== node.container_id)
+                                  setForm({ ...form, targetNodes: nodes })
+                                }}
+                                className="rounded border-jpmc-border text-blue-500" />
+                              <span className="text-xs text-jpmc-text">{node.container_name || node.container_id}</span>
+                              <span className="text-[10px] text-jpmc-muted">({node.gateway_type} - {node.datacenter})</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <AnimatePresence>
                     {errors.length > 0 && (

@@ -1,0 +1,50 @@
+# Kind cluster configuration for the Ingress PoC Control Plane
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: ingress-cp
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      # Console (nginx serves on port 80 inside the cluster)
+      - containerPort: 30080
+        hostPort: 3000
+        protocol: TCP
+      # Management API
+      - containerPort: 30003
+        hostPort: 8003
+        protocol: TCP
+      # Auth Service
+      - containerPort: 30001
+        hostPort: 8001
+        protocol: TCP
+      # Jaeger UI
+      - containerPort: 30686
+        hostPort: 16686
+        protocol: TCP
+      # Gateway Envoy
+      - containerPort: 30000
+        hostPort: 8000
+        protocol: TCP
+      # Gateway Kong
+      - containerPort: 30100
+        hostPort: 8100
+        protocol: TCP
+      # Mock Akamai GTM
+      - containerPort: 30010
+        hostPort: 8010
+        protocol: TCP
+      # Mock Akamai GTM on port 80 (so http://jpmm.jpm.com/ works in browser)
+      - containerPort: 30011
+        hostPort: 80
+        protocol: TCP
+      # Mock Akamai GTM on port 443 (so https://jpmm.jpm.com/ works in browser)
+      - containerPort: 30443
+        hostPort: 443
+        protocol: TCP
+      # Local DNS (CoreDNS for *.jpm.com)
+      - containerPort: 30053
+        hostPort: 5553
+        protocol: UDP
+      - containerPort: 30053
+        hostPort: 5553
+        protocol: TCP

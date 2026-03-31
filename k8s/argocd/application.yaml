@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ingress-data-plane
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    # CONFIGURE: Set to your Git repo URL
+    # For a local repo you can use: https://github.com/<org>/ingress-poc.git
+    repoURL: "PLACEHOLDER_REPO_URL"
+    targetRevision: HEAD
+    path: clusters/data-plane-1
+
+  destination:
+    # CONFIGURE: Set to the DP cluster server URL registered with Argo CD
+    # Run register-dp-cluster.sh first, then use the server URL from:
+    #   kubectl get secret -n argocd -l argocd.argoproj.io/secret-type=cluster -o jsonpath='{.items[0].data.server}' | base64 -d
+    server: "PLACEHOLDER_DP_CLUSTER_SERVER_URL"
+    namespace: ingress-dp
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground

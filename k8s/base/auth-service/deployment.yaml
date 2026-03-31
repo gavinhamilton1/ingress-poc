@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  labels:
+    app: auth-service
+    ingress.jpmc.com/component: control-plane
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: auth-service
+  template:
+    metadata:
+      labels:
+        app: auth-service
+        ingress.jpmc.com/component: control-plane
+    spec:
+      containers:
+        - name: auth-service
+          image: ingress-poc/auth-service:latest
+          ports:
+            - containerPort: 8001
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "8001"
+            - name: AUTH_SERVICE_URL
+              value: http://auth-service:8001
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://jaeger:4318
+          resources:
+            limits:
+              memory: 256Mi
+              cpu: 250m
+            requests:
+              memory: 128Mi
+              cpu: 100m

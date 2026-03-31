@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"os"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func getEnvOr(key, def string) string {
@@ -193,7 +195,7 @@ func seedDefaults(db *sqlx.DB) {
 			created_at, updated_at)
 			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35)`,
 			f.ID, f.Name, f.Subdomain, f.LOB, f.HostEnv, f.GatewayType, f.Region, string(regions),
-			f.AuthProvider, f.InstancesCount, "healthy",
+			f.AuthProvider, f.InstancesCount, "not_deployed",
 			f.Description, f.TrafficType, f.TLSTermination, f.HTTP2Enabled, f.ConnectionLimit,
 			f.TimeoutConnectMs, f.TimeoutRequestMs, f.RateLimitRPS, string(kongPlugins),
 			f.HealthCheckPath, f.HealthCheckIntervalS, f.AuthnMechanism, string(authzScopes),
@@ -337,10 +339,10 @@ func seedDefaults(db *sqlx.DB) {
 		"fleet-authz": true, "fleet-console": true,
 	}
 	for _, i := range instSeeds {
-		instStatus := "active"
-		if !deployedFleets[i.FleetID] {
-			instStatus = "inactive"
-		}
+		// All instances start as inactive; ensureFleetContainers will
+		// activate them after actual pods are deployed.
+		instStatus := "inactive"
+		_ = deployedFleets // used later by ensureFleetContainers
 		// Look up the matching route_id by fleet subdomain + path
 		var routeID string
 		var fleetForInst Fleet
@@ -361,15 +363,15 @@ func seedDefaults(db *sqlx.DB) {
 		Port                                               int
 	}
 	fleetNodeSeeds := []fleetNodeSeed{
-		// Active fleets (Docker containers will be created)
-		{"fleet-jpmm-envoy-1", "fleet-jpmm", "envoy", "us-east-1", "running", 9001},
-		{"fleet-jpmm-envoy-2", "fleet-jpmm", "envoy", "us-east-1", "running", 9002},
-		{"fleet-jpmm-kong-1", "fleet-jpmm", "kong", "us-east-1", "running", 9101},
-		{"fleet-access-envoy-1", "fleet-access", "envoy", "us-east-1", "running", 9003},
-		{"fleet-authn-envoy-1", "fleet-authn", "envoy", "us-east-2", "running", 9004},
-		{"fleet-authz-envoy-1", "fleet-authz", "envoy", "us-east-2", "running", 9005},
-		{"fleet-console-envoy-1", "fleet-console", "envoy", "us-east-2", "running", 9006},
-		{"fleet-console-envoy-2", "fleet-console", "envoy", "us-east-2", "running", 9007},
+		// Active fleets (will be deployed by ensureFleetContainers on startup)
+		{"fleet-jpmm-envoy-1", "fleet-jpmm", "envoy", "us-east-1", "pending", 0},
+		{"fleet-jpmm-envoy-2", "fleet-jpmm", "envoy", "us-east-1", "pending", 0},
+		{"fleet-jpmm-kong-1", "fleet-jpmm", "kong", "us-east-1", "pending", 0},
+		{"fleet-access-envoy-1", "fleet-access", "envoy", "us-east-1", "pending", 0},
+		{"fleet-authn-envoy-1", "fleet-authn", "envoy", "us-east-2", "pending", 0},
+		{"fleet-authz-envoy-1", "fleet-authz", "envoy", "us-east-2", "pending", 0},
+		{"fleet-console-envoy-1", "fleet-console", "envoy", "us-east-2", "pending", 0},
+		{"fleet-console-envoy-2", "fleet-console", "envoy", "us-east-2", "pending", 0},
 		// Inactive fleets (no Docker containers — config only, awaiting deployment)
 		{"fleet-execute-envoy-1", "fleet-execute", "envoy", "us-east-1", "stopped", 0},
 		{"fleet-execute-kong-1", "fleet-execute", "kong", "us-east-1", "stopped", 0},
@@ -459,10 +461,9 @@ func getFleetNodeSpecs(f Fleet) []fleetNodeSpec {
 // missing containers. Called on every startup so a full restart restores
 // the fleet infrastructure. Supports mixed-type fleets (both envoy and kong).
 func ensureFleetContainers(db *sqlx.DB) {
-	// Wait for Docker to be ready
+	// Wait for orchestrator to be ready
 	time.Sleep(3 * time.Second)
 
-	networkName := getEnvOr("DOCKER_NETWORK", "")
 	var fleets []Fleet
 	if err := db.Select(&fleets, "SELECT * FROM fleets"); err != nil {
 		log.Printf("ensureFleetContainers: failed to query fleets: %v", err)
@@ -495,7 +496,7 @@ func ensureFleetContainers(db *sqlx.DB) {
 		// Skip fleets that shouldn't have containers
 		shouldDeploy := autoDeployFleets[f.ID]
 		if !shouldDeploy {
-			existing, _ := listFleetContainers(f.ID)
+			existing, _ := orch.ListFleetNodes(f.ID)
 			if len(existing) > 0 {
 				shouldDeploy = true
 			}
@@ -505,10 +506,21 @@ func ensureFleetContainers(db *sqlx.DB) {
 			continue
 		}
 
-		existing, err := listFleetContainers(f.ID)
+		existing, err := orch.ListFleetNodes(f.ID)
 		if err != nil {
 			log.Printf("ensureFleetContainers: error listing containers for %s: %v", f.Name, err)
 			continue
+		}
+
+		// In K8s mode, verify the Fleet CRD actually exists in the cluster.
+		// Git manifests may be stale from a previous deployment cycle.
+		if k8sOrch, ok := orch.(*K8sOrchestrator); ok && k8sOrch.dynClient != nil {
+			_, getErr := k8sOrch.dynClient.Resource(fleetGVR).Namespace("ingress-dp").Get(
+				context.Background(), f.ID, metav1.GetOptions{})
+			if getErr != nil {
+				// Fleet CRD not in cluster — treat as no running nodes
+				existing = nil
+			}
 		}
 
 		// Count running containers by type
@@ -548,11 +560,11 @@ func ensureFleetContainers(db *sqlx.DB) {
 
 		// Re-create all containers (clean slate)
 		log.Printf("Fleet %s (%s): only %d/%d running — recreating", f.Name, f.GatewayType, totalRunning, totalDesired)
-		removeFleetContainers(f.ID)
+		orch.RemoveFleetNodes(f.ID)
 
 		allNodes := []FleetNode{}
 		for _, spec := range specs {
-			nodes, err := createFleetContainers(f.ID, spec.GatewayType, spec.Count, networkName)
+			nodes, err := orch.CreateFleetNodes(f.ID, spec.GatewayType, spec.Count)
 			if err != nil {
 				log.Printf("ensureFleetContainers: failed to create %s containers for %s: %v", spec.GatewayType, f.Name, err)
 			} else {
@@ -600,7 +612,7 @@ func seedRouteNodeAssignments(db *sqlx.DB) {
 				continue
 			}
 			fleetChecked[a.FleetID] = true
-			nodes, _ := listFleetContainers(a.FleetID)
+			nodes, _ := orch.ListFleetNodes(a.FleetID)
 			for _, n := range nodes {
 				liveContainerIDs[n.ContainerID] = true
 			}
@@ -653,7 +665,7 @@ func seedRouteNodeAssignments(db *sqlx.DB) {
 		}
 
 		// First try live Docker containers
-		liveNodes, _ := listFleetContainers(fleet.ID)
+		liveNodes, _ := orch.ListFleetNodes(fleet.ID)
 		liveAssigned := false
 		for _, node := range liveNodes {
 			if node.Status == "running" && node.GatewayType == route.GatewayType {

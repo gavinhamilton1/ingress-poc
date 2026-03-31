@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingress-operator
+  labels:
+    app: ingress-operator
+    ingress.jpmc.com/component: control-plane
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ingress-operator
+  template:
+    metadata:
+      labels:
+        app: ingress-operator
+        ingress.jpmc.com/component: control-plane
+    spec:
+      serviceAccountName: ingress-operator
+      containers:
+        - name: ingress-operator
+          image: ingress-poc/ingress-operator:latest
+          ports:
+            - name: metrics
+              containerPort: 8080
+              protocol: TCP
+          resources:
+            limits:
+              memory: 256Mi
+              cpu: 250m
+            requests:
+              memory: 128Mi
+              cpu: 100m

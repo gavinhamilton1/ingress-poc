@@ -1,0 +1,130 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: routes.ingress.jpmc.com
+spec:
+  group: ingress.jpmc.com
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required: [path, backendUrl]
+              properties:
+                path:
+                  type: string
+                hostname:
+                  type: string
+                backendUrl:
+                  type: string
+                audience:
+                  type: string
+                allowedRoles:
+                  type: array
+                  items:
+                    type: string
+                methods:
+                  type: array
+                  items:
+                    type: string
+                team:
+                  type: string
+                createdBy:
+                  type: string
+                gatewayType:
+                  type: string
+                  enum: [envoy, kong]
+                healthPath:
+                  type: string
+                authnMechanism:
+                  type: string
+                authIssuer:
+                  type: string
+                authzScopes:
+                  type: array
+                  items:
+                    type: string
+                tlsRequired:
+                  type: boolean
+                notes:
+                  type: string
+                targetFleet:
+                  type: string
+                  description: Name of the Fleet CR this route should be deployed to
+                targetNodes:
+                  type: array
+                  items:
+                    type: string
+                functionCode:
+                  type: string
+                functionLanguage:
+                  type: string
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum: [Pending, Deployed, Degraded, Failed]
+                deployedToNodes:
+                  type: array
+                  items:
+                    type: string
+                drift:
+                  type: boolean
+                driftDetail:
+                  type: string
+                lastChecked:
+                  type: string
+                  format: date-time
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+                      reason:
+                        type: string
+                      message:
+                        type: string
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Path
+          type: string
+          jsonPath: .spec.path
+        - name: Backend
+          type: string
+          jsonPath: .spec.backendUrl
+        - name: Gateway
+          type: string
+          jsonPath: .spec.gatewayType
+        - name: Fleet
+          type: string
+          jsonPath: .spec.targetFleet
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Drift
+          type: boolean
+          jsonPath: .status.drift
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+  scope: Namespaced
+  names:
+    plural: routes
+    singular: route
+    kind: Route
+    shortNames: [rt]
+    categories: [ingress]

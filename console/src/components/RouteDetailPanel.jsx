@@ -1,5 +1,6 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import StatusBadge from './StatusBadge'
+import { useConfig } from '../context/ConfigContext'
 
 /**
  * Shared route detail panel used in both the Routes page (table row expansion)
@@ -20,6 +21,17 @@ const AUTHN_LABELS = {
 }
 
 export default function RouteDetailPanel({ route, driftStatus, auditEntries = [], gatewayUrl, compact = false }) {
+  const { API_URL } = useConfig()
+  const [deployedNodes, setDeployedNodes] = useState([])
+
+  useEffect(() => {
+    if (!route?.id || !API_URL) return
+    fetch(`${API_URL}/routes/${route.id}/nodes`)
+      .then(r => r.json())
+      .then(nodes => setDeployedNodes(Array.isArray(nodes) ? nodes : []))
+      .catch(() => setDeployedNodes([]))
+  }, [route?.id, API_URL])
+
   const h = route.hostname && route.hostname !== '*' ? route.hostname : null
   const testBase = h ? `https://${h}` : (gatewayUrl || '')
   const testUrl = `${testBase}${route.path}`
@@ -47,6 +59,22 @@ export default function RouteDetailPanel({ route, driftStatus, auditEntries = []
         {route.team && <div><span className="text-jpmc-muted">Team:</span> <span className="text-jpmc-text">{route.team}</span></div>}
         {driftStatus && <div><span className="text-jpmc-muted">Drift:</span> <StatusBadge status={driftStatus} /></div>}
       </div>
+
+      {/* Deployed Nodes section */}
+      {deployedNodes.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-jpmc-border/20">
+          <div className="text-jpmc-muted mb-2 font-medium uppercase tracking-wider text-[10px]">Deployed Nodes ({deployedNodes.length})</div>
+          <div className="flex flex-wrap gap-1.5">
+            {deployedNodes.map((node, i) => (
+              <span key={i} className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-jpmc-navy/60 border border-jpmc-border/30 text-[10px]">
+                <span className={`w-1.5 h-1.5 rounded-full ${node.status === 'active' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                <span className="text-jpmc-text font-mono">{node.node_name || node.node_container_id || `node-${i + 1}`}</span>
+                {node.datacenter && <span className="text-jpmc-muted">({node.datacenter})</span>}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Auth & AuthZ section */}
       <div className="mt-3 pt-3 border-t border-jpmc-border/20">

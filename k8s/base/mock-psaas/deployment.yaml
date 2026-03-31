@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mock-psaas
+  labels:
+    app: mock-psaas
+    ingress.jpmc.com/component: data-plane
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mock-psaas
+  template:
+    metadata:
+      labels:
+        app: mock-psaas
+        ingress.jpmc.com/component: data-plane
+    spec:
+      containers:
+        - name: mock-psaas
+          image: ingress-poc/mock-psaas:latest
+          ports:
+            - containerPort: 8012
+              protocol: TCP
+          env:
+            - name: GATEWAY_ENVOY_URL
+              value: http://gateway-envoy:8000
+            - name: GATEWAY_KONG_URL
+              value: http://gateway-kong:8000
+            - name: ORCHESTRATION_MODE
+              value: kubernetes
+            - name: MANAGEMENT_API_URL
+              value: http://management-api.ingress-cp:8003
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://jaeger:4318
+          resources:
+            limits:
+              memory: 128Mi
+              cpu: 100m
+            requests:
+              memory: 64Mi
+              cpu: 50m

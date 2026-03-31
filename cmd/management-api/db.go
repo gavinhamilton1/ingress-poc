@@ -22,13 +22,19 @@ func initDB() *sqlx.DB {
 	db.SetMaxOpenConns(25)
 	db.SetMaxIdleConns(5)
 
-	// Run migrations
-	schema, err := os.ReadFile("migrations/001_init.sql")
-	if err != nil {
-		log.Printf("Warning: could not read migration file: %v", err)
-	} else {
+	// Run migrations in order
+	migrations := []string{
+		"migrations/001_init.sql",
+		"migrations/002_k8s_migration.sql",
+	}
+	for _, mf := range migrations {
+		schema, err := os.ReadFile(mf)
+		if err != nil {
+			log.Printf("Warning: could not read migration file %s: %v", mf, err)
+			continue
+		}
 		db.MustExec(string(schema))
-		log.Println("Database schema applied")
+		log.Printf("Applied migration: %s", mf)
 	}
 
 	return db

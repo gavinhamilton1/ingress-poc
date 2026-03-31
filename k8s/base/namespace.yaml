@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ingress-cp
+  labels:
+    app.kubernetes.io/part-of: ingress-poc
+    ingress.jpmc.com/plane: control

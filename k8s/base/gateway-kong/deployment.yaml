@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-kong
+  labels:
+    app: gateway-kong
+    ingress.jpmc.com/component: data-plane
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway-kong
+  template:
+    metadata:
+      labels:
+        app: gateway-kong
+        ingress.jpmc.com/component: data-plane
+    spec:
+      containers:
+        - name: gateway-kong
+          image: ingress-poc/gateway-kong:latest
+          ports:
+            - name: proxy
+              containerPort: 8000
+              protocol: TCP
+            - name: admin
+              containerPort: 8001
+              protocol: TCP
+          resources:
+            limits:
+              memory: 1Gi
+              cpu: 500m
+            requests:
+              memory: 256Mi
+              cpu: 100m

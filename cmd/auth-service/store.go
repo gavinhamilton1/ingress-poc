@@ -118,10 +118,18 @@ func (s *Store) PopAuthCode(code string) (*AuthCode, bool) {
 	return ac, ok
 }
 
-// StoreSession saves a session.
+// StoreSession saves a session, revoking any existing active sessions for the
+// same subject first. This enforces a single active session per user — a new
+// login always supersedes the previous one.
 func (s *Store) StoreSession(sid string, sess *Session) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	for existingSID, existing := range s.sessions {
+		if existing.Sub == sess.Sub && existing.Status == "active" {
+			existing.Status = "revoked"
+			s.revokedSessions[existingSID] = struct{}{}
+		}
+	}
 	s.sessions[sid] = sess
 }
 

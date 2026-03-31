@@ -1,0 +1,164 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: fleets.ingress.jpmc.com
+spec:
+  group: ingress.jpmc.com
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required: [name, subdomain, gatewayType]
+              properties:
+                name:
+                  type: string
+                subdomain:
+                  type: string
+                lob:
+                  type: string
+                hostEnv:
+                  type: string
+                  enum: [aws, psaas]
+                gatewayType:
+                  type: string
+                  enum: [envoy, kong, mixed]
+                region:
+                  type: string
+                regions:
+                  type: array
+                  items:
+                    type: string
+                authProvider:
+                  type: string
+                description:
+                  type: string
+                trafficType:
+                  type: string
+                  enum: [web, api]
+                tlsTermination:
+                  type: string
+                http2Enabled:
+                  type: boolean
+                connectionLimit:
+                  type: integer
+                timeoutConnectMs:
+                  type: integer
+                timeoutRequestMs:
+                  type: integer
+                rateLimitRps:
+                  type: integer
+                kongPlugins:
+                  type: array
+                  items:
+                    type: string
+                healthCheckPath:
+                  type: string
+                healthCheckIntervalS:
+                  type: integer
+                authnMechanism:
+                  type: string
+                defaultAuthzScopes:
+                  type: array
+                  items:
+                    type: string
+                tlsRequired:
+                  type: string
+                wafProfile:
+                  type: string
+                resourceProfile:
+                  type: string
+                  enum: [small, medium, large]
+                autoscale:
+                  type: object
+                  properties:
+                    enabled:
+                      type: boolean
+                    min:
+                      type: integer
+                    max:
+                      type: integer
+                    cpuThreshold:
+                      type: integer
+                replicas:
+                  type: integer
+                  minimum: 0
+                  maximum: 50
+                fleetType:
+                  type: string
+                  enum: [data, control]
+                notes:
+                  type: string
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum: [Pending, Creating, Running, Suspended, Degraded, Failed]
+                readyReplicas:
+                  type: integer
+                desiredReplicas:
+                  type: integer
+                availableNodes:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      podName:
+                        type: string
+                      status:
+                        type: string
+                      datacenter:
+                        type: string
+                      gatewayType:
+                        type: string
+                      ip:
+                        type: string
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+                      reason:
+                        type: string
+                      message:
+                        type: string
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Gateway
+          type: string
+          jsonPath: .spec.gatewayType
+        - name: Replicas
+          type: integer
+          jsonPath: .spec.replicas
+        - name: Ready
+          type: integer
+          jsonPath: .status.readyReplicas
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+  scope: Namespaced
+  names:
+    plural: fleets
+    singular: fleet
+    kind: Fleet
+    shortNames: [fl]
+    categories: [ingress]

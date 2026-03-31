@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mock-akamai-gtm
+  labels:
+    app: mock-akamai-gtm
+    ingress.jpmc.com/component: data-plane
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mock-akamai-gtm
+  template:
+    metadata:
+      labels:
+        app: mock-akamai-gtm
+        ingress.jpmc.com/component: data-plane
+    spec:
+      containers:
+        - name: mock-akamai-gtm
+          image: ingress-poc/mock-akamai-gtm:latest
+          ports:
+            - name: http
+              containerPort: 8010
+              protocol: TCP
+            - name: https
+              containerPort: 8443
+              protocol: TCP
+          env:
+            - name: FORWARD_TO
+              value: http://mock-akamai-edge:8011
+            - name: HTTPS_PORT
+              value: "8443"
+            - name: SSL_CERTFILE
+              value: /certs/jpm.com.crt
+            - name: SSL_KEYFILE
+              value: /certs/jpm.com.key
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://jaeger:4318
+          volumeMounts:
+            - name: tls-certs
+              mountPath: /certs
+              readOnly: true
+          resources:
+            limits:
+              memory: 128Mi
+              cpu: 100m
+            requests:
+              memory: 64Mi
+              cpu: 50m
+      volumes:
+        - name: tls-certs
+          secret:
+            secretName: jpm-tls-certs

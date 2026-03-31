@@ -1,0 +1,8 @@
+# JSON patch to set imagePullPolicy: IfNotPresent on the first container of
+# every Deployment. Kind loads local images directly into cluster nodes, so
+# they are found without a registry pull. Third-party images (jaeger, postgres)
+# that are NOT pre-loaded will be pulled from Docker Hub on first use.
+# Using IfNotPresent (instead of Never) avoids ErrImageNeverPull for public images.
+- op: add
+  path: /spec/template/spec/containers/0/imagePullPolicy
+  value: IfNotPresent

@@ -13,6 +13,8 @@ import Sessions from './pages/Sessions'
 import Traces from './pages/Traces'
 import DriftDashboard from './pages/DriftDashboard'
 import RawData from './pages/RawData'
+import GitOps from './pages/GitOps'
+import Architecture from './pages/Architecture'
 import Login from './pages/Login'
 
 function AnimatedRoutes() {
@@ -35,7 +37,9 @@ function AnimatedRoutes() {
           <Route path="/sessions" element={<Sessions />} />
           <Route path="/traces" element={<Traces />} />
           <Route path="/drift" element={<DriftDashboard />} />
+          <Route path="/gitops" element={<GitOps />} />
           <Route path="/raw-data" element={<RawData />} />
+          <Route path="/architecture" element={<Architecture />} />
           <Route path="/login" element={<Login />} />
         </Routes>
       </motion.div>
@@ -66,13 +70,12 @@ function AppLayout() {
         className="transition-all duration-200"
         style={{ marginLeft: sidebarWidth }}
       >
-        {/* GitOps POC Banner */}
+        {/* Environment Banner */}
         {!isLoginPage && (
-          <div className="bg-amber-500/10 border-b border-amber-500/20 px-6 py-2.5 flex items-center gap-2">
-            <AlertTriangle size={14} className="text-amber-400 shrink-0" />
-            <span className="text-xs text-amber-300/80">
-              <span className="font-semibold">POC mode</span> -- Route changes write directly to the gateway control plane.
-              In production this would commit to Bitbucket and be applied by ArgoCD.
+          <div className="bg-blue-500/10 border-b border-blue-500/20 px-6 py-2.5 flex items-center gap-2">
+            <AlertTriangle size={14} className="text-blue-400 shrink-0" />
+            <span className="text-xs text-blue-300/80">
+              <span className="font-semibold">GitOps mode</span> -- Fleet and route changes are committed to GitHub and reconciled by Argo CD to the data-plane cluster.
             </span>
           </div>
         )}
