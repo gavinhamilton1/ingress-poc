@@ -1,0 +1,35 @@
+# Secrets — never commit these
+.env
+*.env
+certs/*.key
+certs/*.pem
+
+# Go
+bin/
+*.test
+*.out
+vendor/
+
+# Docker
+*.tar
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+!terraform.tfvars.example
+
+# Kind / Kubernetes
+kubeconfig*
+*.kubeconfig

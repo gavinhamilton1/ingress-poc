@@ -2,6 +2,26 @@
 
 Kubernetes-native ingress gateway management platform with a control-plane/data-plane architecture. Manages fleets of Envoy and Kong gateway instances via custom Kubernetes operators, with dual management paths: a web console and GitOps.
 
+## Quick Reference — Stop & Start
+
+```bash
+# ── Stop (keeps all data) ─────────────────────────────────────────────────────
+docker stop ingress-cp-control-plane
+
+# ── Start again ───────────────────────────────────────────────────────────────
+docker start ingress-cp-control-plane
+# Allow ~30 seconds for pods to come back, then open http://localhost:3000
+
+# Check which fleet pods are running
+kubectl get deployments -n ingress-dp
+
+# ── Full reset (wipes all data and rebuilds from scratch) ─────────────────────
+kind delete cluster --name ingress-cp
+./k8s/kind/setup.sh
+```
+
+---
+
 ## Architecture Overview
 
 ```
@@ -185,6 +205,38 @@ The first run takes 10-15 minutes (image builds). Subsequent runs skip cluster c
 | Envoy Gateway (shared) | http://localhost:8000 |
 | Kong Gateway (shared) | http://localhost:8100 |
 | Mock Akamai GTM (traffic entry) | http://localhost:8010 |
+
+**Shutdown and restart:**
+
+```bash
+# ── Suspend (fast — preserves all data) ──────────────────────────────────────
+# Pause the cluster without deleting it. All pods stop; Postgres data survives.
+docker stop ingress-cp-control-plane
+
+# Resume a suspended cluster (~30 seconds for pods to come back)
+docker start ingress-cp-control-plane
+kubectl get pods -n ingress-cp --context kind-ingress-cp   # watch until Ready
+
+# ── Full teardown and clean restart ──────────────────────────────────────────
+# Delete the cluster entirely (all data is lost — Postgres PVC lives inside Kind).
+kind delete cluster --name ingress-cp
+
+# Recreate from scratch: builds images, re-seeds DB, auto-starts core fleets.
+./k8s/kind/setup.sh
+```
+
+On a clean restart the following fleet pods are brought up automatically in `ingress-dp`:
+
+| Fleet   | ID              | LOB      |
+|---------|-----------------|----------|
+| JPMM    | `fleet-jpmm`    | Markets  |
+| JPMA    | `fleet-access`  | Payments |
+| JPMDB   | `fleet-digital` | Payments |
+| AuthN   | `fleet-authn`   | xCIB     |
+| AuthZ   | `fleet-authz`   | xCIB     |
+| Console | `fleet-console` | xCIB     |
+
+All other fleets appear in the Console with their configuration intact but have no running pods until deployed via the UI. To add a fleet to the auto-start list, edit the `autoDeployFleets` map in `cmd/management-api/seed.go`.
 
 **Test the end-to-end traffic path:**
 

@@ -8,6 +8,20 @@ echo "=== Ingress PoC Kind Cluster Setup ==="
 echo "Project root: ${PROJECT_ROOT}"
 
 # ------------------------------------------------------------------
+# 0. Load .env if present
+# ------------------------------------------------------------------
+ENV_FILE="${PROJECT_ROOT}/.env"
+if [ -f "${ENV_FILE}" ]; then
+  echo "Loading environment from ${ENV_FILE}..."
+  set -a
+  # shellcheck disable=SC1090
+  source "${ENV_FILE}"
+  set +a
+else
+  echo "No .env file found at ${ENV_FILE} — skipping (copy .env.example to .env to enable GitOps)"
+fi
+
+# ------------------------------------------------------------------
 # 1. Pre-flight checks
 # ------------------------------------------------------------------
 if ! command -v kind &>/dev/null; then

@@ -49,8 +49,13 @@ var lastReconcileMu sync.RWMutex
 // on the given interval.
 func startGitOpsReconciler(interval time.Duration) {
 	go func() {
-		// Initial delay so the server is fully up before first pass.
-		time.Sleep(15 * time.Second)
+		// Wait for fleet repos to be cloned before the first pass.
+		// On a fresh cluster start, ensureFleetContainers clones all per-fleet
+		// GitHub repos — this takes ~35s. We wait 90s to be safe so the first
+		// reconcile pass actually finds manifests to read.
+		const startupDelay = 90 * time.Second
+		log.Printf("gitops-reconciler: waiting %s for fleet repos to initialise before first pass...", startupDelay)
+		time.Sleep(startupDelay)
 		log.Printf("gitops-reconciler: starting (interval %s)", interval)
 		for {
 			result := runGitOpsReconcile()
@@ -539,6 +544,15 @@ func reconcileRouteFromGit(gr gitRouteCRD, fleet Fleet, result *ReconcileResult)
 	if gr.TLSRequired != dbRoute.TLSRequired {
 		drifts = append(drifts, fmt.Sprintf("tls_required: %v → %v", dbRoute.TLSRequired, gr.TLSRequired))
 	}
+	if gr.Notes != "" && dbRoute.Notes != gr.Notes {
+		drifts = append(drifts, fmt.Sprintf("notes changed"))
+	}
+	if gr.FunctionCode != "" && dbRoute.FunctionCode != gr.FunctionCode {
+		drifts = append(drifts, fmt.Sprintf("function_code changed"))
+	}
+	if gr.FunctionLanguage != "" && dbRoute.FunctionLanguage != gr.FunctionLanguage {
+		drifts = append(drifts, fmt.Sprintf("function_language: %q → %q", dbRoute.FunctionLanguage, gr.FunctionLanguage))
+	}
 
 	if len(drifts) > 0 {
 		// Apply corrections.
@@ -554,15 +568,29 @@ func reconcileRouteFromGit(gr gitRouteCRD, fleet Fleet, result *ReconcileResult)
 		if backendURL == "" {
 			backendURL = dbRoute.BackendURL
 		}
+		notes := gr.Notes
+		if notes == "" {
+			notes = dbRoute.Notes
+		}
+		functionCode := gr.FunctionCode
+		if functionCode == "" {
+			functionCode = dbRoute.FunctionCode
+		}
+		functionLanguage := gr.FunctionLanguage
+		if functionLanguage == "" {
+			functionLanguage = dbRoute.FunctionLanguage
+		}
 
 		_, updateErr := db.Exec(`
 			UPDATE routes SET
 				path=$1, backend_url=$2, gateway_type=$3, audience=$4, team=$5,
-				tls_required=$6, health_path=$7, updated_at=extract(epoch from now()),
+				tls_required=$6, health_path=$7, notes=$8, function_code=$9,
+				function_language=$10, updated_at=extract(epoch from now()),
 				sync_status='synced'
-			WHERE id=$8`,
+			WHERE id=$11`,
 			path, backendURL, gwType,
 			gr.Audience, gr.Team, gr.TLSRequired, gr.HealthPath,
+			notes, functionCode, functionLanguage,
 			gr.ID,
 		)
 		if updateErr != nil {

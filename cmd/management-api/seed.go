@@ -471,14 +471,22 @@ func ensureFleetContainers(db *sqlx.DB) {
 	}
 
 	// Only deploy containers for fleets that should have them:
-	// - On first run: JPMM and JPMA (the demo fleets)
-	// - On subsequent runs: any fleet with instances_count > 0 (meaning it was deployed before)
+	// - On first run: core demo + xCIB fleets listed below
+	// - On subsequent runs: any fleet with running nodes (meaning it was deployed before)
+	//
+	// To add a fleet to the auto-start list, add its ID here.
+	// Fleet IDs: fleet-jpmm (JPMM), fleet-access (JPMA), fleet-digital (JPMDB),
+	//            fleet-authn / fleet-authz / fleet-console (all xCIB)
 	autoDeployFleets := map[string]bool{
-		"fleet-jpmm":    true,
-		"fleet-access":  true,
-		"fleet-console": true,
+		// Markets
+		"fleet-jpmm":    true, // JPMM
+		// Payments
+		"fleet-access":   true, // JPMA
+		"fleet-digital":  true, // JPMDB
+		// xCIB
 		"fleet-authn":   true,
 		"fleet-authz":   true,
+		"fleet-console": true,
 	}
 
 	for _, f := range fleets {

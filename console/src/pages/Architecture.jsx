@@ -1,6 +1,6 @@
-import React, { useState } from 'react'
-import { motion } from 'framer-motion'
-import { Network } from 'lucide-react'
+import React, { useState, useRef, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Network, Play, Square, Pause } from 'lucide-react'
 
 // ── Primitive badges ──────────────────────────────────────────────────────────
 const GoBadge    = ({ children }) => <span className="inline-block text-[8px] px-1.5 py-0.5 rounded bg-[#00333a] text-[#00ADD8] border border-[#005a66] ml-1 font-mono">{children}</span>
@@ -27,8 +27,8 @@ const TLSBar = ({ color = '#0e9a9a', gradient = '#0e6a6a', children }) => (
 )
 
 // A labelled layer box
-const Layer = ({ label, tag, accentColor = '#4a9edd', borderColor, bgColor, children }) => (
-  <div className="relative rounded-xl p-3 mb-1" style={{ border: `0.5px solid ${borderColor}`, background: bgColor }}>
+const Layer = ({ label, tag, accentColor = '#4a9edd', borderColor, bgColor, children, id }) => (
+  <div id={id} className="relative rounded-xl p-3 mb-1" style={{ border: `0.5px solid ${borderColor}`, background: bgColor }}>
     <div className="absolute -top-[9px] left-3 text-[9px] font-bold tracking-widest px-2 font-mono" style={{ color: accentColor, background: bgColor || '#0a0e1a' }}>
       {label}
     </div>
@@ -62,16 +62,153 @@ const AuthStack = ({ title, steps }) => (
 )
 
 // Section title separator
-const SectionTitle = ({ color, children }) => (
-  <div className="text-[9px] font-bold tracking-widest mt-6 mb-2 pb-2 border-t font-mono"
+const SectionTitle = ({ color, children, id }) => (
+  <div id={id} className="text-[9px] font-bold tracking-widest mt-6 mb-2 pb-2 border-t font-mono"
     style={{ color, borderColor: '#1a1a2a' }}>
     {children}
   </div>
 )
 
 // ── Main component ────────────────────────────────────────────────────────────
+const TOUR_SECTIONS = [
+  {
+    id: 'client',
+    title: 'Client Layer',
+    text: 'Three client types connect to the platform: Browser (web portals with DPoP + session cookies), API Client (OAuth bearer tokens with DPoP proof), and M2M Service (mTLS cert-bound client credentials). Every connection terminates TLS at L2 — the client never talks directly to an internal service.',
+  },
+  {
+    id: 'dns',
+    title: 'L0 — DNS Control Plane',
+    text: 'JPM-authoritative DNS (ns1–ns06.jpmorganchase.com) resolves all public hostnames. Cloudflare acts as a secondary for DR only. Because both GTM failover and the DR ingress path use Cloudflare, a single Cloudflare outage is a correlated failure risk (R1) — tracked as an open risk item.',
+  },
+  {
+    id: 'gtm',
+    title: 'L1 — Global Traffic Manager',
+    text: 'Akamai GTM provides GeoDNS and health-check-based routing — it selects the correct regional datacenter and injects x-akamai-request-id and W3C traceparent so every request is traceable from the very first hop. Cloudflare Load Balancer covers DR scenarios only and requires a manual flip — it is NOT a functional equivalent to GTM.',
+  },
+  {
+    id: 'cdn',
+    title: 'L2 — CDN / Edge + WAF',
+    text: 'Akamai Ion CDN terminates TLS here — this is the outer TLS boundary. Kona WAF enforces XSS, path traversal, and bot rules before traffic ever reaches the data centre. Routes are split at this layer: /api paths go to Kong, /web paths go to Envoy. The DR path (Cloudflare Edge) has no WAF equivalent to Kona.',
+  },
+  {
+    id: 'perimeter',
+    title: 'L3 — Regional Perimeter',
+    text: 'TLS is re-originated from L2 to L3, and a new DPoP proof is bound to this inner connection. PSaaS+ (GKP path) provides perimeter enforcement across NA, EMEA, and APAC datacentres. CTC Edge handles the AWS path. Both inject regional context headers used downstream for routing and observability.',
+  },
+  {
+    id: 'controllers',
+    title: 'L4 — Ingress Controllers (no traffic)',
+    text: 'The Envoy Gateway Controller and Kong Ingress Controller handle configuration only — zero request traffic flows through them. The Envoy controller pushes xDS config via gRPC ADS (go-control-plane). The Kong controller calls the Kong Admin API. Both expose drift-detection endpoints polled by the Management API every 10 seconds.',
+  },
+  {
+    id: 'dataplane',
+    title: 'L4 — Data Plane (auth enforcement)',
+    text: 'ALL request traffic flows through the data plane. Each gateway pod runs a 3-stage auth pipeline: ① jwt_authn / JWT plugin — rejects invalid tokens immediately with 401; ② Session Validator sidecar — verifies DPoP binding (htm, htu, iat, jti) and checks the local Revoke Cache; ③ OPA coarse-grained policy — ABAC Rego evaluation in sub-milliseconds with no network hop. Finally, the Context Propagator constructs trusted x-auth-* headers and drops all client-supplied headers before forwarding.',
+  },
+  {
+    id: 'auth',
+    title: 'Auth Dependencies — Session Manager + OPA + SpiceDB',
+    text: 'Session Manager runs one instance per cloud/region — no cross-region call in the request hot path. It issues session JWTs, maintains a JWKS endpoint cached at each gateway, and replicates session state via the Kafka session-events topic. CAEP revocation events propagate to gateway Revoke Caches in under 1 second. OPA runs as a sidecar for coarse L4 decisions and as a remote AuthZen API for fine-grained L5 decisions. SpiceDB provides ReBAC (desk membership, org hierarchy) and is modelled inside the OPA bundle.',
+  },
+  {
+    id: 'mgmt',
+    title: 'Management & Control Plane',
+    text: 'The DE Console (React/TypeScript) is the operator interface — routes, drift dashboard, audit log, sessions, traces. The Management API (Go/gin) holds the desired-state Postgres registry and runs a drift-detection goroutine that polls gateway actuals every 10 seconds. In production, changes flow through Bitbucket → Bitbucket Pipelines (policy CI) → ArgoCD → K8s manifests. The POC writes directly to the control plane — a banner is displayed on every console page.',
+  },
+  {
+    id: 'observability',
+    title: 'Observability — OpenTelemetry + Dynatrace',
+    text: 'Every service uses a shared Go OTEL package that exports spans via OTLP HTTP and propagates W3C traceparent across every hop — from Akamai GTM all the way to the upstream service. In production, Dynatrace OneAgent ingests all telemetry, powers the Davis AI anomaly engine, auto-generates service dependency graphs, and tracks SLOs. In the POC and test environments, Jaeger all-in-one provides the same trace waterfall locally.',
+  },
+  {
+    id: 'sidecar',
+    title: 'Sidecar Pattern — per Gateway Pod',
+    text: 'Three sidecars run alongside every gateway pod on localhost — no network hop required. The Session Validator (Go, :9001) handles DPoP verification and maintains a Revoke Cache as a Kafka consumer. The OPA PDP (:8181) evaluates local Rego bundles in sub-milliseconds, refreshed via Kafka. The OTEL Collector (:4317) batches and forwards spans to Dynatrace in production or Jaeger in the test environment, with buffering to tolerate backend unavailability.',
+  },
+]
+
 export default function Architecture() {
   const [showLegend, setShowLegend] = useState(true)
+  const [tourRunning, setTourRunning] = useState(false)
+  const [tourPaused, setTourPaused] = useState(false)
+  const [tooltip, setTooltip] = useState({ visible: false, title: '', text: '' })
+  const tourCancelRef = useRef(false)
+  const tourPausedRef = useRef(false)
+
+  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+
+  // Holds for `ms` but pauses when tourPausedRef is true; cancels if tourCancelRef is true
+  const waitHold = async (ms) => {
+    const tick = 100
+    let elapsed = 0
+    while (elapsed < ms) {
+      if (tourCancelRef.current) return
+      if (!tourPausedRef.current) elapsed += tick
+      await sleep(tick)
+    }
+  }
+
+  const startTour = useCallback(async () => {
+    setTourRunning(true)
+    setTourPaused(false)
+    tourCancelRef.current = false
+    tourPausedRef.current = false
+
+    for (let i = 0; i < TOUR_SECTIONS.length; i++) {
+      const section = TOUR_SECTIONS[i]
+      if (tourCancelRef.current) break
+
+      const el = document.getElementById(section.id)
+      if (el) {
+        let absTop = 0
+        let node = el
+        while (node) {
+          absTop += node.offsetTop
+          node = node.offsetParent
+        }
+        const offset = i === 0 ? -85 : -25
+        window.scrollTo({ top: Math.max(0, absTop + offset), behavior: 'smooth' })
+      }
+
+      // Wait for scroll to settle
+      await sleep(1200)
+      if (tourCancelRef.current) break
+
+      // Fade in tooltip
+      setTooltip({ visible: true, title: section.title, text: section.text })
+
+      // Hold (pauseable)
+      await waitHold(5000)
+      if (tourCancelRef.current) {
+        setTooltip({ visible: false, title: '', text: '' })
+        break
+      }
+
+      // Fade out
+      setTooltip({ visible: false, title: '', text: '' })
+      await sleep(600)
+    }
+
+    setTourRunning(false)
+    setTourPaused(false)
+    tourCancelRef.current = false
+    tourPausedRef.current = false
+  }, [])
+
+  const stopTour = useCallback(() => {
+    tourCancelRef.current = true
+    tourPausedRef.current = false
+    setTooltip({ visible: false, title: '', text: '' })
+    setTourRunning(false)
+    setTourPaused(false)
+  }, [])
+
+  const togglePause = useCallback(() => {
+    const next = !tourPausedRef.current
+    tourPausedRef.current = next
+    setTourPaused(next)
+  }, [])
 
   return (
     <div className="space-y-2">
@@ -84,13 +221,96 @@ export default function Architecture() {
           </h1>
           <p className="text-sm text-jpmc-muted">Target state — Data Plane + Control Plane + Observability</p>
         </div>
-        <button
-          onClick={() => setShowLegend(v => !v)}
-          className="btn-secondary text-xs"
-        >
-          {showLegend ? 'Hide' : 'Show'} Legend
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowLegend(v => !v)}
+            className="btn-secondary text-xs"
+          >
+            {showLegend ? 'Hide' : 'Show'} Legend
+          </button>
+          {tourRunning ? (
+            <button
+              onClick={stopTour}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded font-mono font-semibold"
+              style={{ background: '#2a0a0a', border: '0.5px solid #7a1a1a', color: '#e74c3c' }}
+            >
+              <Square size={12} /> Stop Tour
+            </button>
+          ) : (
+            <button
+              onClick={startTour}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded font-mono font-semibold"
+              style={{ background: '#0a1a2a', border: '0.5px solid #1a4a7a', color: '#4a9edd' }}
+            >
+              <Play size={12} /> Start Tour
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* ── Tour tooltip overlay ── */}
+      <AnimatePresence>
+        {tooltip.visible && (
+          <motion.div
+            key="tour-tooltip"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
+            transition={{ duration: 0.4 }}
+            className="fixed z-50 font-mono"
+            style={{
+              bottom: '1.5rem',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              width: 'min(580px, calc(100vw - 280px))',
+              maxHeight: 'calc(100vh - 8rem)',
+              overflowY: 'auto',
+              background: 'rgba(6, 14, 26, 0.97)',
+              border: '0.5px solid #1a4a7a',
+              borderRadius: '12px',
+              boxShadow: '0 0 40px rgba(74, 158, 221, 0.25), 0 8px 32px rgba(0,0,0,0.7)',
+              padding: '1.25rem 1.5rem',
+            }}
+          >
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 shrink-0 w-2 h-2 rounded-full mt-1.5" style={{ background: '#4a9edd', boxShadow: '0 0 6px #4a9edd' }} />
+              <div>
+                <div className="text-[11px] font-bold mb-1.5 tracking-wide" style={{ color: '#4a9edd' }}>
+                  {tooltip.title}
+                </div>
+                <div className="text-[10px] leading-relaxed" style={{ color: '#94a3b8' }}>
+                  {tooltip.text}
+                </div>
+              </div>
+            </div>
+            <div className="mt-2 pt-2 flex items-center justify-between" style={{ borderTop: '0.5px solid #1a2a3a' }}>
+              <div className="flex items-center gap-2">
+                <div className="text-[8px] tracking-widest" style={{ color: '#2a4a6a' }}>ARCHITECTURE TOUR</div>
+                <button
+                  onClick={togglePause}
+                  className="flex items-center gap-1 text-[8px] px-2 py-0.5 rounded font-mono"
+                  style={{
+                    background: tourPaused ? '#0a1a0a' : '#0a1a2a',
+                    border: `0.5px solid ${tourPaused ? '#1a4a1a' : '#1a3a5a'}`,
+                    color: tourPaused ? '#2ecc71' : '#4a9edd',
+                  }}
+                >
+                  {tourPaused ? <><Play size={8} /> Resume</> : <><Pause size={8} /> Pause</>}
+                </button>
+              </div>
+              <div className="flex gap-1">
+                {TOUR_SECTIONS.map((s) => (
+                  <div
+                    key={s.id}
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{ background: s.title === tooltip.title ? '#4a9edd' : '#1a2a3a' }}
+                  />
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Diagram canvas ── */}
       <div className="rounded-xl p-4 font-mono text-[#c9d1d9] text-[11px]"
@@ -103,12 +323,12 @@ export default function Architecture() {
           </div>
           <div className="text-[17px] font-bold text-white">Data Plane + Control Plane + Observability</div>
           <div className="text-[10px] mt-1 font-mono" style={{ color: '#444' }}>
-            Go services · gRPC ADS · OPA + SpiceDB · OTEL + Jaeger · Kafka · DPoP · Context Propagator · Drift detection
+            Go services · gRPC ADS · OPA + SpiceDB · OTEL + Dynatrace · Kafka · DPoP · Context Propagator · Drift detection
           </div>
         </div>
 
         {/* ── CLIENT ── */}
-        <Layer label="CLIENT" borderColor="#1a1a1a" bgColor="#090909" accentColor="#555">
+        <Layer id="client" label="CLIENT" borderColor="#1a1a1a" bgColor="#090909" accentColor="#555">
           <div className="grid grid-cols-3 gap-2">
             {[
               { t: 'Browser',      s: 'HTTPS · session cookie + DPoP · web portals' },
@@ -123,7 +343,7 @@ export default function Architecture() {
         <Arrow label="↓ DNS resolution" />
 
         {/* ── L0 DNS ── */}
-        <Layer label="L0 · T0 — DNS CONTROL PLANE" accentColor="#2ecc71" borderColor="#1a3a22" bgColor="#08110a">
+        <Layer id="dns" label="L0 · T0 — DNS CONTROL PLANE" accentColor="#2ecc71" borderColor="#1a3a22" bgColor="#08110a">
           <div className="grid grid-cols-2 gap-2">
             <Box title="JPM DNS (primary)" titleColor="#2ecc71"
               sub="ns1–ns06.jpmorganchase.com · authoritative"
@@ -139,11 +359,11 @@ export default function Architecture() {
         <Arrow label="↓ IP returned · client connects" />
 
         {/* ── L1 GTM ── */}
-        <Layer label="L1 · T0 — GLOBAL STEERING" tag="GeoDNS + health routing" accentColor="#c8a020" borderColor="#3a3010" bgColor="#0e0d06">
+        <Layer id="gtm" label="L1 · T0 — GLOBAL STEERING" tag="GeoDNS + health routing" accentColor="#c8a020" borderColor="#3a3010" bgColor="#0e0d06">
           <div className="grid grid-cols-2 gap-2">
-            <Box title={<>Akamai GTM (primary) <GoBadge>mock-akamai-gtm · Go</GoBadge></>}
+            <Box title="Akamai GTM (primary)"
               titleColor="#c8a020"
-              sub="GeoDNS · health-check routing · simulates datacenter selection · emits OTEL spans as akamai.gtm · injects x-akamai-request-id + traceparent"
+              sub="GeoDNS · health-check routing · datacenter selection · injects x-akamai-request-id + traceparent · OTEL instrumented at gateway boundary"
               border="#2a2800" bg="#0c0b00" />
             <Box title={<>Cloudflare LB <DRBadge>DR only · manual flip</DRBadge></>}
               titleColor="#5a4500"
@@ -155,15 +375,15 @@ export default function Architecture() {
         <Arrow label="↓ routed to CDN / edge PoP" />
 
         {/* ── L2 CDN/WAF ── */}
-        <Layer label="L2 · T0 — CDN / EDGE + WAF" tag="TLS terminates here" accentColor="#e67e22" borderColor="#3a2010" bgColor="#100c05">
+        <Layer id="cdn" label="L2 · T0 — CDN / EDGE + WAF" tag="TLS terminates here" accentColor="#e67e22" borderColor="#3a2010" bgColor="#100c05">
           <div className="grid grid-cols-2 gap-2">
-            <Box title={<>Akamai Ion CDN + Kona WAF <GoBadge>mock-akamai-edge · Go</GoBadge></>}
+            <Box title="Akamai Ion CDN + Kona WAF"
               titleColor="#e67e22"
-              sub="WAF simulation (XSS/traversal/bot rules) · cache simulation · injects full Akamai edge headers · routes /api→Kong /web→Envoy via mock-psaas · emits OTEL spans as akamai.edge"
+              sub="WAF enforcement (XSS/traversal/bot rules) · CDN caching · injects full Akamai edge headers · routes /api→Kong · /web→Envoy · OTEL instrumented at gateway boundary"
               border="#2a1800" bg="#0d0800" />
             <Box title={<>Cloudflare Edge DR <DRBadge>DR only</DRBadge></>}
               titleColor="#5a4500"
-              sub={<>Edge CDN · basic DDoS<br /><span className="font-bold" style={{ color: '#8B0000' }}>⚠ No WAF equivalent to Kona (D5)</span></>}
+              sub={<>Edge CDN · basic DDoS<br /><span className="font-bold" style={{ color: '#8B0000' }}>⚠ No WAF equivalent to Kona</span></>}
               border="#202000" bg="#0c0a00" />
           </div>
         </Layer>
@@ -173,22 +393,22 @@ export default function Architecture() {
         </TLSBar>
 
         {/* ── L3 Perimeter ── */}
-        <Layer label="L3 · T1 — REGIONAL PERIMETER" tag="TLS re-originated L2→L3 · paths diverge to GKP and AWS here" accentColor="#d35400" borderColor="#3a2a10" bgColor="#0f0c07">
+        <Layer id="perimeter" label="L3 · T1 — REGIONAL PERIMETER" tag="TLS re-originated L2→L3 · paths diverge to GKP and AWS here" accentColor="#d35400" borderColor="#3a2a10" bgColor="#0f0c07">
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-lg p-2" style={{ border: '0.5px solid #1a3a5a' }}>
               <div className="text-[9px] font-bold tracking-wider mb-2 pb-1.5 border-b font-mono" style={{ color: '#4a9edd', borderColor: '#1a1a1a' }}>
                 → GKP PATH — PSaaS+
               </div>
-              <Box title={<>PSaaS+ <GoBadge>mock-psaas · Go</GoBadge></>}
+              <Box title="PSaaS+"
                 titleColor="#d35400"
-                sub={<><strong className="text-[#7a6050]">NA:</strong> CDC1, CDC2, RDC &nbsp; <strong className="text-[#7a6050]">EMEA:</strong> Farn, Basi &nbsp; <strong className="text-[#7a6050]">APAC:</strong> Equi(HK), Cave(HK), SG-C01/C02<br />Injects x-psaas-region/datacenter · annotates TLS re-origination · emits OTEL spans as psaas.perimeter</>}
+                sub={<><strong className="text-[#7a6050]">NA:</strong> CDC1, CDC2, RDC &nbsp; <strong className="text-[#7a6050]">EMEA:</strong> Farn, Basi &nbsp; <strong className="text-[#7a6050]">APAC:</strong> Equi(HK), Cave(HK), SG-C01/C02<br />Injects x-psaas-region/datacenter · TLS re-origination · OTEL instrumented at perimeter boundary</>}
                 border="#0a2040" bg="#060d18" />
             </div>
             <div className="rounded-lg p-2" style={{ border: '0.5px solid #2a1800' }}>
               <div className="text-[9px] font-bold tracking-wider mb-2 pb-1.5 border-b font-mono" style={{ color: '#d35400', borderColor: '#1a1a1a' }}>
                 → AWS PATH — CTC Edge
               </div>
-              <Box title={<>CTC Edge <GoBadge>mock-psaas · Go</GoBadge></>}
+              <Box title="CTC Edge"
                 titleColor="#d35400"
                 sub={<><strong className="text-[#7a6050]">APAC:</strong> ap-south-1, ap-southeast-1 &nbsp; <strong className="text-[#7a6050]">NA:</strong> us-east-1/2, us-west-2 &nbsp; <strong className="text-[#7a6050]">EMEA:</strong> eu-central-1, eu-west-1/2</>}
                 border="#2a1400" bg="#0e0800" />
@@ -201,7 +421,7 @@ export default function Architecture() {
         </TLSBar>
 
         {/* ── L4 CONTROLLERS ── */}
-        <div className="grid grid-cols-2 gap-2 mb-1">
+        <div id="controllers" className="grid grid-cols-2 gap-2 mb-1">
           {/* GKP Controllers */}
           <Layer label={<>L4 CONTROLLERS — GKP <CtrlBadge>CONTROL PLANE · no traffic</CtrlBadge></>}
             accentColor="#4a9edd" borderColor="#0a2040" bgColor="#050e1a">
@@ -241,7 +461,7 @@ export default function Architecture() {
         <Arrow label="↓ xDS push via gRPC ADS (Envoy) · Admin API config sync (Kong)" />
 
         {/* ── L4 DATA PLANE ── */}
-        <div className="grid grid-cols-2 gap-2 mb-1">
+        <div id="dataplane" className="grid grid-cols-2 gap-2 mb-1">
           {/* GKP Data */}
           <Layer label={<>L4 DATA — GKP <DataBadge>DATA PLANE · auth enforcement</DataBadge></>}
             accentColor="#e74c3c" borderColor="#3a1010" bgColor="#120808">
@@ -296,7 +516,7 @@ export default function Architecture() {
         </div>
 
         {/* ── Auth Dependencies ── */}
-        <div className="mt-2 mb-2">
+        <div id="auth" className="mt-2 mb-2">
           <div className="text-[9px] font-bold mb-2 tracking-wider font-mono" style={{ color: '#534AB7' }}>
             AUTH DEPENDENCIES — shared across all L4 instances (multi-region active/active)
           </div>
@@ -382,7 +602,7 @@ export default function Architecture() {
         </div>
 
         {/* ══ MANAGEMENT & CONTROL PLANE ══ */}
-        <SectionTitle color="#4a9edd">MANAGEMENT &amp; CONTROL PLANE</SectionTitle>
+        <SectionTitle id="mgmt" color="#4a9edd">MANAGEMENT &amp; CONTROL PLANE</SectionTitle>
 
         <div className="grid grid-cols-2 gap-2 mb-2">
           <Layer label="MANAGEMENT PLANE" accentColor="#4a9edd" borderColor="#1a3a5a" bgColor="#060e1a">
@@ -431,26 +651,29 @@ export default function Architecture() {
         </div>
 
         {/* ══ OBSERVABILITY ══ */}
-        <SectionTitle color="#27ae60">OBSERVABILITY STACK</SectionTitle>
+        <SectionTitle id="observability" color="#27ae60">OBSERVABILITY STACK</SectionTitle>
 
         <div className="grid grid-cols-2 gap-2 mb-2">
           <div className="rounded-lg p-2.5" style={{ background: '#080e08', border: '0.5px solid #1a3a1a' }}>
             <div className="text-[9px] font-bold mb-2 font-mono" style={{ color: '#27ae60' }}>OpenTelemetry — every service</div>
             <div className="text-[9px] leading-loose font-mono" style={{ color: '#1a4a1a' }}>
               <strong style={{ color: '#3a7a3a' }}>Shared Go package:</strong> shared/otel — OTLP HTTP export · W3C TraceContext + Baggage · AlwaysSample<br />
-              <strong style={{ color: '#3a7a3a' }}>W3C traceparent</strong> propagated across all hops including mock infrastructure<br />
+              <strong style={{ color: '#3a7a3a' }}>W3C traceparent</strong> propagated across all hops end-to-end<br />
               <strong style={{ color: '#3a7a3a' }}>Akamai fallback:</strong> x-akamai-request-id → SHA256 → synthesised traceparent at gateway<br />
               <strong style={{ color: '#3a7a3a' }}>Service names:</strong> akamai.gtm · akamai.edge · psaas.perimeter · envoy-gateway · kong-gateway · auth-service · opa-policy · management-api · svc-api · svc-web
             </div>
           </div>
           <div className="rounded-lg p-2.5" style={{ background: '#080e08', border: '0.5px solid #1a3a1a' }}>
-            <div className="text-[9px] font-bold mb-2 font-mono" style={{ color: '#27ae60' }}>Jaeger all-in-one</div>
+            <div className="text-[9px] font-bold mb-2 font-mono" style={{ color: '#27ae60' }}>Dynatrace <span style={{ color: '#3a5a3a', fontWeight: 400 }}>— production APM + tracing</span></div>
             <div className="text-[9px] leading-loose font-mono" style={{ color: '#1a4a1a' }}>
-              OTLP HTTP :4318 · OTLP gRPC :4317 · UI :16686<br />
+              OTLP ingest · OneAgent deployed per node · full-stack observability<br />
               <strong style={{ color: '#3a7a3a' }}>Trace waterfall:</strong> akamai.gtm → akamai.edge → psaas → kong/envoy → auth pipeline → svc<br />
               <strong style={{ color: '#3a7a3a' }}>Span attributes:</strong> auth.step · dpop.valid · opa.allow · opa.deny_reason · session.roles<br />
-              <strong style={{ color: '#3a7a3a' }}>Console integration:</strong> View Trace → {'{JAEGER_URL}'}/trace/{'{trace_id}'}<br />
-              <strong style={{ color: '#3a7a3a' }}>Service dependency graph:</strong> auto-generated from trace data
+              <strong style={{ color: '#3a7a3a' }}>AI-powered:</strong> Davis engine · anomaly detection · automatic baseline · SLO tracking<br />
+              <strong style={{ color: '#3a7a3a' }}>Service dependency graph:</strong> auto-generated from trace and metric data
+            </div>
+            <div className="mt-2 rounded px-2 py-1.5 text-[8px] font-mono" style={{ background: '#060e06', border: '0.5px dashed #1a3a1a', color: '#2a4a2a' }}>
+              <span style={{ color: '#4a7a4a', fontWeight: 700 }}>POC / TEST:</span> Jaeger all-in-one — OTLP HTTP :4318 · UI :16686 · used locally in place of Dynatrace
             </div>
           </div>
         </div>
@@ -468,7 +691,7 @@ export default function Architecture() {
         </div>
 
         {/* ══ SIDECAR PATTERN ══ */}
-        <SectionTitle color="#9b59b6">SIDECAR PATTERN — per gateway Pod (production Kubernetes)</SectionTitle>
+        <SectionTitle id="sidecar" color="#9b59b6">SIDECAR PATTERN — per gateway Pod (production Kubernetes)</SectionTitle>
 
         <div className="grid grid-cols-3 gap-2 mb-4">
           {[
@@ -482,7 +705,7 @@ export default function Architecture() {
             },
             {
               title: <>OTEL Collector <span className="text-[8px] ml-1" style={{ color: '#2a4a6a' }}>(explicit call)</span></>,
-              body: 'localhost:4317 · receives spans · batches · forwards to Jaeger · buffers if backend unavailable',
+              body: 'localhost:4317 · receives spans · batches · forwards to Dynatrace (prod) or Jaeger (test) · buffers if backend unavailable',
             },
           ].map(({ title, body }, i) => (
             <div key={i} className="rounded-lg p-2.5 text-[9px] font-mono" style={{ background: '#0a0416', border: '0.5px solid #2d1b4e', color: '#4a2a6a' }}>

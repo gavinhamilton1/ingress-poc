@@ -130,8 +130,8 @@ func main() {
 	// Start K8s reconciler — syncs DB fleet/node status with actual pod states every 10s
 	if _, ok := orch.(*K8sOrchestrator); ok {
 		startReconciler(10 * time.Second)
-		// Start GitOps reconciler — syncs DB fleet_nodes + routes from Git every 5 minutes
-		startGitOpsReconciler(5 * time.Minute)
+		// Start GitOps reconciler — syncs DB fleet_nodes + routes from Git every 10 seconds
+		startGitOpsReconciler(10 * time.Second)
 	}
 
 	log.Printf("management-api listening on :%s", port)
