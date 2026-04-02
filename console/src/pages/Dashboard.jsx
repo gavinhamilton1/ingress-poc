@@ -265,6 +265,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-3 text-[9px]">
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400" /> Healthy</span>
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" /> Degraded</span>
+              <span className="flex items-center gap-1 text-red-400"><span className="w-2 h-2 rounded-full bg-red-400" /> Unhealthy</span>
               <span className="flex items-center gap-1 text-jpmc-muted"><span className="w-2 h-2 rounded-full bg-orange-400/50" /> Passive</span>
             </div>
           </div>
@@ -416,14 +417,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* ── Connector: Fleets → L6 Backend ── */}
-          <FlowPulse delay={1.5} color={greenPulse} height={28} speed={1.6} />
-
-          {/* ── L6: Backend Services ── */}
-          <div className="flex justify-center gap-6">
-            <InfraNode icon={Box} label="svc-web" desc="L6 — Frontend" color="from-teal-500 to-teal-600" delay={0.7} small health="healthy" />
-            <InfraNode icon={Box} label="svc-api" desc="L6 — API Backend" color="from-teal-500 to-teal-600" delay={0.74} small health="healthy" />
-          </div>
         </div>
       </GlassCard>
 

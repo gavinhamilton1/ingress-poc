@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   LayoutDashboard, Route, Server, Zap, Key, Activity,
-  AlertTriangle, Database, GitBranch, ChevronLeft, ChevronRight, LogOut, LogIn, Network,
+  AlertTriangle, Database, GitBranch, ChevronLeft, ChevronRight, LogOut, LogIn, Network, ClipboardList,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
@@ -16,6 +16,7 @@ const navItems = [
   { to: '/traces', label: 'Traces', icon: Activity },
   { to: '/drift', label: 'Drift', icon: AlertTriangle },
   { to: '/gitops', label: 'GitOps', icon: GitBranch },
+  { to: '/audit-log', label: 'Audit Log', icon: ClipboardList },
   { to: '/raw-data', label: 'Raw Data', icon: Database },
   { to: '/architecture', label: 'Architecture', icon: Network },
 ]
@@ -52,8 +53,8 @@ export default function Sidebar({ collapsed, onToggle }) {
             transition={{ delay: 0.1 }}
             className="flex flex-col min-w-0"
           >
-            <span className="text-sm font-bold text-white tracking-wide">INGRESS</span>
-            <span className="text-[10px] text-jpmc-muted font-light tracking-widest">CONTROL PLANE</span>
+            <span className="text-sm font-bold text-white tracking-wide">CIB INGRESS</span>
+            <span className="text-[10px] text-jpmc-muted font-light tracking-widest">ADMIN CONSOLE</span>
           </motion.div>
         )}
       </div>
@@ -78,7 +79,7 @@ export default function Sidebar({ collapsed, onToggle }) {
                 {isActive && (
                   <motion.div
                     layoutId="sidebar-active"
-                    className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 bg-blue-500 rounded-r-full"
+                    className="absolute left-0 inset-y-0 my-auto w-[3px] h-6 bg-blue-500 rounded-r-full"
                     transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                   />
                 )}

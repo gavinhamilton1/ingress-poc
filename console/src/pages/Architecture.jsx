@@ -3,37 +3,38 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Network, Play, Square, Pause } from 'lucide-react'
 
 // ── Primitive badges ──────────────────────────────────────────────────────────
-const GoBadge    = ({ children }) => <span className="inline-block text-[8px] px-1.5 py-0.5 rounded bg-[#00333a] text-[#00ADD8] border border-[#005a66] ml-1 font-mono">{children}</span>
-const CtrlBadge  = ({ children }) => <span className="inline-block text-[8px] px-1.5 py-0.5 rounded bg-[#061020] text-[#4a9edd] border border-[#1a3060] ml-1 font-mono">{children}</span>
-const DataBadge  = ({ children }) => <span className="inline-block text-[8px] px-1.5 py-0.5 rounded bg-[#1a0606] text-[#e74c3c] border border-[#3a1010] ml-1 font-mono">{children}</span>
-const DRBadge    = ({ children }) => <span className="inline-block text-[8px] px-1.5 py-0.5 rounded bg-[#1a1200] text-[#BA7517] ml-1 font-mono">{children}</span>
-const TopicChip  = ({ children }) => <span className="inline-block text-[8px] px-1.5 py-0.5 rounded bg-[#080e18] text-[#2a5a8a] border border-[#1a2a4a] font-mono">{children}</span>
-const OtelChip   = ({ children }) => <span className="inline-block text-[8px] px-1.5 py-0.5 rounded bg-[#061208] text-[#2a7a2a] border border-[#1a4a1a] font-mono">{children}</span>
+const GoBadge    = ({ children }) => <span className="inline-block text-[9px] px-1.5 py-0.5 rounded bg-[#00333a] text-[#00ADD8] border border-[#005a66] ml-1 font-mono">{children}</span>
+const CtrlBadge  = ({ children }) => <span className="inline-block text-[9px] px-1.5 py-0.5 rounded bg-[#061020] text-[#4a9edd] border border-[#1a3060] ml-1 font-mono">{children}</span>
+const DataBadge  = ({ children }) => <span className="inline-block text-[9px] px-1.5 py-0.5 rounded bg-[#1a0606] text-[#e74c3c] border border-[#3a1010] ml-1 font-mono">{children}</span>
+const DRBadge    = ({ children }) => <span className="inline-block text-[9px] px-1.5 py-0.5 rounded bg-[#1a1200] text-[#d48a20] ml-1 font-mono">{children}</span>
+const TopicChip  = ({ children }) => <span className="inline-block text-[9px] px-1.5 py-0.5 rounded bg-[#080e18] text-[#6a9acc] border border-[#1a3a5a] font-mono">{children}</span>
+const OtelChip   = ({ children }) => <span className="inline-block text-[9px] px-1.5 py-0.5 rounded bg-[#061208] text-[#4ab84a] border border-[#1a5a1a] font-mono">{children}</span>
 const ServiceChip = ({ c, bg, border, children }) => (
-  <span className="inline-block text-[9px] px-2 py-0.5 rounded font-mono" style={{ background: bg, border: `0.5px solid ${border}`, color: c }}>{children}</span>
+  <span className="inline-block text-[10px] px-2 py-0.5 rounded font-mono" style={{ background: bg, border: `0.5px solid ${border}`, color: c }}>{children}</span>
 )
 
 // ── Layout helpers ────────────────────────────────────────────────────────────
 const Arrow = ({ label }) => (
-  <div className="text-center py-1.5 text-[10px] text-[#333] tracking-widest font-mono select-none">{label || '↓'}</div>
+  <div className="text-center py-3 text-[11px] text-[#666] tracking-widest font-mono select-none">{label || '↓'}</div>
 )
 
 const TLSBar = ({ color = '#0e9a9a', gradient = '#0e6a6a', children }) => (
-  <div className="flex items-center gap-3 my-2">
+  <div className="flex items-center gap-4 my-6">
     <div className="flex-1 h-px" style={{ background: `linear-gradient(90deg, transparent, ${gradient})` }} />
-    <div className="text-[8px] font-bold tracking-wider whitespace-nowrap font-mono px-1" style={{ color }}>{children}</div>
+    <div className="text-[9px] font-bold tracking-wider whitespace-nowrap font-mono px-5 py-2 rounded-md"
+      style={{ color, border: `0.5px solid ${gradient}`, background: 'rgba(0,0,0,0.3)' }}>{children}</div>
     <div className="flex-1 h-px" style={{ background: `linear-gradient(270deg, transparent, ${gradient})` }} />
   </div>
 )
 
 // A labelled layer box
 const Layer = ({ label, tag, accentColor = '#4a9edd', borderColor, bgColor, children, id }) => (
-  <div id={id} className="relative rounded-xl p-3 mb-1" style={{ border: `0.5px solid ${borderColor}`, background: bgColor }}>
-    <div className="absolute -top-[9px] left-3 text-[9px] font-bold tracking-widest px-2 font-mono" style={{ color: accentColor, background: bgColor || '#0a0e1a' }}>
+  <div id={id} className="relative rounded-xl p-3 mb-4" style={{ border: `0.5px solid ${borderColor}`, background: bgColor }}>
+    <div className="absolute -top-[10px] left-3 text-[10px] font-bold tracking-widest px-2 font-mono" style={{ color: accentColor, background: bgColor || '#0a0e1a' }}>
       {label}
     </div>
     {tag && (
-      <div className="absolute -top-[9px] right-3 text-[9px] text-[#444] px-2 font-mono" style={{ background: bgColor || '#0a0e1a' }}>
+      <div className="absolute -top-[10px] right-3 text-[9px] text-[#777] px-2 font-mono" style={{ background: bgColor || '#0a0e1a' }}>
         {tag}
       </div>
     )}
@@ -45,25 +46,25 @@ const Layer = ({ label, tag, accentColor = '#4a9edd', borderColor, bgColor, chil
 const Box = ({ title, titleColor, sub, border, bg, children, right }) => (
   <div className="rounded-lg p-2.5" style={{ background: bg, border: `0.5px solid ${border}` }}>
     <div className="flex justify-between items-baseline mb-1">
-      <div className="text-[10px] font-bold tracking-wide font-mono" style={{ color: titleColor }}>{title}</div>
-      {right && <div className="text-[8px] font-mono" style={{ color: titleColor, opacity: 0.5 }}>{right}</div>}
+      <div className="text-[11px] font-bold tracking-wide font-mono" style={{ color: titleColor }}>{title}</div>
+      {right && <div className="text-[9px] font-mono" style={{ color: titleColor, opacity: 0.6 }}>{right}</div>}
     </div>
-    {sub && <div className="text-[9px] leading-relaxed opacity-75 font-mono mb-1">{sub}</div>}
+    {sub && <div className="text-[10px] leading-relaxed font-mono mb-1" style={{ color: '#9aa8bb' }}>{sub}</div>}
     {children}
   </div>
 )
 
 // Auth pipeline stack inside a data-plane box
 const AuthStack = ({ title, steps }) => (
-  <div className="mt-2 rounded p-2 font-mono" style={{ background: '#0a0416', border: '0.5px solid #2d1b4e' }}>
-    <div className="text-[8px] font-bold mb-1.5 tracking-wider" style={{ color: '#9b59b6' }}>{title}</div>
-    {steps.map((s, i) => <div key={i} className="text-[8px] leading-loose" style={{ color: '#6a3a7a' }}>{s}</div>)}
+  <div className="mt-2 rounded p-2 font-mono" style={{ background: '#0d0520', border: '0.5px solid #5a3a7a' }}>
+    <div className="text-[9px] font-bold mb-1.5 tracking-wider" style={{ color: '#e8c0ff' }}>{title}</div>
+    {steps.map((s, i) => <div key={i} className="text-[9px] leading-loose" style={{ color: '#d0a8e8' }}>{s}</div>)}
   </div>
 )
 
 // Section title separator
 const SectionTitle = ({ color, children, id }) => (
-  <div id={id} className="text-[9px] font-bold tracking-widest mt-6 mb-2 pb-2 border-t font-mono"
+  <div id={id} className="text-[10px] font-bold tracking-widest mt-6 mb-2 pb-2 border-t font-mono"
     style={{ color, borderColor: '#1a1a2a' }}>
     {children}
   </div>
@@ -72,64 +73,63 @@ const SectionTitle = ({ color, children, id }) => (
 // ── Main component ────────────────────────────────────────────────────────────
 const TOUR_SECTIONS = [
   {
-    id: 'client',
+    id: 'client', offset: -85,
     title: 'Client Layer',
     text: 'Three client types connect to the platform: Browser (web portals with DPoP + session cookies), API Client (OAuth bearer tokens with DPoP proof), and M2M Service (mTLS cert-bound client credentials). Every connection terminates TLS at L2 — the client never talks directly to an internal service.',
   },
   {
-    id: 'dns',
+    id: 'dns', offset: -45,
     title: 'L0 — DNS Control Plane',
     text: 'JPM-authoritative DNS (ns1–ns06.jpmorganchase.com) resolves all public hostnames. Cloudflare acts as a secondary for DR only. Because both GTM failover and the DR ingress path use Cloudflare, a single Cloudflare outage is a correlated failure risk (R1) — tracked as an open risk item.',
   },
   {
-    id: 'gtm',
+    id: 'gtm', offset: -45,
     title: 'L1 — Global Traffic Manager',
     text: 'Akamai GTM provides GeoDNS and health-check-based routing — it selects the correct regional datacenter and injects x-akamai-request-id and W3C traceparent so every request is traceable from the very first hop. Cloudflare Load Balancer covers DR scenarios only and requires a manual flip — it is NOT a functional equivalent to GTM.',
   },
   {
-    id: 'cdn',
+    id: 'cdn', offset: -45,
     title: 'L2 — CDN / Edge + WAF',
     text: 'Akamai Ion CDN terminates TLS here — this is the outer TLS boundary. Kona WAF enforces XSS, path traversal, and bot rules before traffic ever reaches the data centre. Routes are split at this layer: /api paths go to Kong, /web paths go to Envoy. The DR path (Cloudflare Edge) has no WAF equivalent to Kona.',
   },
   {
-    id: 'perimeter',
+    id: 'perimeter', offset: -60,
     title: 'L3 — Regional Perimeter',
     text: 'TLS is re-originated from L2 to L3, and a new DPoP proof is bound to this inner connection. PSaaS+ (GKP path) provides perimeter enforcement across NA, EMEA, and APAC datacentres. CTC Edge handles the AWS path. Both inject regional context headers used downstream for routing and observability.',
   },
   {
-    id: 'controllers',
+    id: 'controllers', offset: -60,
     title: 'L4 — Ingress Controllers (no traffic)',
     text: 'The Envoy Gateway Controller and Kong Ingress Controller handle configuration only — zero request traffic flows through them. The Envoy controller pushes xDS config via gRPC ADS (go-control-plane). The Kong controller calls the Kong Admin API. Both expose drift-detection endpoints polled by the Management API every 10 seconds.',
   },
   {
-    id: 'dataplane',
+    id: 'dataplane', offset: -60,
     title: 'L4 — Data Plane (auth enforcement)',
     text: 'ALL request traffic flows through the data plane. Each gateway pod runs a 3-stage auth pipeline: ① jwt_authn / JWT plugin — rejects invalid tokens immediately with 401; ② Session Validator sidecar — verifies DPoP binding (htm, htu, iat, jti) and checks the local Revoke Cache; ③ OPA coarse-grained policy — ABAC Rego evaluation in sub-milliseconds with no network hop. Finally, the Context Propagator constructs trusted x-auth-* headers and drops all client-supplied headers before forwarding.',
   },
   {
-    id: 'auth',
+    id: 'auth', offset: -30,
     title: 'Auth Dependencies — Session Manager + OPA + SpiceDB',
     text: 'Session Manager runs one instance per cloud/region — no cross-region call in the request hot path. It issues session JWTs, maintains a JWKS endpoint cached at each gateway, and replicates session state via the Kafka session-events topic. CAEP revocation events propagate to gateway Revoke Caches in under 1 second. OPA runs as a sidecar for coarse L4 decisions and as a remote AuthZen API for fine-grained L5 decisions. SpiceDB provides ReBAC (desk membership, org hierarchy) and is modelled inside the OPA bundle.',
   },
   {
-    id: 'mgmt',
+    id: 'mgmt', offset: -60,
     title: 'Management & Control Plane',
     text: 'The DE Console (React/TypeScript) is the operator interface — routes, drift dashboard, audit log, sessions, traces. The Management API (Go/gin) holds the desired-state Postgres registry and runs a drift-detection goroutine that polls gateway actuals every 10 seconds. In production, changes flow through Bitbucket → Bitbucket Pipelines (policy CI) → ArgoCD → K8s manifests. The POC writes directly to the control plane — a banner is displayed on every console page.',
   },
   {
-    id: 'observability',
+    id: 'observability', offset: -60,
     title: 'Observability — OpenTelemetry + Dynatrace',
     text: 'Every service uses a shared Go OTEL package that exports spans via OTLP HTTP and propagates W3C traceparent across every hop — from Akamai GTM all the way to the upstream service. In production, Dynatrace OneAgent ingests all telemetry, powers the Davis AI anomaly engine, auto-generates service dependency graphs, and tracks SLOs. In the POC and test environments, Jaeger all-in-one provides the same trace waterfall locally.',
   },
   {
-    id: 'sidecar',
+    id: 'sidecar', offset: -60,
     title: 'Sidecar Pattern — per Gateway Pod',
     text: 'Three sidecars run alongside every gateway pod on localhost — no network hop required. The Session Validator (Go, :9001) handles DPoP verification and maintains a Revoke Cache as a Kafka consumer. The OPA PDP (:8181) evaluates local Rego bundles in sub-milliseconds, refreshed via Kafka. The OTEL Collector (:4317) batches and forwards spans to Dynatrace in production or Jaeger in the test environment, with buffering to tolerate backend unavailability.',
   },
 ]
 
 export default function Architecture() {
-  const [showLegend, setShowLegend] = useState(true)
   const [tourRunning, setTourRunning] = useState(false)
   const [tourPaused, setTourPaused] = useState(false)
   const [tooltip, setTooltip] = useState({ visible: false, title: '', text: '' })
@@ -167,8 +167,7 @@ export default function Architecture() {
           absTop += node.offsetTop
           node = node.offsetParent
         }
-        const offset = i === 0 ? -85 : -25
-        window.scrollTo({ top: Math.max(0, absTop + offset), behavior: 'smooth' })
+        window.scrollTo({ top: Math.max(0, absTop + (section.offset ?? -60)), behavior: 'smooth' })
       }
 
       // Wait for scroll to settle
@@ -222,12 +221,6 @@ export default function Architecture() {
           <p className="text-sm text-jpmc-muted">Target state — Data Plane + Control Plane + Observability</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowLegend(v => !v)}
-            className="btn-secondary text-xs"
-          >
-            {showLegend ? 'Hide' : 'Show'} Legend
-          </button>
           {tourRunning ? (
             <button
               onClick={stopTour}
@@ -291,7 +284,7 @@ export default function Architecture() {
                   className="flex items-center gap-1 text-[8px] px-2 py-0.5 rounded font-mono"
                   style={{
                     background: tourPaused ? '#0a1a0a' : '#0a1a2a',
-                    border: `0.5px solid ${tourPaused ? '#1a4a1a' : '#1a3a5a'}`,
+                    border: `0.5px solid ${tourPaused ? '#4a8a4a' : '#1a3a5a'}`,
                     color: tourPaused ? '#2ecc71' : '#4a9edd',
                   }}
                 >
@@ -351,7 +344,7 @@ export default function Architecture() {
             <Box
               title={<>Cloudflare DNS <DRBadge>secondary</DRBadge></>}
               titleColor="#6a5800"
-              sub={<>ns0098 · ns0134 · ns0221<br /><span className="text-[#5a2800]">⚠ Same provider as DR ingress — correlated failure risk (R1)</span></>}
+              sub="ns0098 · ns0134 · ns0221"
               border="#2a2800" bg="#0c0c00" />
           </div>
         </Layer>
@@ -383,7 +376,7 @@ export default function Architecture() {
               border="#2a1800" bg="#0d0800" />
             <Box title={<>Cloudflare Edge DR <DRBadge>DR only</DRBadge></>}
               titleColor="#5a4500"
-              sub={<>Edge CDN · basic DDoS<br /><span className="font-bold" style={{ color: '#8B0000' }}>⚠ No WAF equivalent to Kona</span></>}
+              sub="Edge CDN · basic DDoS"
               border="#202000" bg="#0c0a00" />
           </div>
         </Layer>
@@ -421,11 +414,11 @@ export default function Architecture() {
         </TLSBar>
 
         {/* ── L4 CONTROLLERS ── */}
-        <div id="controllers" className="grid grid-cols-2 gap-2 mb-1">
+        <div id="controllers" className="grid grid-cols-2 gap-2 mb-4">
           {/* GKP Controllers */}
           <Layer label={<>L4 CONTROLLERS — GKP <CtrlBadge>CONTROL PLANE · no traffic</CtrlBadge></>}
             accentColor="#4a9edd" borderColor="#0a2040" bgColor="#050e1a">
-            <div className="text-[9px] mb-2 font-mono" style={{ color: '#1a4a6a' }}>
+            <div className="text-[9px] mb-2 font-mono" style={{ color: '#5a9abb' }}>
               K8S clusters: na-ne &amp; na-nw · farn, basi · sgc
             </div>
             <div className="grid grid-cols-2 gap-1.5">
@@ -442,7 +435,7 @@ export default function Architecture() {
           {/* AWS Controllers */}
           <Layer label={<>L4 CONTROLLERS — AWS <CtrlBadge>CONTROL PLANE · no traffic</CtrlBadge></>}
             accentColor="#d35400" borderColor="#2a1400" bgColor="#0f0800">
-            <div className="text-[9px] mb-2 font-mono" style={{ color: '#5a2a00' }}>
+            <div className="text-[9px] mb-2 font-mono" style={{ color: '#b07030' }}>
               EKS clusters: ap-southeast-1/2 · eu-west-1/2/central-1 · us-east-1 · us-west-2
             </div>
             <div className="grid grid-cols-2 gap-1.5">
@@ -461,7 +454,7 @@ export default function Architecture() {
         <Arrow label="↓ xDS push via gRPC ADS (Envoy) · Admin API config sync (Kong)" />
 
         {/* ── L4 DATA PLANE ── */}
-        <div id="dataplane" className="grid grid-cols-2 gap-2 mb-1">
+        <div id="dataplane" className="grid grid-cols-2 gap-2 mb-4">
           {/* GKP Data */}
           <Layer label={<>L4 DATA — GKP <DataBadge>DATA PLANE · auth enforcement</DataBadge></>}
             accentColor="#e74c3c" borderColor="#3a1010" bgColor="#120808">
@@ -470,21 +463,21 @@ export default function Architecture() {
                 sub="Web traffic · browser · developer portal · streaming · WebSocket"
                 border="#2a1010" bg="#0e0505">
                 <AuthStack title="AUTH PIPELINE — 3 components" steps={[
-                  <><span className="text-[#7a4a9a] font-bold mr-1">pre</span>jwt_authn — local JWKS cache · reject 401 immediately</>,
-                  <><span className="text-[#7a4a9a] font-bold mr-1">①</span>Session Validator (ext_authz · Go sidecar) — DPoP htm+htu+iat+jti · Revoke Cache</>,
-                  <><span className="text-[#7a4a9a] font-bold mr-1">②</span>OPA coarse (Go sidecar · local bundle) + SpiceDB mock → allow + obligations</>,
-                  <><span className="text-[#7a4a9a] font-bold mr-1">③</span>Context Propagator — construct x-auth-* allowlist · drop all client headers</>,
+                  <><span className="text-[#e8a8ff] font-bold mr-1">pre</span>jwt_authn — local JWKS cache · reject 401 immediately</>,
+                  <><span className="text-[#e8a8ff] font-bold mr-1">①</span>Session Validator (ext_authz · Go sidecar) — DPoP htm+htu+iat+jti · Revoke Cache</>,
+                  <><span className="text-[#e8a8ff] font-bold mr-1">②</span>OPA coarse (Go sidecar · local bundle) + SpiceDB mock → allow + obligations</>,
+                  <><span className="text-[#e8a8ff] font-bold mr-1">③</span>Context Propagator — construct x-auth-* allowlist · drop all client headers</>,
                 ]} />
               </Box>
               <Box title="Kong GW Instances" titleColor="#e74c3c" right="*.api.[region].gkp.jpmorgan.net"
                 sub="API traffic · OAuth clients · managed APIs · developer portal"
                 border="#2a1010" bg="#0e0505">
                 <AuthStack title="AUTH PIPELINE — 3 components + plugin chain" steps={[
-                  <><span className="text-[#7a4a9a] font-bold mr-1">pre</span>JWT plugin — local JWKS cache · reject 401 immediately</>,
-                  <><span className="text-[#7a4a9a] font-bold mr-1">①</span>Session Validator (pre-function Lua → ext_authz · Go) — DPoP · Revoke Cache</>,
-                  <><span className="text-[#7a4a9a] font-bold mr-1">+</span>Plugin chain — rate limit per consumer · request transform · correlation-id</>,
-                  <><span className="text-[#7a4a9a] font-bold mr-1">②</span>OPA coarse + SpiceDB mock → allow + obligations</>,
-                  <><span className="text-[#7a4a9a] font-bold mr-1">③</span>Context Propagator — construct x-auth-* · drop all client headers</>,
+                  <><span className="text-[#e8a8ff] font-bold mr-1">pre</span>JWT plugin — local JWKS cache · reject 401 immediately</>,
+                  <><span className="text-[#e8a8ff] font-bold mr-1">①</span>Session Validator (pre-function Lua → ext_authz · Go) — DPoP · Revoke Cache</>,
+                  <><span className="text-[#e8a8ff] font-bold mr-1">+</span>Plugin chain — rate limit per consumer · request transform · correlation-id</>,
+                  <><span className="text-[#e8a8ff] font-bold mr-1">②</span>OPA coarse + SpiceDB mock → allow + obligations</>,
+                  <><span className="text-[#e8a8ff] font-bold mr-1">③</span>Context Propagator — construct x-auth-* · drop all client headers</>,
                 ]} />
               </Box>
             </div>
@@ -497,18 +490,18 @@ export default function Architecture() {
                 sub="Web traffic · browser · streaming · WebSocket"
                 border="#2a1400" bg="#0f0700">
                 <AuthStack title="AUTH PIPELINE — 3 components" steps={[
-                  <><span className="text-[#7a4a9a] font-bold mr-1">pre</span>jwt_authn — local JWKS · reject 401 immediately</>,
-                  <><span className="text-[#7a4a9a] font-bold mr-1">①</span>Session Validator (ext_authz · Go sidecar) — DPoP · Revoke Cache</>,
-                  <><span className="text-[#7a4a9a] font-bold mr-1">②</span>OPA coarse + SpiceDB mock → allow + obligations</>,
-                  <><span className="text-[#7a4a9a] font-bold mr-1">③</span>Context Propagator — construct x-auth-* · drop all client headers</>,
+                  <><span className="text-[#e8a8ff] font-bold mr-1">pre</span>jwt_authn — local JWKS · reject 401 immediately</>,
+                  <><span className="text-[#e8a8ff] font-bold mr-1">①</span>Session Validator (ext_authz · Go sidecar) — DPoP · Revoke Cache</>,
+                  <><span className="text-[#e8a8ff] font-bold mr-1">②</span>OPA coarse + SpiceDB mock → allow + obligations</>,
+                  <><span className="text-[#e8a8ff] font-bold mr-1">③</span>Context Propagator — construct x-auth-* · drop all client headers</>,
                 ]} />
               </Box>
               <Box title="Kong GW Instances" titleColor="#e67e22" right="*.api.[region].aws.jpmorgan.net"
                 sub="API traffic · OAuth clients · managed APIs"
                 border="#2a1400" bg="#0f0700">
                 <AuthStack title="AUTH PIPELINE — 3 components + plugin chain" steps={[
-                  <><span className="text-[#7a4a9a] font-bold mr-1">pre</span>JWT plugin · <span className="text-[#7a4a9a] font-bold">①</span> Session Validator (Go) · <span className="text-[#7a4a9a] font-bold">+</span> Plugin chain</>,
-                  <><span className="text-[#7a4a9a] font-bold mr-1">②</span>OPA coarse + SpiceDB mock · <span className="text-[#7a4a9a] font-bold">③</span> Context Propagator</>,
+                  <><span className="text-[#e8a8ff] font-bold mr-1">pre</span>JWT plugin · <span className="text-[#e8a8ff] font-bold">①</span> Session Validator (Go) · <span className="text-[#e8a8ff] font-bold">+</span> Plugin chain</>,
+                  <><span className="text-[#e8a8ff] font-bold mr-1">②</span>OPA coarse + SpiceDB mock · <span className="text-[#e8a8ff] font-bold">③</span> Context Propagator</>,
                 ]} />
               </Box>
             </div>
@@ -516,33 +509,33 @@ export default function Architecture() {
         </div>
 
         {/* ── Auth Dependencies ── */}
-        <div id="auth" className="mt-2 mb-2">
-          <div className="text-[9px] font-bold mb-2 tracking-wider font-mono" style={{ color: '#534AB7' }}>
+        <div id="auth" className="mt-4 mb-4">
+          <div className="text-[9px] font-bold mb-2 tracking-wider font-mono" style={{ color: '#8878e8' }}>
             AUTH DEPENDENCIES — shared across all L4 instances (multi-region active/active)
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-lg p-2.5" style={{ background: '#0a0416', border: '0.5px solid #2d1b4e' }}>
-              <div className="text-[9px] font-bold mb-2 font-mono" style={{ color: '#9b59b6' }}>
+              <div className="text-[9px] font-bold mb-2 font-mono" style={{ color: '#e8c0ff' }}>
                 Session Manager — multi-region A/A <GoBadge>Go</GoBadge>
               </div>
-              <div className="text-[9px] leading-loose font-mono" style={{ color: '#4a2a6a' }}>
+              <div className="text-[9px] leading-loose font-mono" style={{ color: '#c8aad8' }}>
                 One instance per cloud/region · no cross-region call in request path<br />
                 Session JWT issuer + JWKS authority (not IdP)<br />
                 JWKS cached at gateway · background refresh<br />
-                Session state replicated via Kafka <span style={{ color: '#2a5a8a' }}>session-events</span><br />
+                Session state replicated via Kafka <span style={{ color: '#6a9acc' }}>session-events</span><br />
                 CAEP receiver → Revoke Events → local Revoke Cache at gateway<br />
                 Key rotation: publish to all regions before signing with new key
               </div>
             </div>
             <div className="rounded-lg p-2.5" style={{ background: '#0a0416', border: '0.5px solid #2d1b4e' }}>
-              <div className="text-[9px] font-bold mb-2 font-mono" style={{ color: '#9b59b6' }}>
+              <div className="text-[9px] font-bold mb-2 font-mono" style={{ color: '#e8c0ff' }}>
                 OPA + SpiceDB — policy decisions
               </div>
-              <div className="text-[9px] leading-loose font-mono" style={{ color: '#4a2a6a' }}>
-                <strong style={{ color: '#7a4a9a' }}>OPA (coarse — L4):</strong> sidecar · local bundle · Rego ABAC · sub-ms evaluation<br />
-                <strong style={{ color: '#7a4a9a' }}>OPA (fine — L5):</strong> AuthZen API · resource entitlement · obligations<br />
-                <strong style={{ color: '#7a4a9a' }}>SpiceDB (mocked in OPA):</strong> ReBAC — desk membership · org hierarchy<br />
-                Bundles refreshed via Kafka <span style={{ color: '#2a5a8a' }}>policy-bundle-push</span><br />
+              <div className="text-[9px] leading-loose font-mono" style={{ color: '#c8aad8' }}>
+                <strong style={{ color: '#e8a8ff' }}>OPA (coarse — L4):</strong> sidecar · local bundle · Rego ABAC · sub-ms evaluation<br />
+                <strong style={{ color: '#e8a8ff' }}>OPA (fine — L5):</strong> AuthZen API · resource entitlement · obligations<br />
+                <strong style={{ color: '#e8a8ff' }}>SpiceDB (mocked in OPA):</strong> ReBAC — desk membership · org hierarchy<br />
+                Bundles refreshed via Kafka <span style={{ color: '#6a9acc' }}>policy-bundle-push</span><br />
                 Drift monitored — alert if L4/L5 diverge &gt;60s
               </div>
             </div>
@@ -552,7 +545,7 @@ export default function Architecture() {
         {/* ── Kafka bar ── */}
         <div className="flex flex-wrap items-center gap-3 rounded-lg px-3 py-2 my-2 font-mono"
           style={{ background: '#0a0a14', border: '0.5px solid #1a2a3a' }}>
-          <div className="text-[9px] font-bold" style={{ color: '#2a5a8a' }}>KAFKA TOPICS</div>
+          <div className="text-[9px] font-bold" style={{ color: '#5a8abb' }}>KAFKA TOPICS</div>
           <TopicChip>session-events · A/A replication</TopicChip>
           <TopicChip>revocation-events · &lt;1s propagation · CAEP</TopicChip>
           <TopicChip>risk-signals · fraud / Interdiction feed</TopicChip>
@@ -560,13 +553,13 @@ export default function Architecture() {
         </div>
 
         {/* ── M2M + Cartographer ── */}
-        <div className="grid grid-cols-2 gap-2 mb-2">
-          <div className="rounded-lg px-3 py-2 text-[9px] font-mono" style={{ background: '#0a1208', border: '0.5px solid #1a3a1a', color: '#2a4a2a' }}>
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          <div className="rounded-lg px-3 py-2 text-[9px] font-mono" style={{ background: '#0a1208', border: '0.5px solid #1a3a1a', color: '#6aaa6a' }}>
             <span className="font-bold" style={{ color: '#2ecc71' }}>M2M PATH</span>
             {' '}— client credentials + mTLS · access token from IdP directly · mTLS cert thumbprint replaces DPoP · Token Validator verifies IdP JWKS + cert↔client_id · separate OPA service entitlement policy · 5-min token TTL
           </div>
-          <div className="rounded-lg px-3 py-2 text-[9px] font-mono" style={{ background: '#0a0a1a', border: '0.5px solid #1a2a3a', color: '#2a3a4a' }}>
-            <span className="font-bold" style={{ color: '#546e9a' }}>CARTOGRAPHER (Palantir)</span>
+          <div className="rounded-lg px-3 py-2 text-[9px] font-mono" style={{ background: '#0a0a1a', border: '0.5px solid #1a2a3a', color: '#7a8a9a' }}>
+            <span className="font-bold" style={{ color: '#90b0dd' }}>CARTOGRAPHER (Palantir)</span>
             {' '}— reads L4 Data proxy/gateway instances as externally exposed assets · feeds Interdiction &amp; Risk · risk signals return via Kafka risk-signals → Session Manager → revocation · does not configure ingress
           </div>
         </div>
@@ -585,17 +578,17 @@ export default function Architecture() {
                 <ServiceChip key={s} c="#27ae60" bg="#0a160c" border="#1a3a1a">{s}</ServiceChip>
               ))}
             </div>
-            <div className="text-[9px] leading-relaxed font-mono" style={{ color: '#1a4a1a' }}>
+            <div className="text-[9px] leading-relaxed font-mono" style={{ color: '#5aaa5a' }}>
               OPA fine-grained (AuthZen API) + SpiceDB (ReBAC) · AuthZ Engine · PIP/SoR Connector · Admin Center · Contact master · COPS
             </div>
           </Layer>
           <Layer label="L5 · T3 — SERVICES (AWS)" accentColor="#27ae60" borderColor="#1a2a0a" bgColor="#07100a">
             <div className="flex flex-wrap gap-1.5 mb-2">
               {['EKS','ECS','EC2','Lambda'].map(s => (
-                <ServiceChip key={s} c="#3B6D11" bg="#090e05" border="#1a2a0a">{s}</ServiceChip>
+                <ServiceChip key={s} c="#4a8a1a" bg="#090e05" border="#1a2a0a">{s}</ServiceChip>
               ))}
             </div>
-            <div className="text-[9px] leading-relaxed font-mono" style={{ color: '#1a3a0a' }}>
+            <div className="text-[9px] leading-relaxed font-mono" style={{ color: '#5a9a2a' }}>
               OPA fine-grained (AuthZen API) + SpiceDB (ReBAC) · AuthZ Engine · PIP/SoR Connector
             </div>
           </Layer>
@@ -656,24 +649,24 @@ export default function Architecture() {
         <div className="grid grid-cols-2 gap-2 mb-2">
           <div className="rounded-lg p-2.5" style={{ background: '#080e08', border: '0.5px solid #1a3a1a' }}>
             <div className="text-[9px] font-bold mb-2 font-mono" style={{ color: '#27ae60' }}>OpenTelemetry — every service</div>
-            <div className="text-[9px] leading-loose font-mono" style={{ color: '#1a4a1a' }}>
-              <strong style={{ color: '#3a7a3a' }}>Shared Go package:</strong> shared/otel — OTLP HTTP export · W3C TraceContext + Baggage · AlwaysSample<br />
-              <strong style={{ color: '#3a7a3a' }}>W3C traceparent</strong> propagated across all hops end-to-end<br />
-              <strong style={{ color: '#3a7a3a' }}>Akamai fallback:</strong> x-akamai-request-id → SHA256 → synthesised traceparent at gateway<br />
-              <strong style={{ color: '#3a7a3a' }}>Service names:</strong> akamai.gtm · akamai.edge · psaas.perimeter · envoy-gateway · kong-gateway · auth-service · opa-policy · management-api · svc-api · svc-web
+            <div className="text-[9px] leading-loose font-mono" style={{ color: '#4a8a4a' }}>
+              <strong style={{ color: '#5aaa5a' }}>Shared Go package:</strong> shared/otel — OTLP HTTP export · W3C TraceContext + Baggage · AlwaysSample<br />
+              <strong style={{ color: '#5aaa5a' }}>W3C traceparent</strong> propagated across all hops end-to-end<br />
+              <strong style={{ color: '#5aaa5a' }}>Akamai fallback:</strong> x-akamai-request-id → SHA256 → synthesised traceparent at gateway<br />
+              <strong style={{ color: '#5aaa5a' }}>Service names:</strong> akamai.gtm · akamai.edge · psaas.perimeter · envoy-gateway · kong-gateway · auth-service · opa-policy · management-api · svc-api · svc-web
             </div>
           </div>
           <div className="rounded-lg p-2.5" style={{ background: '#080e08', border: '0.5px solid #1a3a1a' }}>
-            <div className="text-[9px] font-bold mb-2 font-mono" style={{ color: '#27ae60' }}>Dynatrace <span style={{ color: '#3a5a3a', fontWeight: 400 }}>— production APM + tracing</span></div>
-            <div className="text-[9px] leading-loose font-mono" style={{ color: '#1a4a1a' }}>
+            <div className="text-[9px] font-bold mb-2 font-mono" style={{ color: '#27ae60' }}>Dynatrace <span style={{ color: '#6a8a6a', fontWeight: 400 }}>— production APM + tracing</span></div>
+            <div className="text-[9px] leading-loose font-mono" style={{ color: '#4a8a4a' }}>
               OTLP ingest · OneAgent deployed per node · full-stack observability<br />
-              <strong style={{ color: '#3a7a3a' }}>Trace waterfall:</strong> akamai.gtm → akamai.edge → psaas → kong/envoy → auth pipeline → svc<br />
-              <strong style={{ color: '#3a7a3a' }}>Span attributes:</strong> auth.step · dpop.valid · opa.allow · opa.deny_reason · session.roles<br />
-              <strong style={{ color: '#3a7a3a' }}>AI-powered:</strong> Davis engine · anomaly detection · automatic baseline · SLO tracking<br />
-              <strong style={{ color: '#3a7a3a' }}>Service dependency graph:</strong> auto-generated from trace and metric data
+              <strong style={{ color: '#5aaa5a' }}>Trace waterfall:</strong> akamai.gtm → akamai.edge → psaas → kong/envoy → auth pipeline → svc<br />
+              <strong style={{ color: '#5aaa5a' }}>Span attributes:</strong> auth.step · dpop.valid · opa.allow · opa.deny_reason · session.roles<br />
+              <strong style={{ color: '#5aaa5a' }}>AI-powered:</strong> Davis engine · anomaly detection · automatic baseline · SLO tracking<br />
+              <strong style={{ color: '#5aaa5a' }}>Service dependency graph:</strong> auto-generated from trace and metric data
             </div>
-            <div className="mt-2 rounded px-2 py-1.5 text-[8px] font-mono" style={{ background: '#060e06', border: '0.5px dashed #1a3a1a', color: '#2a4a2a' }}>
-              <span style={{ color: '#4a7a4a', fontWeight: 700 }}>POC / TEST:</span> Jaeger all-in-one — OTLP HTTP :4318 · UI :16686 · used locally in place of Dynatrace
+            <div className="mt-2 rounded px-2 py-1.5 text-[8px] font-mono" style={{ background: '#060e06', border: '0.5px dashed #1a3a1a', color: '#4a7a4a' }}>
+              <span style={{ color: '#6aaa6a', fontWeight: 700 }}>POC / TEST:</span> Jaeger all-in-one — OTLP HTTP :4318 · UI :16686 · used locally in place of Dynatrace
             </div>
           </div>
         </div>
@@ -716,34 +709,26 @@ export default function Architecture() {
         </div>
 
         {/* ── Legend ── */}
-        {showLegend && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="flex flex-wrap gap-3 pt-3 mt-2 font-mono"
-            style={{ borderTop: '0.5px solid #1a1a1a' }}
-          >
-            {[
-              { c: '#2ecc71',  label: 'L0 DNS' },
-              { c: '#c8a020',  label: 'L1 GTM' },
-              { c: '#e67e22',  label: 'L2 CDN/WAF' },
-              { c: '#d35400',  label: 'L3 Perimeter' },
-              { c: '#4a9edd',  label: 'L4 Controller (no traffic)' },
-              { c: '#e74c3c',  label: 'L4 Data GKP' },
-              { c: '#e67e22',  label: 'L4 Data AWS' },
-              { c: '#9b59b6',  label: 'Auth + Sidecars' },
-              { c: '#27ae60',  label: 'L5 + Observability + Control plane' },
-              { c: '#00ADD8',  label: 'Go service' },
-              { c: '#BA7517',  label: 'DR path (manual)', dim: true },
-            ].map(({ c, label, dim }) => (
-              <div key={label} className="flex items-center gap-1.5 text-[9px]" style={{ color: '#555', opacity: dim ? 0.6 : 1 }}>
-                <div className="w-2 h-2 rounded-full shrink-0" style={{ background: c }} />
-                {label}
-              </div>
-            ))}
-          </motion.div>
-        )}
+        <div className="flex flex-wrap gap-3 pt-3 mt-2 font-mono" style={{ borderTop: '0.5px solid #1a1a1a' }}>
+          {[
+            { c: '#2ecc71',  label: 'L0 DNS' },
+            { c: '#c8a020',  label: 'L1 GTM' },
+            { c: '#e67e22',  label: 'L2 CDN/WAF' },
+            { c: '#d35400',  label: 'L3 Perimeter' },
+            { c: '#4a9edd',  label: 'L4 Controller (no traffic)' },
+            { c: '#e74c3c',  label: 'L4 Data GKP' },
+            { c: '#e67e22',  label: 'L4 Data AWS' },
+            { c: '#9b59b6',  label: 'Auth + Sidecars' },
+            { c: '#27ae60',  label: 'L5 + Observability + Control plane' },
+            { c: '#00ADD8',  label: 'Go service' },
+            { c: '#BA7517',  label: 'DR path (manual)', dim: true },
+          ].map(({ c, label, dim }) => (
+            <div key={label} className="flex items-center gap-1.5 text-[9px]" style={{ color: '#555', opacity: dim ? 0.6 : 1 }}>
+              <div className="w-2 h-2 rounded-full shrink-0" style={{ background: c }} />
+              {label}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )

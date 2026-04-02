@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { AlertTriangle } from 'lucide-react'
 import { AuthProvider, useAuth } from './context/AuthContext'
@@ -15,7 +15,15 @@ import DriftDashboard from './pages/DriftDashboard'
 import RawData from './pages/RawData'
 import GitOps from './pages/GitOps'
 import Architecture from './pages/Architecture'
+import AuditLog from './pages/AuditLog'
 import Login from './pages/Login'
+
+function RequireAuth({ children }) {
+  const { session } = useAuth()
+  const location = useLocation()
+  if (!session) return <Navigate to="/login" state={{ from: location }} replace />
+  return children
+}
 
 function AnimatedRoutes() {
   const location = useLocation()
@@ -30,17 +38,18 @@ function AnimatedRoutes() {
         transition={{ duration: 0.2 }}
       >
         <Routes location={location}>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/routes" element={<RoutesPage />} />
-          <Route path="/fleets" element={<Fleets />} />
-          <Route path="/request-tester" element={<RequestTester />} />
-          <Route path="/sessions" element={<Sessions />} />
-          <Route path="/traces" element={<Traces />} />
-          <Route path="/drift" element={<DriftDashboard />} />
-          <Route path="/gitops" element={<GitOps />} />
-          <Route path="/raw-data" element={<RawData />} />
-          <Route path="/architecture" element={<Architecture />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/" element={<RequireAuth><Dashboard /></RequireAuth>} />
+          <Route path="/routes" element={<RequireAuth><RoutesPage /></RequireAuth>} />
+          <Route path="/fleets" element={<RequireAuth><Fleets /></RequireAuth>} />
+          <Route path="/request-tester" element={<RequireAuth><RequestTester /></RequireAuth>} />
+          <Route path="/sessions" element={<RequireAuth><Sessions /></RequireAuth>} />
+          <Route path="/traces" element={<RequireAuth><Traces /></RequireAuth>} />
+          <Route path="/drift" element={<RequireAuth><DriftDashboard /></RequireAuth>} />
+          <Route path="/gitops" element={<RequireAuth><GitOps /></RequireAuth>} />
+          <Route path="/raw-data" element={<RequireAuth><RawData /></RequireAuth>} />
+          <Route path="/architecture" element={<RequireAuth><Architecture /></RequireAuth>} />
+          <Route path="/audit-log" element={<RequireAuth><AuditLog /></RequireAuth>} />
         </Routes>
       </motion.div>
     </AnimatePresence>
@@ -53,6 +62,7 @@ function AppLayout() {
   const location = useLocation()
 
   const isLoginPage = location.pathname === '/login'
+  const isArchitecturePage = location.pathname === '/architecture'
   const sidebarWidth = isLoginPage ? 0 : sidebarCollapsed ? 72 : 260
 
   return (
@@ -71,7 +81,7 @@ function AppLayout() {
         style={{ marginLeft: sidebarWidth }}
       >
         {/* Environment Banner */}
-        {!isLoginPage && (
+        {!isLoginPage && !isArchitecturePage && (
           <div className="bg-blue-500/10 border-b border-blue-500/20 px-6 py-2.5 flex items-center gap-2">
             <AlertTriangle size={14} className="text-blue-400 shrink-0" />
             <span className="text-xs text-blue-300/80">

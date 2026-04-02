@@ -19,6 +19,7 @@ spec:
       containers:
         - name: auth-service
           image: ingress-poc/auth-service:latest
+          imagePullPolicy: Never
           ports:
             - containerPort: 8001
               protocol: TCP
@@ -29,6 +30,8 @@ spec:
               value: http://auth-service:8001
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: http://jaeger:4318
+            - name: DATABASE_URL
+              value: postgres://ingress:ingress_poc@postgres:5432/ingress_registry?sslmode=disable
           resources:
             limits:
               memory: 256Mi

@@ -40,9 +40,10 @@ export default function DriftDashboard() {
   const syncItems = drift.filter(d => !d.drift)
   const lastCheckTime = dataUpdatedAt ? new Date(dataUpdatedAt) : null
 
-  // GitOps drift: fleets where sync_status is not synced
+  // GitOps drift: fleets with a known bad sync state.
+  // 'unknown' means no GitOps data available (local dev) — not a real drift signal.
   const gitopsDriftFleets = fleets.filter(f =>
-    f.sync_status && f.sync_status !== 'synced' && f.sync_status !== ''
+    f.sync_status === 'out-of-sync' || f.sync_status === 'progressing'
   )
 
   const reconcile = async (item) => {
@@ -114,7 +115,7 @@ export default function DriftDashboard() {
           title="GitOps Drift"
           icon={GitBranch}
           value={gitopsDriftFleets.length}
-          subtitle={gitopsDriftFleets.length > 0 ? 'Fleets out of sync' : 'All fleets synced'}
+          subtitle={gitopsDriftFleets.length > 0 ? 'Fleets out of sync' : 'No drift detected'}
           delay={0.1}
           className={gitopsDriftFleets.length > 0 ? 'border-orange-500/30' : 'border-emerald-500/20'}
         />

@@ -194,18 +194,25 @@ func reconcileOnce(clientset *kubernetes.Clientset) {
 		// Check if any nodes are explicitly stopped (user action)
 		var stoppedNodes int
 		db.Get(&stoppedNodes, "SELECT COUNT(*) FROM fleet_nodes WHERE fleet_id=$1 AND status='stopped'", f.ID)
-		if stoppedNodes > 0 && runningCount > 0 {
-			// Some nodes stopped by user, some pods still running = degraded
-			if f.Status != "degraded" {
+		if runningCount > 0 && stoppedNodes > 0 {
+			// Mix of running and explicitly-stopped nodes — genuinely degraded.
+			if f.Status != "degraded" && f.Status != "suspended" {
 				db.Exec("UPDATE fleets SET status='degraded' WHERE id=$1", f.ID)
 				updatedCount++
 			}
-		} else if runningCount > 0 && f.Status != "healthy" {
-			db.Exec("UPDATE fleets SET status='healthy' WHERE id=$1", f.ID)
-			updatedCount++
-		} else if runningCount == 0 && f.Status == "healthy" {
-			db.Exec("UPDATE fleets SET status='not_deployed' WHERE id=$1", f.ID)
-			updatedCount++
+		} else if runningCount > 0 {
+			// All live pods running, no stopped nodes — fleet is healthy.
+			if f.Status != "healthy" {
+				db.Exec("UPDATE fleets SET status='healthy' WHERE id=$1", f.ID)
+				updatedCount++
+			}
+		} else {
+			// No live pods at all — not deployed regardless of what fleet_nodes says.
+			// (stopped nodes with no running pods = fleet was never started or was fully stopped)
+			if f.Status != "not_deployed" && f.Status != "suspended" {
+				db.Exec("UPDATE fleets SET status='not_deployed' WHERE id=$1", f.ID)
+				updatedCount++
+			}
 		}
 	}
 

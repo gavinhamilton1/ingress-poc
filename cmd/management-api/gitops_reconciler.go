@@ -20,8 +20,8 @@ import (
 //   3. Read each Route CRD YAML → reconcile routes + fleet_instances tables
 //
 // DB rows that differ from Git are corrected.
-// DB rows that don't exist in Git are flagged as "drifted" (not deleted —
-// deletions are explicit operations).
+// DB routes that no longer exist in Git are set to inactive — git deletion
+// is the authoritative way to remove a route (true GitOps).
 // ---------------------------------------------------------------------------
 
 // ReconcileChange records a single corrective action taken during reconciliation.
@@ -29,7 +29,7 @@ type ReconcileChange struct {
 	Fleet   string `json:"fleet"`
 	Kind    string `json:"kind"`   // "node" or "route"
 	ID      string `json:"id"`     // node name or route ID
-	Action  string `json:"action"` // "added", "updated", "flagged_drifted"
+	Action  string `json:"action"` // "added", "updated", "flagged_drifted", "deactivated"
 	Detail  string `json:"detail"`
 }
 
@@ -432,14 +432,16 @@ func parseRouteCRD(data []byte, routeIDFallback string) gitRouteCRD {
 
 // reconcileFleetRoutesFromGit reads all Route CRDs from the git repo's routes/
 // directory and reconciles the DB routes + fleet_instances tables.
+// Routes present in DB but absent from git are set to inactive — git is the
+// source of truth for deletions.
 func reconcileFleetRoutesFromGit(repo *GitOpsRepo, fleet Fleet, result *ReconcileResult) error {
 	routeFiles, err := repo.ListManifests("routes")
 	if err != nil {
 		return fmt.Errorf("list route manifests: %w", err)
 	}
-	if len(routeFiles) == 0 {
-		return nil
-	}
+
+	// Track which route IDs exist in git so we can detect deletions.
+	gitRouteIDs := make(map[string]bool)
 
 	for _, fname := range routeFiles {
 		data, readErr := repo.ReadManifest(filepath.Join("routes", fname))
@@ -456,7 +458,41 @@ func reconcileFleetRoutesFromGit(repo *GitOpsRepo, fleet Fleet, result *Reconcil
 			continue
 		}
 
+		gitRouteIDs[gitRoute.ID] = true
 		reconcileRouteFromGit(gitRoute, fleet, result)
+	}
+
+	// If the fleet has no route files at all, skip deletion check — an empty
+	// routes/ dir likely means the repo isn't fully initialised yet.
+	if len(routeFiles) == 0 {
+		return nil
+	}
+
+	// Find DB routes for this fleet that are active but no longer have a YAML in git → deactivate them.
+	// Git is the source of truth: removing a YAML removes the route.
+	var dbRoutes []Route
+	db.Select(&dbRoutes, `
+		SELECT r.* FROM routes r
+		JOIN fleet_instances fi ON fi.route_id = r.id
+		WHERE fi.fleet_id = $1 AND r.status = 'active'
+	`, fleet.ID)
+
+	for _, dbRoute := range dbRoutes {
+		if gitRouteIDs[dbRoute.ID] {
+			continue // still in git, nothing to do
+		}
+		db.Exec("UPDATE routes SET status='inactive', sync_status='git_deleted', updated_at=extract(epoch from now()) WHERE id=$1", dbRoute.ID)
+		db.Exec("UPDATE fleet_instances SET status='inactive' WHERE route_id=$1", dbRoute.ID)
+		addAudit(dbRoute.ID, "GIT_DELETED", "gitops-reconciler",
+			fmt.Sprintf("Route %s (%s) YAML removed from git repo — deactivated automatically", dbRoute.Path, fleet.Name))
+		result.Changes = append(result.Changes, ReconcileChange{
+			Fleet:  fleet.Name,
+			Kind:   "route",
+			ID:     dbRoute.ID,
+			Action: "deactivated",
+			Detail: fmt.Sprintf("route %s (%s) removed from git — set inactive", dbRoute.ID, dbRoute.Path),
+		})
+		log.Printf("gitops-reconciler: deactivated route %s (%s) for fleet %s — not found in git", dbRoute.ID, dbRoute.Path, fleet.ID)
 	}
 
 	return nil

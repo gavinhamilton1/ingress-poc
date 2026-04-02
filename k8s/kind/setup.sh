@@ -92,7 +92,7 @@ echo "${IMAGE_LIST}" | while read -r svc ctx dockerfile; do
   [ -z "${svc}" ] && continue
   tag="ingress-poc/${svc}:latest"
   echo "Building ${tag} (context=${ctx}, dockerfile=${dockerfile})..."
-  docker build -t "${tag}" -f "${PROJECT_ROOT}/${dockerfile}" "${PROJECT_ROOT}/${ctx}"
+  docker buildx build --platform linux/arm64 --load -t "${tag}" -f "${PROJECT_ROOT}/${dockerfile}" "${PROJECT_ROOT}/${ctx}"
 done
 
 # ------------------------------------------------------------------

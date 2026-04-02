@@ -70,6 +70,54 @@ func main() {
 		})
 	})
 
+	// /_set_cookie: called by the console (localhost:3000) after login to plant
+	// the session cookie under the jpmm.jpm.com domain so that browser page
+	// refreshes on gateway-served routes don't require re-authentication.
+	setCookieCORS := func(w http.ResponseWriter, req *http.Request) {
+		origin := req.Header.Get("Origin")
+		if origin == "" {
+			origin = "http://localhost:3000"
+		}
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Vary", "Origin")
+	}
+
+	r.Options("/_set_cookie", func(w http.ResponseWriter, req *http.Request) {
+		setCookieCORS(w, req)
+		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Max-Age", "300")
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	r.Post("/_set_cookie", func(w http.ResponseWriter, req *http.Request) {
+		setCookieCORS(w, req)
+
+		var body struct {
+			SessionJWT string `json:"session_jwt"`
+		}
+		if err := json.NewDecoder(req.Body).Decode(&body); err != nil || body.SessionJWT == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "missing session_jwt"})
+			return
+		}
+
+		http.SetCookie(w, &http.Cookie{
+			Name:     "ingress_session",
+			Value:    body.SessionJWT,
+			Path:     "/",
+			MaxAge:   86400,
+			SameSite: http.SameSiteNoneMode, // cross-site fetch from localhost:3000
+			Secure:   true,                  // required for SameSite=None; jpmm.jpm.com is HTTPS
+		})
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	})
+
 	r.HandleFunc("/*", func(w http.ResponseWriter, req *http.Request) {
 		ctx := req.Context()
 		ctx, span := tracer.Start(ctx, "akamai.gtm.forward")

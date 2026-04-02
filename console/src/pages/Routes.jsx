@@ -171,6 +171,8 @@ export default function RoutesPage() {
   const teams = [...new Set(routes.map(r => r.team).filter(Boolean))]
 
   const filtered = routes.filter(r => {
+    // Hide inactive routes by default — they've been removed from git or deactivated
+    if (!filterStatus && r.status === 'inactive') return false
     if (search && !r.path.toLowerCase().includes(search.toLowerCase()) && !r.backend_url?.toLowerCase().includes(search.toLowerCase())) return false
     if (filterGateway && r.gateway_type !== filterGateway) return false
     if (filterStatus && r.status !== filterStatus) return false

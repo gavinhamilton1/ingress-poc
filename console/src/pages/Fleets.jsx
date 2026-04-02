@@ -54,7 +54,7 @@ function formatUptime(startedAt) {
 
 function nodeStatusColor(status) {
   if (status === 'running') return { dot: 'bg-emerald-400', glow: 'shadow-[0_0_6px_rgba(52,211,153,0.5)]', border: 'border-emerald-500/30', bg: 'bg-emerald-500/5' }
-  if (status === 'starting' || status === 'restarting') return { dot: 'bg-amber-400', glow: 'shadow-[0_0_6px_rgba(251,191,36,0.5)]', border: 'border-amber-500/30', bg: 'bg-amber-500/5' }
+  if (status === 'starting' || status === 'restarting' || status === 'stopped' || status === 'suspended') return { dot: 'bg-amber-400', glow: 'shadow-[0_0_6px_rgba(251,191,36,0.5)]', border: 'border-amber-500/30', bg: 'bg-amber-500/5' }
   return { dot: 'bg-red-400', glow: 'shadow-[0_0_6px_rgba(248,113,113,0.5)]', border: 'border-red-500/30', bg: 'bg-red-500/5' }
 }
 
@@ -79,7 +79,8 @@ function getRoutesForNode(node, instances) {
   const nodeGwType = (node.gateway_type || 'envoy').toLowerCase()
   return instances.filter(inst => {
     const instType = (inst.gateway_type || (inst.context_path?.startsWith('/api') ? 'kong' : 'envoy')).toLowerCase()
-    return instType === nodeGwType
+    // Only show active routes — inactive means deleted from git or manually deactivated
+    return instType === nodeGwType && (inst.status || 'active') === 'active'
   })
 }
 
@@ -115,9 +116,11 @@ function NodeCard({ node, fleetId, apiUrl, onAction, readOnly = false, routes = 
     path: '', destination_type: 'backend', backend_url: '', function_code: '',
     audience: '', status: 'active', methods: ['GET', 'POST', 'PUT', 'DELETE'],
   })
-  const sc = nodeStatusColor(pendingAction ? (pendingAction === 'stop' ? 'exited' : pendingAction === 'start' ? 'running' : 'exited') : (node.status || 'running'))
+  const sc = nodeStatusColor(pendingAction ? (pendingAction === 'stop' ? 'stopped' : pendingAction === 'start' ? 'running' : 'exited') : (node.status || 'running'))
   const isRunning = pendingAction === 'start' ? true : pendingAction === 'stop' ? false : node.status === 'running'
-  const cid = node.container_id || node.container_name || node.id
+  // container_name == node_name in the DB — the stop/start/delete endpoints match on node_name,
+  // so prefer container_name over container_id (which in K8s mode is a pod UID, not node_name).
+  const cid = node.container_name || node.container_id || node.id
   const nodeName = node.container_name || node.name || (cid ? cid.slice(0, 12) : 'unknown')
 
   const handleAction = async (action) => {
@@ -168,7 +171,7 @@ function NodeCard({ node, fleetId, apiUrl, onAction, readOnly = false, routes = 
             <code className="text-[11px] text-jpmc-text font-mono truncate">{nodeName}</code>
             <span className={`text-[9px] px-1.5 py-0.5 rounded border ${gwBadgeClass}`}>{gwType}</span>
             <span className={`text-[9px] capitalize font-medium ${
-              actionLabel ? 'text-amber-400 animate-pulse' : isRunning ? 'text-emerald-400' : node.status === 'exited' ? 'text-red-400' : 'text-amber-400'
+              actionLabel ? 'text-amber-400 animate-pulse' : isRunning ? 'text-emerald-400' : (node.status === 'exited' || node.status === 'error') ? 'text-red-400' : 'text-amber-400'
             }`}>{actionLabel || node.status || 'running'}</span>
             {readOnly && (
               <span className="text-[8px] px-1.5 py-0.5 rounded bg-slate-500/10 border border-slate-500/30 text-slate-400">docker-compose managed</span>
@@ -215,7 +218,7 @@ function NodeCard({ node, fleetId, apiUrl, onAction, readOnly = false, routes = 
             const routeId = route.route_id || route.id  // prefer actual route ID over fleet instance ID
             const instId = route.id  // fleet instance ID for cleanup
             const isEditing = editingRoute === routeId
-            const routeStatus = (node.status || 'running') !== 'running' ? 'suspended' : route.status || 'active'
+            const routeStatus = route.status || 'active'
             return isEditing ? (
               <div key={routeId} className="p-2.5 rounded-lg bg-jpmc-navy/70 border border-blue-500/30 space-y-2">
                 <div className="flex items-center gap-2">
@@ -1814,12 +1817,11 @@ export default function Fleets() {
                       )}
                       {fleet.lob && <span className="badge badge-blue text-[9px]">{fleet.lob}</span>}
                       <StatusBadge status={fleet.status} />
-                      {fleet.sync_status && (
+                      {(fleet.sync_status === 'synced' || fleet.sync_status === 'progressing' || fleet.sync_status === 'out-of-sync') && (
                         <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wider ${
                           fleet.sync_status === 'synced' ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-400'
                           : fleet.sync_status === 'progressing' ? 'bg-yellow-500/15 border border-yellow-500/30 text-yellow-400'
-                          : fleet.sync_status === 'out-of-sync' ? 'bg-red-500/15 border border-red-500/30 text-red-400'
-                          : 'bg-gray-500/15 border border-gray-500/30 text-gray-400'
+                          : 'bg-red-500/15 border border-red-500/30 text-red-400'
                         }`}>
                           {fleet.sync_status}
                         </span>

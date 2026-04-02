@@ -149,6 +149,50 @@ const API_BASE = ''
 let session = null
 let traceLog = []
 
+// --- Session persistence ---
+function saveSession(s) {
+  try { sessionStorage.setItem('jpmm_session', JSON.stringify(s)) } catch (_) {}
+}
+function clearSession() {
+  try { sessionStorage.removeItem('jpmm_session') } catch (_) {}
+}
+function jwtExpired(jwt) {
+  try {
+    const parts = jwt.split('.')
+    if (parts.length < 2) return true
+    const claims = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))
+    return claims.exp && Date.now() / 1000 > claims.exp
+  } catch (_) { return true }
+}
+
+function showLogin() {
+  session = null
+  clearSession()
+  document.getElementById('app-shell').classList.add('hidden')
+  document.getElementById('page-login').classList.remove('hidden')
+}
+
+function restoreSession() {
+  try {
+    const raw = sessionStorage.getItem('jpmm_session')
+    if (!raw) return
+    const s = JSON.parse(raw)
+    if (!s || !s.jwt) return
+    // Reject expired sessions — show login instead of silently using a stale token
+    if (jwtExpired(s.jwt)) {
+      clearSession()
+      return
+    }
+    session = s
+    document.getElementById('page-login').classList.add('hidden')
+    document.getElementById('app-shell').classList.remove('hidden')
+    document.getElementById('user-badge').textContent = session.email
+    showPage('dashboard')
+    loadDashboard()
+  } catch (_) {}
+}
+document.addEventListener('DOMContentLoaded', restoreSession)
+
 // --- Auth ---
 async function doLogin() {
   const email = document.getElementById('login-user').value
@@ -190,6 +234,7 @@ async function doLogin() {
       name: email.split('@')[0],
       token: tokenData.access_token,
     }
+    saveSession(session)
 
     document.getElementById('page-login').classList.add('hidden')
     document.getElementById('app-shell').classList.remove('hidden')
@@ -205,10 +250,8 @@ function doLogout() {
   if (session) {
     fetch(`${AUTH_BASE}/session/revoke/${session.sid}`, { method: 'POST' }).catch(() => {})
   }
-  session = null
   traceLog = []
-  document.getElementById('app-shell').classList.add('hidden')
-  document.getElementById('page-login').classList.remove('hidden')
+  showLogin()
 }
 
 // --- API calls (through the ingress chain) ---
@@ -230,6 +273,12 @@ async function apiCall(method, path) {
     const traceId = traceparent.split('-')[1] || ''
 
     logTrace(method, path, resp.status, latency, traceId)
+
+    // Session expired or revoked — redirect to login
+    if (resp.status === 401) {
+      showLogin()
+      return { data: {}, status: 401, latency, traceId }
+    }
 
     // Detect route suspension (404 from gateway means route was removed)
     if (resp.status === 404 && !routeSuspended) {

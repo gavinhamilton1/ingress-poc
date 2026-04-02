@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Shield, User, Check, Loader2 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -14,6 +14,7 @@ function base64urlEncode(buffer) {
 
 export default function Login() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { login } = useAuth()
   const { AUTH_URL } = useConfig()
   const [users, setUsers] = useState([])
@@ -99,7 +100,25 @@ export default function Login() {
       }
 
       login(sessionInfo, { publicKey: publicJwk, privateKey: privateJwk })
-      navigate('/')
+
+      // Set a cookie on localhost so same-origin requests (console) carry the session
+      document.cookie = `ingress_session=${sessionData.session_jwt}; Path=/; SameSite=Lax; Max-Age=${60 * 60 * 24}`
+
+      // Also plant the cookie on the gateway domain (jpmm.jpm.com) so that browser
+      // page refreshes on gateway-served routes don't redirect back to login.
+      // This is a best-effort call — auth still works via Bearer header for API calls.
+      try {
+        await fetch('https://jpmm.jpm.com/_set_cookie', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_jwt: sessionData.session_jwt }),
+        })
+      } catch (_) {
+        // Non-fatal: gateway may not be reachable
+      }
+
+      navigate(location.state?.from?.pathname || '/')
     } catch (err) {
       setError(err.message)
     }
@@ -121,7 +140,7 @@ export default function Login() {
               <Shield className="text-white" size={24} />
             </div>
           </div>
-          <h1 className="text-2xl font-bold text-white mb-1">INGRESS Control Plane</h1>
+          <h1 className="text-2xl font-bold text-white mb-1">CIB Ingress Admin Console</h1>
           <p className="text-jpmc-muted text-sm">J.P. Morgan CIB -- Next Generation Ingress</p>
         </div>
 

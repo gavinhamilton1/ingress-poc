@@ -204,7 +204,7 @@ export default function RequestTester() {
       </div>
 
       {/* Request Builder */}
-      <GlassCard delay={0.05}>
+      <GlassCard delay={0.05} className="relative z-10">
         <div className="p-5 space-y-4">
           {/* Method + Path */}
           <div className="flex gap-3">
@@ -243,7 +243,7 @@ export default function RequestTester() {
                     initial={{ opacity: 0, y: -4 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -4 }}
-                    className="absolute left-0 right-0 top-full mt-1 glass-card border border-jpmc-border z-20 max-h-64 overflow-y-auto"
+                    className="absolute left-0 right-0 top-full mt-1 glass-card border border-jpmc-border z-[200] max-h-64 overflow-y-auto"
                   >
                     {filteredSuggestions.map(s => (
                       <button

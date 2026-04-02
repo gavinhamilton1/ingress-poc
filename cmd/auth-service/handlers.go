@@ -401,6 +401,19 @@ func handleExtAuthz(store *Store, tracer trace.Tracer) http.HandlerFunc {
 		authHeader := headers["authorization"]
 		dpopHeader := headers["dpop"]
 
+		// Fall back to cookie if no Bearer header — allows browser navigation/refresh to work
+		if !strings.HasPrefix(authHeader, "Bearer ") {
+			if cookieHeader := headers["cookie"]; cookieHeader != "" {
+				for _, part := range strings.Split(cookieHeader, ";") {
+					part = strings.TrimSpace(part)
+					if strings.HasPrefix(part, "ingress_session=") {
+						authHeader = "Bearer " + strings.TrimPrefix(part, "ingress_session=")
+						break
+					}
+				}
+			}
+		}
+
 		if !strings.HasPrefix(authHeader, "Bearer ") {
 			span.SetAttributes(
 				attribute.String("auth.result", "REJECT"),
@@ -444,6 +457,21 @@ func handleExtAuthz(store *Store, tracer trace.Tracer) http.HandlerFunc {
 			attribute.String("session.roles", string(rolesJSON)),
 			attribute.String("session.entity", entity),
 		)
+
+		// Expiry check — reject tokens whose exp has passed.
+		expClaim := claimFloat(claims, "exp")
+		if expClaim > 0 && float64(time.Now().Unix()) > expClaim {
+			span.SetAttributes(
+				attribute.String("auth.result", "REJECT"),
+				attribute.String("auth.reject_reason", "session_expired"),
+			)
+			writeJSON(w, 200, map[string]interface{}{
+				"allowed":     false,
+				"reason":      "Session has expired",
+				"status_code": 401,
+			})
+			return
+		}
 
 		// DPoP verification
 		dpopValid := true
@@ -599,6 +627,101 @@ func handleExtAuthz(store *Store, tracer trace.Tracer) http.HandlerFunc {
 			},
 			"claims": claims,
 		})
+	}
+}
+
+// handleExtAuthzHTTP is an Envoy-native HTTP ext-authz endpoint.
+// Unlike handleExtAuthz (which speaks a custom JSON protocol), this handler
+// follows the Envoy HTTP ext-authz contract:
+//   - HTTP 200  → allow; any x-auth-* response headers are forwarded to the upstream
+//   - HTTP 401  → deny; Envoy returns 401 to the client
+//
+// Unauthenticated requests (no Bearer / cookie) are passed through with 200 so
+// that HTML pages that embed their own login form can still be served.
+func handleExtAuthzHTTP(store *Store, tracer trace.Tracer) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		_, span := tracer.Start(r.Context(), "ext_authz.http.validate")
+		defer span.End()
+
+		// Envoy forwards the original request headers to the auth service.
+		authHeader := r.Header.Get("Authorization")
+
+		// Cookie fallback — lets browser page refreshes work without JS sending
+		// an Authorization header.
+		if !strings.HasPrefix(authHeader, "Bearer ") {
+			if cookie := r.Header.Get("Cookie"); cookie != "" {
+				for _, part := range strings.Split(cookie, ";") {
+					part = strings.TrimSpace(part)
+					if strings.HasPrefix(part, "ingress_session=") {
+						authHeader = "Bearer " + strings.TrimPrefix(part, "ingress_session=")
+						break
+					}
+				}
+			}
+		}
+
+		// No credentials at all — allow unauthenticated so HTML login pages can load.
+		if !strings.HasPrefix(authHeader, "Bearer ") {
+			span.SetAttributes(attribute.String("auth.result", "PASS_UNAUTHENTICATED"))
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		tokenStr := authHeader[7:]
+
+		claims, err := parseJWTUnverified(tokenStr)
+		if err != nil {
+			span.SetAttributes(
+				attribute.String("auth.result", "REJECT"),
+				attribute.String("auth.reject_reason", "invalid_jwt"),
+			)
+			http.Error(w, "Invalid JWT", http.StatusUnauthorized)
+			return
+		}
+
+		sid := claimString(claims, "sid")
+		sub := claimString(claims, "sub")
+		roles := claimSlice(claims, "roles")
+		entity := claimString(claims, "entity")
+
+		span.SetAttributes(
+			attribute.String("session.id", sid),
+			attribute.String("session.subject", sub),
+		)
+
+		// Expiry check.
+		expClaim := claimFloat(claims, "exp")
+		if expClaim > 0 && float64(time.Now().Unix()) > expClaim {
+			span.SetAttributes(
+				attribute.String("auth.result", "REJECT"),
+				attribute.String("auth.reject_reason", "session_expired"),
+			)
+			http.Error(w, "Session expired", http.StatusUnauthorized)
+			return
+		}
+
+		// Revocation check.
+		if store.IsRevoked(sid) {
+			span.SetAttributes(
+				attribute.String("auth.result", "REJECT"),
+				attribute.String("auth.reject_reason", "session_revoked"),
+			)
+			http.Error(w, "Session revoked", http.StatusUnauthorized)
+			return
+		}
+
+		// Allow — set upstream headers that Envoy will inject into the backend request.
+		rolesJSON, _ := json.Marshal(roles)
+		w.Header().Set("x-auth-subject", sub)
+		w.Header().Set("x-auth-session-id", sid)
+		w.Header().Set("x-auth-roles", string(rolesJSON))
+		w.Header().Set("x-auth-entity", entity)
+		w.Header().Set("x-auth-email", claimString(claims, "email"))
+		w.Header().Set("x-auth-name", claimString(claims, "name"))
+		w.Header().Set("x-auth-client-id", claimString(claims, "client_id"))
+
+		span.SetAttributes(attribute.String("auth.result", "PASS"))
+		w.WriteHeader(http.StatusOK)
 	}
 }
 

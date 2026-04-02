@@ -1,3 +1,17 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jaeger-badger
+  labels:
+    app: jaeger
+    ingress.jpmc.com/component: control-plane
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -19,6 +33,14 @@ spec:
       containers:
         - name: jaeger
           image: jaegertracing/all-in-one:latest
+          args:
+            - --span-storage.type=badger
+            - --badger.ephemeral=false
+            - --badger.directory-key=/badger/keys
+            - --badger.directory-value=/badger/values
+            - --badger.span-store-ttl=24h    # keep traces for 24 hours
+            - --badger.maintenance-interval=5m
+            - --query.max-clock-skew-adjustment=0
           ports:
             - name: ui
               containerPort: 16686
@@ -32,10 +54,19 @@ spec:
           env:
             - name: COLLECTOR_OTLP_ENABLED
               value: "true"
+            - name: SPAN_STORAGE_TYPE
+              value: badger
+          volumeMounts:
+            - name: badger-storage
+              mountPath: /badger
           resources:
             limits:
-              memory: 256Mi
-              cpu: 250m
+              memory: 512Mi
+              cpu: 500m
             requests:
-              memory: 128Mi
+              memory: 256Mi
               cpu: 100m
+      volumes:
+        - name: badger-storage
+          persistentVolumeClaim:
+            claimName: jaeger-badger

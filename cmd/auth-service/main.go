@@ -35,8 +35,11 @@ func main() {
 	idpKey := generateKeyPair("idp-key-1")
 	sessionKey := generateKeyPair("session-key-1")
 
-	// In-memory store
-	store := NewStore()
+	// Initialise Postgres (optional — falls back to in-memory if DATABASE_URL unset)
+	db := initDB()
+
+	// Session store (in-memory with optional Postgres persistence)
+	store := NewStore(db)
 
 	// Router
 	r := chi.NewRouter()
@@ -70,8 +73,15 @@ func main() {
 	r.Get("/sessions", handleListSessions(store))
 	r.Get("/revocations", handleListRevocations(store))
 
-	// Ext-authz endpoint
+	// Ext-authz endpoint (custom JSON protocol — used by Kong/manual callers)
 	r.Post("/gateway/ext-authz", handleExtAuthz(store, tracer))
+	// Ext-authz endpoint (Envoy HTTP ext-authz native protocol).
+	// Mounted rather than exact-matched because Envoy prepends path_prefix to
+	// the original request path — e.g. GET /research becomes
+	// GET /gateway/ext-authz-http/research on the auth service side.
+	// Mount catches /gateway/ext-authz-http, /gateway/ext-authz-http/,
+	// and /gateway/ext-authz-http/* in one registration.
+	r.Mount("/gateway/ext-authz-http", handleExtAuthzHTTP(store, tracer))
 
 	// Demo / health
 	r.Get("/demo/users", handleDemoUsers(store))

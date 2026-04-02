@@ -3,32 +3,32 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [session, setSession] = useState(null)
-  const [dpopKeys, setDpopKeys] = useState(null)
-
-  useEffect(() => {
-    const stored = sessionStorage.getItem('session')
-    if (stored) {
-      try { setSession(JSON.parse(stored)) } catch {}
-    }
-    const keys = sessionStorage.getItem('dpopKeys')
-    if (keys) {
-      try { setDpopKeys(JSON.parse(keys)) } catch {}
-    }
-  }, [])
+  const [session, setSession] = useState(() => {
+    try {
+      const stored = localStorage.getItem('session')
+      return stored ? JSON.parse(stored) : null
+    } catch { return null }
+  })
+  const [dpopKeys, setDpopKeys] = useState(() => {
+    try {
+      const stored = localStorage.getItem('dpopKeys')
+      return stored ? JSON.parse(stored) : null
+    } catch { return null }
+  })
 
   const login = useCallback((sess, keys) => {
     setSession(sess)
     setDpopKeys(keys)
-    sessionStorage.setItem('session', JSON.stringify(sess))
-    sessionStorage.setItem('dpopKeys', JSON.stringify(keys))
+    localStorage.setItem('session', JSON.stringify(sess))
+    localStorage.setItem('dpopKeys', JSON.stringify(keys))
   }, [])
 
   const logout = useCallback(() => {
     setSession(null)
     setDpopKeys(null)
-    sessionStorage.removeItem('session')
-    sessionStorage.removeItem('dpopKeys')
+    localStorage.removeItem('session')
+    localStorage.removeItem('dpopKeys')
+    document.cookie = 'ingress_session=; Path=/; Max-Age=0'
   }, [])
 
   return (

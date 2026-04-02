@@ -1065,10 +1065,13 @@ func getFleetNodes(w http.ResponseWriter, r *http.Request) {
 			Region:        dn.Datacenter,
 			Status:        dn.Status, // default from DB: "running" or "stopped"
 		}
-		// Override with live Docker status if container exists
+		// Override with live status if container exists — but never override a
+		// user-set "stopped" status, which is the source of truth for intent.
 		if live, ok := liveMap[dn.NodeName]; ok {
 			node.ContainerID = live.ContainerID
-			node.Status = live.Status
+			if dn.Status != "stopped" {
+				node.Status = live.Status
+			}
 			node.Port = live.Port
 		}
 		nodes = append(nodes, node)
@@ -2063,30 +2066,9 @@ func computeFleetStatus() {
 					}
 				}
 
-				// Compute fleet-level status
-				activeStatuses := []string{}
-				for _, s := range statuses {
-					if s != "suspended" {
-						activeStatuses = append(activeStatuses, s)
-					}
-				}
-
-				newStatus := "healthy"
-				if len(activeStatuses) == 0 {
-					newStatus = "offline"
-				} else if allEqual(activeStatuses, "offline") {
-					newStatus = "offline"
-				} else if allEqual(activeStatuses, "active") {
-					if hasSuspended(statuses) {
-						newStatus = "degraded"
-					} else {
-						newStatus = "healthy"
-					}
-				} else {
-					newStatus = "degraded"
-				}
-
-				db.MustExec("UPDATE fleets SET status=$1, updated_at=$2 WHERE id=$3", newStatus, now, fleet.ID)
+				// Fleet-level status is managed exclusively by the K8s reconciler
+				// (reconciler.go). computeFleetStatus only updates fleet_instances
+				// health data — do not write fleet status here to avoid conflicts.
 			}
 		}()
 

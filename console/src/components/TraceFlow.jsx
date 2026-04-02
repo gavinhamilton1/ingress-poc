@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Globe, Shield, Server, Cpu, Box, ChevronDown, ChevronRight,
-  ArrowRight, ExternalLink, Braces, Network, FileText, Zap,
+  ArrowRight, ExternalLink, Braces, Network, FileText, Zap, AlignLeft,
 } from 'lucide-react'
 import { useConfig } from '../context/ConfigContext'
+import TraceTimeline from './TraceTimeline'
 
 const SERVICE_MAP = {
   // Exact Go OTEL service names (dot-separated)
@@ -380,6 +381,7 @@ export default function TraceFlow({ traceId, inline = false }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [expanded, setExpanded] = useState(null)
+  const [viewMode, setViewMode] = useState('timeline')
 
   useEffect(() => {
     if (!traceId) return
@@ -451,48 +453,77 @@ export default function TraceFlow({ traceId, inline = false }) {
 
   return (
     <div className={`${inline ? '' : 'glass-card p-5'}`}>
-      <div className="flex items-center justify-between mb-4">
-        <div className="text-xs text-jpmc-muted">
-          Trace: <code className="text-blue-400">{traceId.slice(0, 16)}...</code>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setViewMode('timeline')}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[10px] font-medium transition-colors ${
+              viewMode === 'timeline' ? 'bg-blue-500/15 text-blue-400' : 'text-jpmc-muted hover:text-jpmc-text hover:bg-jpmc-hover'
+            }`}
+          >
+            <AlignLeft size={11} />
+            Timeline
+          </button>
+          <button
+            onClick={() => setViewMode('flow')}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[10px] font-medium transition-colors ${
+              viewMode === 'flow' ? 'bg-blue-500/15 text-blue-400' : 'text-jpmc-muted hover:text-jpmc-text hover:bg-jpmc-hover'
+            }`}
+          >
+            <Network size={11} />
+            Service Flow
+          </button>
         </div>
-        <a
-          href={`${JAEGER_UI_URL}/trace/${traceId}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-blue-400 hover:underline flex items-center gap-1"
-        >
-          Open in Jaeger <ExternalLink size={10} />
-        </a>
+        <div className="flex items-center gap-3">
+          <code className="text-[10px] text-jpmc-muted">{traceId.slice(0, 16)}…</code>
+          <a
+            href={`${JAEGER_UI_URL}/trace/${traceId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[10px] text-blue-400 hover:underline flex items-center gap-1"
+          >
+            Jaeger <ExternalLink size={9} />
+          </a>
+        </div>
       </div>
 
-      <div className="flex items-start gap-0 overflow-x-auto pb-8 pt-2">
-        {/* Client node */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="flex flex-col items-center"
-        >
-          <div className="p-4 rounded-xl border border-blue-500/50 bg-blue-500/10 min-w-[100px]">
-            <div className="flex flex-col items-center gap-2">
-              <Globe size={20} className="text-blue-400" />
-              <span className="text-xs font-medium text-jpmc-text">Client</span>
-              <span className="w-2 h-2 rounded-full bg-blue-400" />
+      {/* Timeline view */}
+      {viewMode === 'timeline' && (
+        <TraceTimeline traceData={traceData} />
+      )}
+
+      {/* Service flow view */}
+      {viewMode === 'flow' && (
+        <div className="flex items-start gap-0 overflow-x-auto pb-8 pt-2">
+          {/* Client node */}
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="flex flex-col items-center"
+          >
+            <div className="p-4 rounded-xl border border-blue-500/50 bg-blue-500/10 min-w-[100px]">
+              <div className="flex flex-col items-center gap-2">
+                <Globe size={20} className="text-blue-400" />
+                <span className="text-xs font-medium text-jpmc-text">Client</span>
+                <span className="w-2 h-2 rounded-full bg-blue-400" />
+              </div>
             </div>
-          </div>
-        </motion.div>
+          </motion.div>
 
-        {nodes.map((node, idx) => (
-          <React.Fragment key={node.key}>
-            <ConnectionLine latencyMs={node.connectionLatencyMs} index={idx} />
-            <TraceNode
-              node={node}
-              index={idx + 1}
-              expanded={expanded}
-              onToggle={toggleExpand}
-            />
-          </React.Fragment>
-        ))}
-      </div>
+          {nodes.map((node, idx) => (
+            <React.Fragment key={node.key}>
+              <ConnectionLine latencyMs={node.connectionLatencyMs} index={idx} />
+              <TraceNode
+                node={node}
+                index={idx + 1}
+                expanded={expanded}
+                onToggle={toggleExpand}
+              />
+            </React.Fragment>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

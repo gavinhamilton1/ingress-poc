@@ -460,6 +460,39 @@ func buildListenerConfig(routes []map[string]interface{}, version string) map[st
 										"virtual_hosts": buildVirtualHosts(routes),
 									},
 									"http_filters": []map[string]interface{}{
+										// ext_authz validates Bearer tokens against the auth-service
+										// using Envoy's native HTTP ext-authz protocol.
+										// Unauthenticated requests (no Bearer / cookie) are passed
+										// through so HTML login pages can still be served.
+										// Expired or revoked tokens receive 401, which the browser
+										// app handles by redirecting to its login view.
+										{
+											"name": "envoy.filters.http.ext_authz",
+											"typed_config": map[string]interface{}{
+												"@type": "type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz",
+												"http_service": map[string]interface{}{
+													"server_uri": map[string]interface{}{
+														"uri":     authServiceURL + "/gateway/ext-authz-http",
+														"cluster": "auth_service",
+														"timeout": "5s",
+													},
+													"path_prefix": "/gateway/ext-authz-http",
+													"authorization_response": map[string]interface{}{
+														// Forward x-auth-* headers set by the auth service
+														// into the upstream (backend) request.
+														"allowed_upstream_headers": map[string]interface{}{
+															"patterns": []map[string]interface{}{
+																{"prefix": "x-auth-"},
+															},
+														},
+													},
+												},
+												// Allow requests through if auth-service is temporarily
+												// unreachable — prevents auth outage from taking down
+												// all web traffic in the demo environment.
+												"failure_mode_allow": true,
+											},
+										},
 										{
 											"name": "envoy.filters.http.router",
 											"typed_config": map[string]interface{}{
