@@ -80,52 +80,52 @@ const TOUR_SECTIONS = [
   {
     id: 'dns', offset: -45,
     title: 'L0 — DNS Control Plane',
-    text: 'JPM-authoritative DNS (ns1–ns06.jpmorganchase.com) resolves all public hostnames. Cloudflare acts as a secondary for DR only. Because both GTM failover and the DR ingress path use Cloudflare, a single Cloudflare outage is a correlated failure risk (R1) — tracked as an open risk item.',
+    text: 'JPM-authoritative DNS (ns1–ns06.jpmorganchase.com) resolves all public hostnames. Cloudflare acts as a secondary for DR only.',
   },
   {
     id: 'gtm', offset: -45,
     title: 'L1 — Global Traffic Manager',
-    text: 'Akamai GTM provides GeoDNS and health-check-based routing — it selects the correct regional datacenter and injects x-akamai-request-id and W3C traceparent so every request is traceable from the very first hop. Cloudflare Load Balancer covers DR scenarios only and requires a manual flip — it is NOT a functional equivalent to GTM.',
+    text: 'Akamai GTM provides GeoDNS and health-check-based routing — it selects the correct regional datacenter and injects x-akamai-request-id so every request is traceable from the very first hop. Cloudflare Load Balancer covers DR scenarios only and requires a manual flip — it is NOT a functional equivalent to GTM.',
   },
   {
     id: 'cdn', offset: -45,
     title: 'L2 — CDN / Edge + WAF',
-    text: 'Akamai Ion CDN terminates TLS here — this is the outer TLS boundary. Kona WAF enforces XSS, path traversal, and bot rules before traffic ever reaches the data centre. Routes are split at this layer: /api paths go to Kong, /web paths go to Envoy. The DR path (Cloudflare Edge) has no WAF equivalent to Kona.',
+    text: 'Akamai Ion CDN terminates TLS here — this is the outer TLS boundary. Kona WAF enforces XSS, path traversal, and bot rules before traffic ever reaches the data centre. Routes are split at this layer: /api paths go to Kong, /web paths go to Envoy. The DR path uses Cloudflare Edge for edge protections.',
   },
   {
     id: 'perimeter', offset: -60,
     title: 'L3 — Regional Perimeter',
-    text: 'TLS is re-originated from L2 to L3, and a new DPoP proof is bound to this inner connection. PSaaS+ (GKP path) provides perimeter enforcement across NA, EMEA, and APAC datacentres. CTC Edge handles the AWS path. Both inject regional context headers used downstream for routing and observability.',
+    text: 'TLS is re-originated from L2 to L3. PSaaS+ (GKP path) provides perimeter enforcement across NA, EMEA, and APAC datacentres. CTC Edge handles the AWS path. Both inject regional context headers used downstream for routing and observability.',
   },
   {
     id: 'controllers', offset: -60,
     title: 'L4 — Ingress Controllers (no traffic)',
-    text: 'The Envoy Gateway Controller and Kong Ingress Controller handle configuration only — zero request traffic flows through them. The Envoy controller pushes xDS config via gRPC ADS (go-control-plane). The Kong controller calls the Kong Admin API. Both expose drift-detection endpoints polled by the Management API every 10 seconds.',
+    text: 'The Envoy Gateway Controller and Kong Ingress Controller handle configuration only — zero request traffic flows through them. The Envoy controller pushes xDS config via gRPC ADS (go-control-plane). The Kong controller calls the Kong Admin API. Both expose drift-detection endpoints.',
   },
   {
     id: 'dataplane', offset: -60,
     title: 'L4 — Data Plane (auth enforcement)',
-    text: 'ALL request traffic flows through the data plane. Each gateway pod runs a 3-stage auth pipeline: ① jwt_authn / JWT plugin — rejects invalid tokens immediately with 401; ② Session Validator sidecar — verifies DPoP binding (htm, htu, iat, jti) and checks the local Revoke Cache; ③ OPA coarse-grained policy — ABAC Rego evaluation in sub-milliseconds with no network hop. Finally, the Context Propagator constructs trusted x-auth-* headers and drops all client-supplied headers before forwarding.',
+    text: 'ALL request traffic flows through the data plane. Each gateway pod runs a 3-stage auth pipeline: ① jwt_authn / JWT plugin — rejects invalid tokens immediately with 401; ② Session Validator sidecar — verifies DPoP binding (htm, htu, iat, jti) and checks the local Revoke Cache; ③ OPA coarse-grained policy — Rego evaluation in sub-milliseconds with no network hop. Finally, the Context Propagator constructs trusted x-auth-* headers and drops all client-supplied headers before forwarding.',
   },
   {
     id: 'auth', offset: -30,
     title: 'Auth Dependencies — Session Manager + OPA + SpiceDB',
-    text: 'Session Manager runs one instance per cloud/region — no cross-region call in the request hot path. It issues session JWTs, maintains a JWKS endpoint cached at each gateway, and replicates session state via the Kafka session-events topic. CAEP revocation events propagate to gateway Revoke Caches in under 1 second. OPA runs as a sidecar for coarse L4 decisions and as a remote AuthZen API for fine-grained L5 decisions. SpiceDB provides ReBAC (desk membership, org hierarchy) and is modelled inside the OPA bundle.',
+    text: 'Session Manager supports multiple instances per cloud/region — no cross-region call in the request hot path. It issues session JWTs, maintains a JWKS endpoint cached at each gateway, and replicates session state via the Kafka session-events topic. CAEP revocation events propagate to gateway Revoke Caches in under 1 second. OPA runs as a sidecar for coarse L4 decisions and as a remote AuthZen API for fine-grained L5 decisions. SpiceDB provides ReBAC (desk membership, org hierarchy) and is modelled inside the OPA bundle.',
   },
   {
     id: 'mgmt', offset: -60,
     title: 'Management & Control Plane',
-    text: 'The DE Console (React/TypeScript) is the operator interface — routes, drift dashboard, audit log, sessions, traces. The Management API (Go/gin) holds the desired-state Postgres registry and runs a drift-detection goroutine that polls gateway actuals every 10 seconds. In production, changes flow through Bitbucket → Bitbucket Pipelines (policy CI) → ArgoCD → K8s manifests. The POC writes directly to the control plane — a banner is displayed on every console page.',
+    text: 'The DE Console (React/TypeScript) is the operator interface — routes, drift dashboard, audit log, sessions, traces. The Management API (Go/gin) holds the desired-state Postgres registry and runs a drift-detection goroutine. Changes flow through Bitbucket → Bitbucket Pipelines (policy CI) → ArgoCD → K8s manifests.',
   },
   {
     id: 'observability', offset: -60,
     title: 'Observability — OpenTelemetry + Dynatrace',
-    text: 'Every service uses a shared Go OTEL package that exports spans via OTLP HTTP and propagates W3C traceparent across every hop — from Akamai GTM all the way to the upstream service. In production, Dynatrace OneAgent ingests all telemetry, powers the Davis AI anomaly engine, auto-generates service dependency graphs, and tracks SLOs. In the POC and test environments, Jaeger all-in-one provides the same trace waterfall locally.',
+    text: 'Every service uses a shared Go OTEL package that exports spans via OTLP HTTP and propagates W3C traceparent and x-edge-request-id across every hop — from Akamai GTM all the way to the upstream service. Dynatrace OneAgent ingests all telemetry, auto-generates service dependency graphs, and tracks SLOs.',
   },
   {
     id: 'sidecar', offset: -60,
     title: 'Sidecar Pattern — per Gateway Pod',
-    text: 'Three sidecars run alongside every gateway pod on localhost — no network hop required. The Session Validator (Go, :9001) handles DPoP verification and maintains a Revoke Cache as a Kafka consumer. The OPA PDP (:8181) evaluates local Rego bundles in sub-milliseconds, refreshed via Kafka. The OTEL Collector (:4317) batches and forwards spans to Dynatrace in production or Jaeger in the test environment, with buffering to tolerate backend unavailability.',
+    text: 'Three sidecars run alongside every gateway pod — no network hop required. The Session Validator handles DPoP verification and maintains a Revoke Cache as a Kafka consumer. The OPA PDP evaluates local Rego bundles in sub-milliseconds, refreshed via Kafka. The OTEL Collector batches and forwards spans to Dynatrace, with buffering to tolerate backend unavailability.',
   },
 ]
 

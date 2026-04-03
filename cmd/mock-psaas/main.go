@@ -94,6 +94,7 @@ func pollFleetNodes() {
 
 			var fleets []struct {
 				ID        string `json:"id"`
+				K8sName   string `json:"k8s_name"`
 				Subdomain string `json:"subdomain"`
 				FleetType string `json:"fleet_type"`
 				Nodes     []struct {
@@ -116,9 +117,13 @@ func pollFleetNodes() {
 
 				if orchestrationMode == "kubernetes" {
 					// In K8s mode, the ingress-operator creates a Service
-					// named after the fleet ID in the ingress-dp namespace.
-					// Route to that service directly.
-					svcURL := fmt.Sprintf("http://%s.ingress-dp:8000", f.ID)
+					// named after the fleet's k8s_name in the ingress-dp namespace.
+					// New fleets use a human-readable slug; existing fleets fall back to UUID.
+					svcName := f.K8sName
+					if svcName == "" {
+						svcName = f.ID
+					}
+					svcURL := fmt.Sprintf("http://%s.ingress-dp:8000", svcName)
 					gw.EnvoyURL = svcURL
 					gw.KongURL = svcURL
 				} else {

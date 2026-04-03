@@ -1,0 +1,5 @@
+console/node_modules
+console/.vite
+console/dist
+*.log
+.git

@@ -843,6 +843,7 @@ export default function Fleets() {
 
   // ========== New Fleet slide-over ==========
   const [showNewFleet, setShowNewFleet] = useState(false)
+  const [isFleetSubmitting, setIsFleetSubmitting] = useState(false)
   const defaultFleetForm = {
     name: '', lob: 'Markets', portal: '', description: '',
     hostEnv: 'psaas', authProvider: 'Janus',
@@ -879,6 +880,8 @@ export default function Fleets() {
   }
 
   const handleCreateOrUpdateFleet = async () => {
+    if (isFleetSubmitting) return          // guard against double-click / slow network
+    setIsFleetSubmitting(true)
     try {
       const isEdit = !!editingFleet
       const payload = {
@@ -914,8 +917,11 @@ export default function Fleets() {
         setShowNewFleet(false)
         setEditingFleet(null)
         setNewFleetForm({ ...defaultFleetForm })
+        setIsFleetSubmitting(false)
       }, 2500)
-    } catch {}
+    } catch {
+      setIsFleetSubmitting(false)
+    }
   }
   // Backwards compat alias
   const handleCreateFleet = handleCreateOrUpdateFleet
@@ -1677,10 +1683,12 @@ export default function Fleets() {
                 {/* Submit */}
                 <button
                   onClick={handleCreateOrUpdateFleet}
-                  disabled={!newFleetForm.name || !newFleetForm.portal}
+                  disabled={!newFleetForm.name || !newFleetForm.portal || isFleetSubmitting}
                   className="btn-primary w-full py-3 disabled:opacity-40"
                 >
-                  {editingFleet ? 'Update Fleet' : 'Create Fleet'}
+                  {isFleetSubmitting
+                    ? (editingFleet ? 'Updating…' : 'Creating…')
+                    : (editingFleet ? 'Update Fleet' : 'Create Fleet')}
                 </button>
               </div>
             </motion.div>

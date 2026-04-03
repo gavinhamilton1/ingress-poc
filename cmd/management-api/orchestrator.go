@@ -18,7 +18,8 @@ type Orchestrator interface {
 	ScaleFleetNodes(fleetID, gatewayType string, desiredCount int) ([]FleetNode, error)
 
 	// RemoveFleetNodes tears down all nodes for a fleet.
-	RemoveFleetNodes(fleetID string) error
+	// k8sName is the K8s resource name (slug for new fleets, UUID for old ones).
+	RemoveFleetNodes(fleetID, k8sName string) error
 
 	// StopFleetNodes suspends all nodes in a fleet without removing them.
 	StopFleetNodes(fleetID string) error

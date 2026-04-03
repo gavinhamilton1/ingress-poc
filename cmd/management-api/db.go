@@ -37,5 +37,24 @@ func initDB() *sqlx.DB {
 		log.Printf("Applied migration: %s", mf)
 	}
 
+	// Inline migrations (not file-based, always safe to re-run due to IF NOT EXISTS / WHERE guards)
+	inlineMigrations := []struct {
+		name string
+		sql  string
+	}{
+		{
+			name: "003_fleet_k8s_name",
+			sql: `ALTER TABLE fleets ADD COLUMN IF NOT EXISTS k8s_name TEXT DEFAULT '';
+UPDATE fleets SET k8s_name = id WHERE k8s_name = '' OR k8s_name IS NULL;`,
+		},
+	}
+	for _, m := range inlineMigrations {
+		if _, err := db.Exec(m.sql); err != nil {
+			log.Printf("Warning: inline migration %s failed: %v", m.name, err)
+		} else {
+			log.Printf("Applied inline migration: %s", m.name)
+		}
+	}
+
 	return db
 }

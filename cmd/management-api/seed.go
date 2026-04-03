@@ -568,7 +568,7 @@ func ensureFleetContainers(db *sqlx.DB) {
 
 		// Re-create all containers (clean slate)
 		log.Printf("Fleet %s (%s): only %d/%d running — recreating", f.Name, f.GatewayType, totalRunning, totalDesired)
-		orch.RemoveFleetNodes(f.ID)
+		orch.RemoveFleetNodes(f.ID, f.K8sName)
 
 		allNodes := []FleetNode{}
 		for _, spec := range specs {

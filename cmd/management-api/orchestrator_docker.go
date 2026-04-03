@@ -29,7 +29,7 @@ func (d *DockerOrchestrator) ScaleFleetNodes(fleetID, gatewayType string, desire
 	return scaleFleetContainers(fleetID, gatewayType, desiredCount, d.networkName)
 }
 
-func (d *DockerOrchestrator) RemoveFleetNodes(fleetID string) error {
+func (d *DockerOrchestrator) RemoveFleetNodes(fleetID, _ string) error {
 	return removeFleetContainers(fleetID)
 }
 

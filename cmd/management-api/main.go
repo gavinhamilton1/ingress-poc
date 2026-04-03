@@ -694,6 +694,10 @@ func createFleet(w http.ResponseWriter, r *http.Request) {
 
 	now := float64(time.Now().Unix())
 	id := uuid.New().String()
+	fleetDisplayName := strOr(body["name"], "")
+	// k8s_name is a human-readable slug used as the K8s resource name for new
+	// fleets (Deployment, Service, Fleet CR). Existing fleets have k8s_name=id.
+	k8sName := fleetNameToK8sSlug(fleetDisplayName)
 	regions, _ := json.Marshal([]string{"us-east-1", "us-east-2"})
 
 	// Derive gateway_type from traffic_type if not explicitly set
@@ -718,9 +722,9 @@ func createFleet(w http.ResponseWriter, r *http.Request) {
 		health_check_path, health_check_interval_s, authn_mechanism, default_authz_scopes,
 		tls_required, waf_profile, resource_profile,
 		autoscale_enabled, autoscale_min, autoscale_max, autoscale_cpu_threshold,
-		created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33)`,
-		id, strOr(body["name"], ""), strOr(body["subdomain"], ""),
+		k8s_name, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34)`,
+		id, fleetDisplayName, strOr(body["subdomain"], ""),
 		strOr(body["lob"], ""), strOr(body["host_env"], "psaas"),
 		gatewayType, strOr(body["region"], "us-east"),
 		string(regions), strOr(body["auth_provider"], ""), 4, "healthy",
@@ -744,7 +748,7 @@ func createFleet(w http.ResponseWriter, r *http.Request) {
 		intOr(body, "autoscale_min", 2),
 		intOr(body, "autoscale_max", 16),
 		intOr(body, "autoscale_cpu_threshold", 70),
-		now, now)
+		k8sName, now, now)
 
 	var f Fleet
 	db.Get(&f, "SELECT * FROM fleets WHERE id=$1", id)
@@ -978,7 +982,7 @@ func deleteFleet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Remove all containers for this fleet (gateway instances)
-	if err := orch.RemoveFleetNodes(fleetID); err != nil {
+	if err := orch.RemoveFleetNodes(fleetID, f.K8sName); err != nil {
 		log.Printf("Warning: error removing fleet containers for %s: %v", fleetID, err)
 	}
 

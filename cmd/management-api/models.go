@@ -93,6 +93,7 @@ type Fleet struct {
 	AutoscaleCPUThresh   int             `db:"autoscale_cpu_threshold" json:"autoscale_cpu_threshold"`
 	Notes                string          `db:"notes" json:"notes"`
 	FleetType            string          `db:"fleet_type" json:"fleet_type"`
+	K8sName              string          `db:"k8s_name" json:"k8s_name,omitempty"`
 	GitCommitSHA         string          `db:"git_commit_sha" json:"git_commit_sha,omitempty"`
 	GitManifestPath      string          `db:"git_manifest_path" json:"git_manifest_path,omitempty"`
 	SyncStatus           string          `db:"sync_status" json:"sync_status,omitempty"`

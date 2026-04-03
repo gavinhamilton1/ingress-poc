@@ -1,0 +1,1879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CIB Unified Ingress: Project Plan</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #f0f4f9;
+    color: #1a2a3a;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  /* NAV */
+  .top-nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: #1a3a6a;
+    border-bottom: 3px solid #1D9E75;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 48px;
+    overflow-x: auto;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+  .top-nav .brand {
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 13px;
+    white-space: nowrap;
+    margin-right: 12px;
+    letter-spacing: 0.1em;
+  }
+  .nav-link {
+    color: #a8c4e8;
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.15);
+    white-space: nowrap;
+    transition: all 0.15s;
+    letter-spacing: 0.05em;
+  }
+  .nav-link:hover { color: #fff; background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.3); }
+  .nav-sep { color: rgba(255,255,255,0.2); font-size: 18px; }
+
+  /* HERO */
+  .hero {
+    padding: 36px 32px 24px;
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+  .hero-eyebrow {
+    font-size: 11px;
+    color: #5a7a9a;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    font-weight: 600;
+  }
+  .hero h1 {
+    font-size: 28px;
+    font-weight: 700;
+    color: #1a2a3a;
+    margin-bottom: 6px;
+    letter-spacing: -0.01em;
+  }
+  .hero-sub {
+    font-size: 13px;
+    color: #5a7a9a;
+    margin-bottom: 24px;
+  }
+  .hero-stats {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .hero-stat {
+    background: #ffffff;
+    border: 1px solid #d0dae8;
+    border-radius: 8px;
+    padding: 14px 20px;
+    text-align: center;
+    min-width: 100px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .hero-stat .val {
+    display: block;
+    font-size: 26px;
+    font-weight: 700;
+    color: #1a4a8a;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .hero-stat .lbl {
+    font-size: 11px;
+    color: #7a8a9a;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .hero-stat.amber .val { color: #8a5200; }
+  .hero-stat.red .val { color: #c0392b; }
+  .hero-stat.green .val { color: #1D6A40; }
+
+  /* LEGEND */
+  .legend {
+    padding: 10px 16px;
+    background: #ffffff;
+    border: 1px solid #d0dae8;
+    border-left: 4px solid #1a4a8a;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #5a7a9a; }
+
+  /* OVERVIEW SECTION */
+  .overview-section {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 32px 40px;
+  }
+  .section-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1a3a6a;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #1a3a6a;
+  }
+
+  /* GANTT WRAPPER */
+  .gantt-wrapper {
+    background: #ffffff;
+    border: 1px solid #d0dae8;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    overflow-x: auto;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .gantt-wrapper .mermaid { min-width: 600px; }
+  .mermaid svg { max-width: 100%; height: auto; }
+
+  /* PHASE SECTIONS */
+  .phase-section {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 28px 32px;
+    border-top: 1px solid #d0dae8;
+  }
+  .phase-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 12px;
+    padding: 16px;
+    background: #ffffff;
+    border: 1px solid #d0dae8;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .phase-meta { display: flex; align-items: center; gap: 12px; }
+  .phase-number {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 4px;
+    letter-spacing: 0.08em;
+    color: #ffffff;
+  }
+  .phase-header h2 {
+    font-size: 17px;
+    font-weight: 700;
+    color: #1a2a3a;
+  }
+  .phase-stats { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: #f4f7fb;
+    border: 1px solid #d0dae8;
+    border-radius: 5px;
+    padding: 4px 10px;
+    min-width: 70px;
+  }
+  .stat-val { font-size: 14px; font-weight: 700; color: #1a4a8a; }
+  .stat-lbl { font-size: 10px; color: #7a8a9a; text-transform: uppercase; letter-spacing: 0.08em; }
+  .gap-stat .stat-val { color: #8a5200; }
+  .phase-desc {
+    font-size: 13px;
+    color: #4a6a8a;
+    margin-bottom: 16px;
+    padding: 10px 14px;
+    background: #f8fafd;
+    border-left: 3px solid #1a4a8a;
+    border-radius: 0 4px 4px 0;
+    line-height: 1.7;
+  }
+
+  /* TABLES */
+  .deliverables-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    background: #ffffff;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #d0dae8;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  }
+  .deliverables-table thead th {
+    background: #1a3a6a;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 10px 12px;
+    text-align: left;
+    border-right: 1px solid rgba(255,255,255,0.1);
+  }
+  .deliverables-table thead th:last-child { border-right: none; }
+  .deliverables-table tbody tr td {
+    padding: 9px 12px;
+    border-bottom: 1px solid #e8eef8;
+    border-right: 1px solid #e8eef8;
+    vertical-align: top;
+    color: #2a3a4a;
+  }
+  .deliverables-table tbody tr td:last-child { border-right: none; }
+  .deliverables-table tbody tr { background: #ffffff; }
+  .deliverables-table tbody tr.alt { background: #f8fafd; }
+  .deliverables-table tbody tr:hover { background: #f0f5fc; }
+  .totals-row td {
+    background: #f4f7fb !important;
+    border-top: 2px solid #d0dae8 !important;
+    padding: 10px 12px !important;
+  }
+
+  .ws-header td {
+    background: #eef3fa !important;
+    color: #1a3a6a !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.12em !important;
+    text-transform: uppercase !important;
+    padding: 6px 12px !important;
+    border-top: 2px solid #c8d8f0 !important;
+    border-bottom: 1px solid #c8d8f0 !important;
+  }
+  .deliverable-name { color: #1a2a3a !important; font-size: 13px; }
+  .deliverable-name strong { color: #1a4a8a; font-weight: 600; }
+  .desc { color: #3a5a7a !important; font-size: 12px; line-height: 1.6; }
+  .notes { color: #6a7a8a !important; font-size: 12px; line-height: 1.6; }
+  .est-cell { text-align: center; }
+
+  /* BADGES */
+  .est-badge {
+    background: #eaf5ee;
+    color: #1D6A40;
+    border: 1px solid #b8dfc6;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  .gap-badge {
+    background: #fff3e0;
+    color: #8a5200;
+    border: 1px solid #f5c880;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 3px;
+    white-space: nowrap;
+    margin-right: 4px;
+  }
+  .phase-pill {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 3px;
+    letter-spacing: 0.06em;
+  }
+
+  /* OVERVIEW TABLE */
+  .overview-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    background: #ffffff;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #d0dae8;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  }
+  .overview-table thead th {
+    background: #1a3a6a;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 10px 12px;
+    text-align: left;
+    border-right: 1px solid rgba(255,255,255,0.1);
+  }
+  .overview-table tbody tr { background: #ffffff; }
+  .overview-table tbody tr.alt { background: #f8fafd; }
+  .overview-table tbody tr:hover { background: #f0f5fc; }
+  .overview-table tbody tr td {
+    padding: 9px 12px;
+    border-bottom: 1px solid #e8eef8;
+    vertical-align: top;
+    color: #2a3a4a;
+  }
+
+  /* FOOTER */
+  footer {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 20px 32px;
+    border-top: 1px solid #d0dae8;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #9aaaba;
+    font-size: 12px;
+    background: #f8fafd;
+  }
+
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-eyebrow">CIB Unified Ingress · Project Plan · April 2026</div>
+  <h1>CIB Unified Ingress: Deliverables &amp; Estimates</h1>
+</div>
+
+<!-- EXECUTIVE SUMMARY -->
+<div class="overview-section" id="exec-summary" style="padding-bottom:24px">
+  <div class="section-title">Executive Summary</div>
+  <div style="background:#ffffff;border:1px solid #d0dae8;border-radius:8px;padding:24px;box-shadow:0 1px 4px rgba(0,0,0,0.05);margin-bottom:20px">
+    <p style="font-size:14px;color:#2a3a4a;line-height:1.8;margin-bottom:20px">
+      CIB Unified Ingress delivers a single, secure, and observable internet ingress platform across all CIB Lines of Business.
+      Today each LOB manages ingress independently, with inconsistent security controls, duplicated platforms, and no shared visibility.
+      This initiative standardizes that across Markets, Payments, Security Services, and Global Banking.
+      The platform is designed for regional resilience: in the event of a failure anywhere in the request path within a region, traffic automatically fails over to a healthy region, with session continuity maintained through the active/active Session Manager.
+    </p>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px">
+      <div style="padding:14px 16px;background:#f4f7fb;border-radius:6px;border-left:4px solid #c0392b">
+        <div style="font-size:13px;font-weight:700;color:#8B1A1A;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px">Risk Reduction</div>
+        <ul style="font-size:13px;color:#3a5a7a;line-height:1.8;padding-left:18px;margin:0">
+          <li>Standardized auth, routing, and policy enforcement across all LOBs</li>
+          <li>Eliminates inconsistent ingress patterns that expand the attack surface</li>
+          <li>Phishing-resistant authentication. Stolen tokens are cryptographically unusable without the client's private key</li>
+          <li>Session revocation propagated globally in under one second; access decisions reflect live permission state without relying on token claims</li>
+        </ul>
+      </div>
+      <div style="padding:14px 16px;background:#f4f7fb;border-radius:6px;border-left:4px solid #BA7517">
+        <div style="font-size:13px;font-weight:700;color:#8a5200;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px">Cost &amp; Efficiency</div>
+        <ul style="font-size:13px;color:#3a5a7a;line-height:1.8;padding-left:18px;margin:0">
+          <li>Decommissions duplicate ingress platforms across LOBs</li>
+          <li>Eliminates per-team engineering overhead maintaining custom solutions</li>
+          <li>Single control plane: one place to define, validate, and deploy routes across all regions</li>
+          <li>GitOps-driven config with policy CI blocks non-compliant routes before they reach production</li>
+        </ul>
+      </div>
+      <div style="padding:14px 16px;background:#f4f7fb;border-radius:6px;border-left:4px solid #1D9E75">
+        <div style="font-size:13px;font-weight:700;color:#1a4a2a;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px">Resilience &amp; Observability</div>
+        <ul style="font-size:13px;color:#3a5a7a;line-height:1.8;padding-left:18px;margin:0">
+          <li>Improved reliability through consistent, well-tested ingress patterns</li>
+          <li>Centralized metrics, logging, and traffic visibility across all LOBs</li>
+          <li>End-to-end distributed tracing from CDN edge to L5 service</li>
+          <li>Multi-region active/active: no single region or cloud is a single point of failure</li>
+        </ul>
+      </div>
+      <div style="padding:14px 16px;background:#f4f7fb;border-radius:6px;border-left:4px solid #534AB7">
+        <div style="font-size:13px;font-weight:700;color:#2a1a6a;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px">Strategic Alignment</div>
+        <ul style="font-size:13px;color:#3a5a7a;line-height:1.8;padding-left:18px;margin:0">
+          <li>Aligns to firmwide platform strategy for shared infrastructure</li>
+          <li>Enables future capabilities: zero trust, policy-as-code, and automation</li>
+          <li>Extensible policy engine (OPA + SpiceDB) supports evolving entitlement requirements</li>
+          <li>Positions CIB as the reference implementation for ingress across the firm</li>
+        </ul>
+      </div>
+    </div>
+    <div style="margin-top:20px">
+  <div style="font-size:11px;font-weight:700;color:#1a3a6a;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #d0dae8">Architecture Layers, Components &amp; Resilience</div>
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1060 564" width="100%" style="display:block;font-family:Arial,sans-serif">
+    <defs>
+      <marker id="arrD" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,1 L6,3.5 L0,6 Z" fill="#c8d8f0"/></marker>
+      <marker id="arrP" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,1 L6,3.5 L0,6 Z" fill="#7a72c8"/></marker>
+      <marker id="arrA" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,1 L6,3.5 L0,6 Z" fill="#BA7517"/></marker>
+    </defs>
+    <!-- Background -->
+    <rect width="1060" height="564" fill="#f8fafd" rx="8" stroke="#d0dae8" stroke-width="1"/>
+    <!-- Title -->
+    <rect x="0" y="0" width="1060" height="32" fill="#1a3a6a" rx="8"/>
+    <rect x="0" y="20" width="1060" height="12" fill="#1a3a6a"/>
+    <text x="530" y="21" text-anchor="middle" font-size="13" font-weight="700" fill="white">CIB Unified Ingress — Architecture Overview</text>
+    <!-- RIGHT PANEL -->
+    <rect x="862" y="32" width="198" height="532" fill="#eef3fa" stroke="#d0dae8" stroke-width="1"/>
+    <rect x="862" y="32" width="198" height="20" fill="#1a3a6a"/>
+    <text x="961" y="46" text-anchor="middle" font-size="10" font-weight="700" fill="white" letter-spacing="0.08em">RESILIENCE MODEL</text>
+
+    <!-- ═══ L1 ═══════════════════════════════════════════════════════ -->
+    <rect x="0" y="32" width="862" height="78" fill="#f0f4fc"/>
+    <rect x="0" y="32" width="108" height="78" fill="#5a7aaa"/>
+    <text x="54" y="66" text-anchor="middle" font-size="16" font-weight="700" fill="white">L1</text>
+    <text x="54" y="81" text-anchor="middle" font-size="8" fill="#ccdcee" letter-spacing="0.08em">GLOBAL DNS</text>
+    <text x="54" y="94" text-anchor="middle" font-size="8" fill="#ccdcee" letter-spacing="0.08em">ROUTING</text>
+    <!-- Akamai GTM -->
+    <rect x="118" y="41" width="228" height="60" fill="white" rx="5" stroke="#c8d8f0" stroke-width="1"/>
+    <rect x="118" y="41" width="228" height="18" fill="#5a7aaa" rx="5"/>
+    <rect x="118" y="49" width="228" height="10" fill="#5a7aaa"/>
+    <text x="232" y="54" text-anchor="middle" font-size="11" font-weight="700" fill="white">Akamai GTM</text>
+    <text x="232" y="71" text-anchor="middle" font-size="10" fill="#5a7a9a">GeoDNS routing · Health checks</text>
+    <text x="232" y="85" text-anchor="middle" font-size="10" fill="#5a7a9a">Failover steering · TTL tuning</text>
+    <!-- Cloudflare DR -->
+    <rect x="378" y="41" width="218" height="60" fill="#fffaf0" rx="5" stroke="#BA7517" stroke-width="1.5" stroke-dasharray="5,3"/>
+    <rect x="378" y="41" width="218" height="18" fill="#BA7517" rx="5"/>
+    <rect x="378" y="49" width="218" height="10" fill="#BA7517"/>
+    <text x="487" y="54" text-anchor="middle" font-size="11" font-weight="700" fill="white">Cloudflare DR</text>
+    <text x="487" y="71" text-anchor="middle" font-size="10" fill="#8a5200">Manual activation · Business continuity</text>
+    <text x="487" y="85" text-anchor="middle" font-size="10" fill="#8a5200" font-style="italic">Active on DR failover only</text>
+    <line x1="0" y1="110" x2="862" y2="110" stroke="#d0dae8" stroke-width="0.5"/>
+
+    <!-- ═══ L2 ═══════════════════════════════════════════════════════ -->
+    <rect x="0" y="110" width="862" height="82" fill="#fdf3f0"/>
+    <rect x="0" y="110" width="108" height="82" fill="#aa6060"/>
+    <text x="54" y="145" text-anchor="middle" font-size="16" font-weight="700" fill="white">L2</text>
+    <text x="54" y="160" text-anchor="middle" font-size="8" fill="#eeccc8" letter-spacing="0.08em">EDGE SECURITY</text>
+    <text x="54" y="173" text-anchor="middle" font-size="8" fill="#eeccc8" letter-spacing="0.08em">CDN</text>
+    <!-- Akamai Ion CDN -->
+    <rect x="118" y="119" width="200" height="64" fill="white" rx="5" stroke="#e8c0b8" stroke-width="1"/>
+    <rect x="118" y="119" width="200" height="18" fill="#aa6060" rx="5"/>
+    <rect x="118" y="127" width="200" height="10" fill="#aa6060"/>
+    <text x="218" y="132" text-anchor="middle" font-size="11" font-weight="700" fill="white">Akamai Ion CDN</text>
+    <text x="218" y="150" text-anchor="middle" font-size="10" fill="#5a7a9a">Cache · Compress · Accelerate</text>
+    <text x="218" y="164" text-anchor="middle" font-size="10" fill="#5a7a9a">TLS termination · Edge certs</text>
+    <!-- Kona WAF -->
+    <rect x="326" y="119" width="200" height="64" fill="white" rx="5" stroke="#e8c0b8" stroke-width="1"/>
+    <rect x="326" y="119" width="200" height="18" fill="#aa6060" rx="5"/>
+    <rect x="326" y="127" width="200" height="10" fill="#aa6060"/>
+    <text x="426" y="132" text-anchor="middle" font-size="11" font-weight="700" fill="white">Kona WAF</text>
+    <text x="426" y="150" text-anchor="middle" font-size="10" fill="#5a7a9a">OWASP CRS · DDoS · Bot mgmt</text>
+    <text x="426" y="164" text-anchor="middle" font-size="10" fill="#5a7a9a">Custom rules · Credential stuffing</text>
+    <!-- Cloudflare Edge (failover path) -->
+    <rect x="534" y="119" width="216" height="64" fill="#fffaf0" rx="5" stroke="#BA7517" stroke-width="1.5" stroke-dasharray="5,3"/>
+    <rect x="534" y="119" width="216" height="18" fill="#BA7517" rx="5"/>
+    <rect x="534" y="127" width="216" height="10" fill="#BA7517"/>
+    <text x="642" y="132" text-anchor="middle" font-size="11" font-weight="700" fill="white">Cloudflare Edge</text>
+    <text x="642" y="150" text-anchor="middle" font-size="10" fill="#8a5200">CDN · WAF · DDoS protection</text>
+    <text x="642" y="164" text-anchor="middle" font-size="10" fill="#8a5200" font-style="italic">Active on DR failover only</text>
+    <line x1="0" y1="192" x2="862" y2="192" stroke="#d0dae8" stroke-width="0.5"/>
+
+    <!-- ═══ L3 ═══════════════════════════════════════════════════════ -->
+    <rect x="0" y="192" width="862" height="76" fill="#f2f8f5"/>
+    <rect x="0" y="192" width="108" height="76" fill="#4a8a62"/>
+    <text x="54" y="226" text-anchor="middle" font-size="16" font-weight="700" fill="white">L3</text>
+    <text x="54" y="241" text-anchor="middle" font-size="8" fill="#c0e0ce" letter-spacing="0.08em">NETWORK</text>
+    <text x="54" y="254" text-anchor="middle" font-size="8" fill="#c0e0ce" letter-spacing="0.08em">PERIMETER</text>
+    <!-- PSaaS+ (GKP) -->
+    <rect x="118" y="201" width="226" height="58" fill="white" rx="5" stroke="#b0d8c0" stroke-width="1"/>
+    <rect x="118" y="201" width="226" height="18" fill="#4a8a62" rx="5"/>
+    <rect x="118" y="209" width="226" height="10" fill="#4a8a62"/>
+    <text x="231" y="214" text-anchor="middle" font-size="11" font-weight="700" fill="white">PSaaS+  (GKP)</text>
+    <text x="231" y="231" text-anchor="middle" font-size="10" fill="#5a7a9a">TLS re-origination · Perimeter routing</text>
+    <text x="231" y="245" text-anchor="middle" font-size="10" fill="#4a8a62" font-weight="600">NA · EMEA · APAC</text>
+    <!-- CTC Edge (AWS) -->
+    <rect x="354" y="201" width="226" height="58" fill="white" rx="5" stroke="#b0d8c0" stroke-width="1"/>
+    <rect x="354" y="201" width="226" height="18" fill="#4a8a62" rx="5"/>
+    <rect x="354" y="209" width="226" height="10" fill="#4a8a62"/>
+    <text x="467" y="214" text-anchor="middle" font-size="11" font-weight="700" fill="white">CTC Edge  (AWS)</text>
+    <text x="467" y="231" text-anchor="middle" font-size="10" fill="#5a7a9a">TLS re-origination · Perimeter routing</text>
+    <text x="467" y="245" text-anchor="middle" font-size="10" fill="#4a8a62" font-weight="600">NA · EMEA · APAC</text>
+    <line x1="0" y1="268" x2="862" y2="268" stroke="#d0dae8" stroke-width="0.5"/>
+
+    <!-- ═══ L4 ═══════════════════════════════════════════════════════ -->
+    <rect x="0" y="268" width="862" height="110" fill="#f5f3fe"/>
+    <rect x="0" y="268" width="108" height="110" fill="#7a72c8"/>
+    <text x="54" y="306" text-anchor="middle" font-size="16" font-weight="700" fill="white">L4</text>
+    <text x="54" y="321" text-anchor="middle" font-size="8" fill="#d8d4f4" letter-spacing="0.08em">APPLICATION</text>
+    <text x="54" y="334" text-anchor="middle" font-size="8" fill="#d8d4f4" letter-spacing="0.08em">GATEWAY</text>
+    <!-- Envoy Web Gateway -->
+    <rect x="118" y="276" width="408" height="94" fill="white" rx="5" stroke="#c8c0f0" stroke-width="1"/>
+    <rect x="118" y="276" width="408" height="18" fill="#7a72c8" rx="5"/>
+    <rect x="118" y="284" width="408" height="10" fill="#7a72c8"/>
+    <text x="322" y="289" text-anchor="middle" font-size="11" font-weight="700" fill="white">Envoy Web Gateway</text>
+    <text x="128" y="307" font-size="9" fill="#7a8a9a" font-style="italic">Auth filter chain:</text>
+    <!-- Auth pipeline boxes -->
+    <rect x="128" y="310" width="68" height="16" fill="#eef3fa" rx="3" stroke="#c8d8f0" stroke-width="1"/>
+    <text x="162" y="321" text-anchor="middle" font-size="8.5" fill="#1a3a6a">jwt_authn</text>
+    <path d="M197,318 L206,318" stroke="#7a72c8" stroke-width="1" marker-end="url(#arrP)"/>
+    <rect x="208" y="310" width="94" height="16" fill="#eef3fa" rx="3" stroke="#c8d8f0" stroke-width="1"/>
+    <text x="255" y="321" text-anchor="middle" font-size="8.5" fill="#1a3a6a">Session Validator</text>
+    <text x="255" y="334" text-anchor="middle" font-size="7.5" fill="#9b59b6">DPoP · Revoke cache</text>
+    <path d="M303,318 L312,318" stroke="#7a72c8" stroke-width="1" marker-end="url(#arrP)"/>
+    <rect x="314" y="310" width="72" height="16" fill="#eef3fa" rx="3" stroke="#c8d8f0" stroke-width="1"/>
+    <text x="350" y="321" text-anchor="middle" font-size="8.5" fill="#1a3a6a">OPA coarse</text>
+    <text x="350" y="334" text-anchor="middle" font-size="7.5" fill="#4a8a62">SpiceDB lookup</text>
+    <path d="M387,318 L396,318" stroke="#7a72c8" stroke-width="1" marker-end="url(#arrP)"/>
+    <rect x="398" y="310" width="118" height="16" fill="#eef3fa" rx="3" stroke="#c8d8f0" stroke-width="1"/>
+    <text x="457" y="321" text-anchor="middle" font-size="8.5" fill="#1a3a6a">Context Propagator</text>
+    <text x="457" y="334" text-anchor="middle" font-size="7.5" fill="#8B1A1A">Trust boundary</text>
+    <text x="322" y="356" text-anchor="middle" font-size="9" fill="#9b59b6" font-style="italic">Config via gRPC ADS · Zero-downtime propagation</text>
+    <!-- Kong API Gateway -->
+    <rect x="536" y="276" width="292" height="94" fill="white" rx="5" stroke="#b8c8e8" stroke-width="1"/>
+    <rect x="536" y="276" width="292" height="18" fill="#4a78b8" rx="5"/>
+    <rect x="536" y="284" width="292" height="10" fill="#4a78b8"/>
+    <text x="682" y="289" text-anchor="middle" font-size="11" font-weight="700" fill="white">Kong API Gateway</text>
+    <text x="682" y="310" text-anchor="middle" font-size="10" fill="#5a7a9a">Consumer identity · Rate limiting</text>
+    <text x="682" y="324" text-anchor="middle" font-size="10" fill="#5a7a9a">Request transformation · Plugin chain</text>
+    <text x="682" y="338" text-anchor="middle" font-size="10" fill="#5a7a9a">OAuth client lifecycle management</text>
+    <text x="682" y="357" text-anchor="middle" font-size="9" fill="#4a78b8" font-style="italic">Reconciled via Kong Admin API</text>
+    <line x1="0" y1="378" x2="862" y2="378" stroke="#d0dae8" stroke-width="0.5"/>
+
+    <!-- ═══ L5 ═══════════════════════════════════════════════════════ -->
+    <rect x="0" y="378" width="862" height="108" fill="#f2f8f5"/>
+    <rect x="0" y="378" width="108" height="108" fill="#4a78b8"/>
+    <text x="54" y="416" text-anchor="middle" font-size="16" font-weight="700" fill="white">L5</text>
+    <text x="54" y="431" text-anchor="middle" font-size="8" fill="#ccdcee" letter-spacing="0.08em">SERVICES</text>
+    <!-- On-Prem group container -->
+    <rect x="118" y="384" width="328" height="78" fill="white" rx="5" stroke="#5a7aaa" stroke-width="1.5"/>
+    <text x="282" y="395" text-anchor="middle" font-size="9" font-weight="700" fill="#1a3a6a" letter-spacing="0.06em">ON-PREMISES</text>
+    <!-- GAP -->
+    <rect x="126" y="404" width="96" height="50" fill="#f4f7fb" rx="4" stroke="#c8d8f0" stroke-width="1"/>
+    <text x="174" y="425" text-anchor="middle" font-size="11" font-weight="700" fill="#1a4a8a">GAP</text>
+    <text x="174" y="439" text-anchor="middle" font-size="8.5" fill="#7a8a9a">Global App Platform</text>
+    <text x="174" y="450" text-anchor="middle" font-size="8" fill="#9aaaba">Greenplum/Pega</text>
+    <!-- GKP -->
+    <rect x="230" y="404" width="96" height="50" fill="#f4f7fb" rx="4" stroke="#c8d8f0" stroke-width="1"/>
+    <text x="278" y="425" text-anchor="middle" font-size="11" font-weight="700" fill="#1a4a8a">GKP</text>
+    <text x="278" y="439" text-anchor="middle" font-size="8.5" fill="#7a8a9a">Google Kubernetes</text>
+    <text x="278" y="450" text-anchor="middle" font-size="8" fill="#9aaaba">On-prem clusters</text>
+    <!-- VSI -->
+    <rect x="334" y="404" width="96" height="50" fill="#f4f7fb" rx="4" stroke="#c8d8f0" stroke-width="1"/>
+    <text x="382" y="425" text-anchor="middle" font-size="11" font-weight="700" fill="#1a4a8a">VSI</text>
+    <text x="382" y="439" text-anchor="middle" font-size="8.5" fill="#7a8a9a">Virtual Server Inst.</text>
+    <text x="382" y="450" text-anchor="middle" font-size="8" fill="#9aaaba">Bare-metal adjacent</text>
+    <!-- AWS group container -->
+    <rect x="456" y="384" width="372" height="78" fill="white" rx="5" stroke="#f0a020" stroke-width="1.5"/>
+    <text x="642" y="395" text-anchor="middle" font-size="9" font-weight="700" fill="#8a5200" letter-spacing="0.06em">AMAZON WEB SERVICES</text>
+    <!-- EKS -->
+    <rect x="464" y="404" width="88" height="50" fill="#fffdf5" rx="4" stroke="#f0c870" stroke-width="1"/>
+    <text x="508" y="425" text-anchor="middle" font-size="11" font-weight="700" fill="#8a5200">EKS</text>
+    <text x="508" y="439" text-anchor="middle" font-size="8.5" fill="#7a8a9a">Elastic Kubernetes</text>
+    <text x="508" y="450" text-anchor="middle" font-size="8" fill="#9aaaba">Managed K8s</text>
+    <!-- ECS -->
+    <rect x="560" y="404" width="88" height="50" fill="#fffdf5" rx="4" stroke="#f0c870" stroke-width="1"/>
+    <text x="604" y="425" text-anchor="middle" font-size="11" font-weight="700" fill="#8a5200">ECS</text>
+    <text x="604" y="439" text-anchor="middle" font-size="8.5" fill="#7a8a9a">Elastic Container</text>
+    <text x="604" y="450" text-anchor="middle" font-size="8" fill="#9aaaba">Managed containers</text>
+    <!-- EC2 -->
+    <rect x="656" y="404" width="88" height="50" fill="#fffdf5" rx="4" stroke="#f0c870" stroke-width="1"/>
+    <text x="700" y="425" text-anchor="middle" font-size="11" font-weight="700" fill="#8a5200">EC2</text>
+    <text x="700" y="439" text-anchor="middle" font-size="8.5" fill="#7a8a9a">Virtual machines</text>
+    <text x="700" y="450" text-anchor="middle" font-size="8" fill="#9aaaba">IaaS compute</text>
+    <!-- Lambda -->
+    <rect x="740" y="404" width="80" height="50" fill="#fffdf5" rx="4" stroke="#f0c870" stroke-width="1"/>
+    <text x="780" y="425" text-anchor="middle" font-size="11" font-weight="700" fill="#8a5200">Lambda</text>
+    <text x="780" y="439" text-anchor="middle" font-size="8.5" fill="#7a8a9a">Serverless</text>
+    <text x="780" y="450" text-anchor="middle" font-size="8" fill="#9aaaba">Event-driven</text>
+    <line x1="0" y1="486" x2="862" y2="486" stroke="#d0dae8" stroke-width="0.5"/>
+    <!-- OPA AuthZen note -->
+    <text x="440" y="476" text-anchor="middle" font-size="9" fill="#4a8a62" font-style="italic">OPA fine-grained AuthZen API available per service</text>
+
+    <!-- ═══ PLATFORM SERVICES ═════════════════════════════════════════ -->
+    <rect x="0" y="486" width="862" height="78" fill="white" stroke="#d0dae8" stroke-width="0.5"/>
+    <rect x="0" y="486" width="862" height="18" fill="#7a8e99"/>
+    <text x="431" y="499" text-anchor="middle" font-size="10" font-weight="700" fill="white" letter-spacing="0.08em">PLATFORM SERVICES</text>
+    <!-- Session Manager -->
+    <rect x="8" y="508" width="156" height="48" fill="#f4f7fb" rx="4" stroke="#d0dae8" stroke-width="1"/>
+    <text x="86" y="523" text-anchor="middle" font-size="10" font-weight="700" fill="#9b59b6">Session Manager</text>
+    <text x="86" y="537" text-anchor="middle" font-size="9" fill="#5a7a9a">Active/active · Multi-region</text>
+    <text x="86" y="549" text-anchor="middle" font-size="9" fill="#5a7a9a">CAEP events · Revoke &lt;1s</text>
+    <!-- Kafka -->
+    <rect x="172" y="508" width="142" height="48" fill="#f4f7fb" rx="4" stroke="#d0dae8" stroke-width="1"/>
+    <text x="243" y="523" text-anchor="middle" font-size="10" font-weight="700" fill="#546e7a">Kafka</text>
+    <text x="243" y="537" text-anchor="middle" font-size="9" fill="#5a7a9a">Session · Revocation</text>
+    <text x="243" y="549" text-anchor="middle" font-size="9" fill="#5a7a9a">Risk signals · Policy push</text>
+    <!-- OPA + SpiceDB -->
+    <rect x="322" y="508" width="152" height="48" fill="#f4f7fb" rx="4" stroke="#d0dae8" stroke-width="1"/>
+    <text x="398" y="523" text-anchor="middle" font-size="10" font-weight="700" fill="#4a8a62">OPA + SpiceDB</text>
+    <text x="398" y="537" text-anchor="middle" font-size="9" fill="#5a7a9a">Policy evaluation</text>
+    <text x="398" y="549" text-anchor="middle" font-size="9" fill="#5a7a9a">Relationship-based access</text>
+    <!-- Control Plane -->
+    <rect x="482" y="508" width="180" height="48" fill="#f4f7fb" rx="4" stroke="#d0dae8" stroke-width="1"/>
+    <text x="572" y="523" text-anchor="middle" font-size="10" font-weight="700" fill="#4a78b8">Ingress Control Plane</text>
+    <text x="572" y="537" text-anchor="middle" font-size="9" fill="#5a7a9a">Mgmt API · Registry · GitOps</text>
+    <text x="572" y="549" text-anchor="middle" font-size="9" fill="#5a7a9a">DE Console · Drift detection</text>
+    <!-- Observability -->
+    <rect x="670" y="508" width="184" height="48" fill="#f4f7fb" rx="4" stroke="#d0dae8" stroke-width="1"/>
+    <text x="762" y="523" text-anchor="middle" font-size="10" font-weight="700" fill="#2e7d32">Observability</text>
+    <text x="762" y="537" text-anchor="middle" font-size="9" fill="#5a7a9a">OTEL · Dynatrace</text>
+    <text x="762" y="549" text-anchor="middle" font-size="9" fill="#5a7a9a">End-to-end tracing · SLOs</text>
+
+    <!-- ═══ RESILIENCE MODEL ═══════════════════════════════════════════ -->
+    <text x="872" y="72" font-size="10" font-weight="700" fill="#1a3a6a">Multi-cloud</text>
+    <text x="872" y="86" font-size="10" fill="#5a7a9a">GKP + AWS</text>
+    <text x="872" y="98" font-size="9" fill="#9aaaba">Self-contained per cloud</text>
+    <line x1="866" y1="106" x2="1054" y2="106" stroke="#d0dae8" stroke-width="0.5"/>
+    <text x="872" y="120" font-size="10" font-weight="700" fill="#1a3a6a">Multi-region</text>
+    <text x="872" y="134" font-size="10" fill="#5a7a9a">NA · EMEA · APAC</text>
+    <text x="872" y="146" font-size="9" fill="#9aaaba">Per L3 perimeter path</text>
+    <line x1="866" y1="154" x2="1054" y2="154" stroke="#d0dae8" stroke-width="0.5"/>
+    <text x="872" y="168" font-size="10" font-weight="700" fill="#1a3a6a">TLS model</text>
+    <text x="872" y="182" font-size="10" fill="#5a7a9a">Terminate at L2 (Akamai)</text>
+    <text x="872" y="195" font-size="10" fill="#5a7a9a">Re-originate at L3</text>
+    <text x="872" y="207" font-size="9" fill="#9aaaba">Inner session isolated</text>
+    <line x1="866" y1="215" x2="1054" y2="215" stroke="#d0dae8" stroke-width="0.5"/>
+    <text x="872" y="229" font-size="10" font-weight="700" fill="#1a3a6a">Active/active</text>
+    <text x="872" y="243" font-size="10" fill="#5a7a9a">Session Manager</text>
+    <text x="872" y="255" font-size="9" fill="#9aaaba">No cross-region dependency</text>
+    <line x1="866" y1="263" x2="1054" y2="263" stroke="#d0dae8" stroke-width="0.5"/>
+    <text x="872" y="277" font-size="10" font-weight="700" fill="#1a3a6a">Revocation</text>
+    <text x="872" y="291" font-size="10" fill="#5a7a9a">Global &lt;1 second</text>
+    <text x="872" y="303" font-size="9" fill="#9aaaba">CAEP events via Kafka</text>
+    <line x1="866" y1="311" x2="1054" y2="311" stroke="#d0dae8" stroke-width="0.5"/>
+    <text x="872" y="325" font-size="10" font-weight="700" fill="#1a3a6a">DPoP binding</text>
+    <text x="872" y="339" font-size="10" fill="#5a7a9a">Token bound to key pair</text>
+    <text x="872" y="351" font-size="9" fill="#9aaaba">Stolen tokens unusable</text>
+    <line x1="866" y1="359" x2="1054" y2="359" stroke="#d0dae8" stroke-width="0.5"/>
+    <text x="872" y="373" font-size="10" font-weight="700" fill="#1a3a6a">Sidecar isolation</text>
+    <text x="872" y="387" font-size="10" fill="#5a7a9a">Auth sidecars co-located in Pod</text>
+    <text x="872" y="399" font-size="9" fill="#9aaaba">Pod-level failure scope</text>
+    <line x1="866" y1="407" x2="1054" y2="407" stroke="#d0dae8" stroke-width="0.5"/>
+    <text x="872" y="421" font-size="10" font-weight="700" fill="#1a3a6a">Drift detection</text>
+    <text x="872" y="435" font-size="10" fill="#5a7a9a">Desired vs actual state</text>
+    <text x="872" y="447" font-size="9" fill="#9aaaba">Surfaced in &lt;10 seconds</text>
+    <line x1="866" y1="455" x2="1054" y2="455" stroke="#d0dae8" stroke-width="0.5"/>
+    <text x="872" y="469" font-size="10" font-weight="700" fill="#BA7517">DR failover</text>
+    <text x="872" y="483" font-size="10" fill="#8a5200">Cloudflare · Manual activation</text>
+    <text x="872" y="496" font-size="9" fill="#9aaaba">Akamai outage protection</text>
+    <line x1="866" y1="504" x2="1054" y2="504" stroke="#d0dae8" stroke-width="0.5"/>
+    <text x="872" y="518" font-size="10" font-weight="700" fill="#1a3a6a">On-Prem + AWS</text>
+    <text x="872" y="532" font-size="10" fill="#5a7a9a">L5 multi-compute targets</text>
+    <text x="872" y="544" font-size="9" fill="#9aaaba">GAP · GKP · VSI · EKS · ECS+</text>
+
+    <!-- Traffic flow arrows -->
+    <text x="844" y="50" text-anchor="middle" font-size="8" fill="#c0c8d0">traffic</text>
+    <path d="M844,53 L844,103" stroke="#d0dae8" stroke-width="1" marker-end="url(#arrD)"/>
+    <path d="M844,110 L844,185" stroke="#d0dae8" stroke-width="1" marker-end="url(#arrD)"/>
+    <path d="M844,192 L844,261" stroke="#d0dae8" stroke-width="1" marker-end="url(#arrD)"/>
+    <path d="M844,268 L844,371" stroke="#d0dae8" stroke-width="1" marker-end="url(#arrD)"/>
+    <path d="M844,378 L844,464" stroke="#d0dae8" stroke-width="1" marker-end="url(#arrD)"/>
+  </svg>
+  </div>
+  </div>
+</div>
+
+<!-- SQUADS -->
+<div class="overview-section" style="padding-bottom:8px">
+  <div class="section-title">Squads</div>
+  <div style="display:flex;align-items:center;gap:20px;margin-bottom:14px;padding:10px 16px;background:#ffffff;border:1px solid #d0dae8;border-radius:6px;font-size:13px">
+    <span style="color:#1a2a3a"><strong style="color:#1a3a6a">19 engineers total</strong> across 5 delivery squads</span>
+    <span style="color:#7a8a9a">|</span>
+    <span style="color:#5a7a9a">Peak headcount: P3 + P4 + P5 converging in late August = <strong style="color:#1a2a3a">17 engineers</strong></span>
+    <span style="color:#7a8a9a">|</span>
+    <span style="color:#5a7a9a">P7 Release = <strong style="color:#1a2a3a">all 19</strong> converging for go-live</span>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
+    
+    <div style="padding:14px 16px;background:#ffffff;border:1px solid #d0dae8;border-left:4px solid #546e7a;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,0.04)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span style="font-size:13px;font-weight:700;color:#546e7a">Gateway Squad</span>
+        <span style="font-size:10px;color:#7a8a9a;background:#f4f7fb;border:1px solid #d0dae8;border-radius:3px;padding:1px 7px">P0, P1, P5</span>
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:8px">
+        <span style="font-size:12px;color:#5a7a9a"><strong style="color:#1a2a3a">6</strong> engineers</span>
+      </div>
+      <p style="font-size:12px;color:#5a7a9a;line-height:1.7;margin:0">Data plane and control plane delivery. Akamai GTM and WAF, Cloudflare DR, PSaaS+ and CTC Edge, Envoy proxy and gRPC ADS control plane, Kong gateway and admin proxy, route configuration, and load testing. Management API, Ingress Registry, drift detection, audit log, and GitOps pipeline. The engineers building the Envoy and Kong control planes are the right owners for the management layer that drives them.</p>
+    </div>
+    <div style="padding:14px 16px;background:#ffffff;border:1px solid #d0dae8;border-left:4px solid #9b59b6;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,0.04)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span style="font-size:13px;font-weight:700;color:#9b59b6">Identity Squad</span>
+        <span style="font-size:10px;color:#7a8a9a;background:#f4f7fb;border:1px solid #d0dae8;border-radius:3px;padding:1px 7px">P2, P3</span>
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:8px">
+        <span style="font-size:12px;color:#5a7a9a"><strong style="color:#1a2a3a">5</strong> engineers</span>
+      </div>
+      <p style="font-size:12px;color:#5a7a9a;line-height:1.7;margin:0">Authentication and session lifecycle. Sentry and AuthE integration, PKCE and OAuth flows, DPoP token binding, Session Manager, CAEP event producer, revocation cache, and risk signal integration with Cartographer. 5 engineers supports the parallel streams within P2 and P3 which have limited dependency on each other.</p>
+    </div>
+    <div style="padding:14px 16px;background:#ffffff;border:1px solid #d0dae8;border-left:4px solid #1D9E75;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,0.04)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span style="font-size:13px;font-weight:700;color:#1D9E75">Policy Squad</span>
+        <span style="font-size:10px;color:#7a8a9a;background:#f4f7fb;border:1px solid #d0dae8;border-radius:3px;padding:1px 7px">P4</span>
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:8px">
+        <span style="font-size:12px;color:#5a7a9a"><strong style="color:#1a2a3a">4</strong> engineers</span>
+      </div>
+      <p style="font-size:12px;color:#5a7a9a;line-height:1.7;margin:0">Authorization and entitlement. OPA coarse policy at L4, policy bundle authoring and deployment, SpiceDB schema and integration, Context Propagator, and OPA fine-grained policy via AuthZen at L5.</p>
+    </div>
+    <div style="padding:14px 16px;background:#ffffff;border:1px solid #d0dae8;border-left:4px solid #185FA5;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,0.04)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span style="font-size:13px;font-weight:700;color:#185FA5">Console Squad</span>
+        <span style="font-size:10px;color:#7a8a9a;background:#f4f7fb;border:1px solid #d0dae8;border-radius:3px;padding:1px 7px">P5</span>
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:8px">
+        <span style="font-size:12px;color:#5a7a9a"><strong style="color:#1a2a3a">2</strong> engineers</span>
+      </div>
+      <p style="font-size:12px;color:#5a7a9a;line-height:1.7;margin:0">Operator interface and documentation. DE Console all pages: Dashboard, Routes, Drift Dashboard, Request Log, Sessions, and Traces. Developer documentation and API catalog for CIB application teams onboarding to the platform. Consumes the Management API built by the Gateway Squad.</p>
+    </div>
+    <div style="padding:14px 16px;background:#ffffff;border:1px solid #d0dae8;border-left:4px solid #2e7d32;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,0.04)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span style="font-size:13px;font-weight:700;color:#2e7d32">Observability Squad</span>
+        <span style="font-size:10px;color:#7a8a9a;background:#f4f7fb;border:1px solid #d0dae8;border-radius:3px;padding:1px 7px">P6</span>
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:8px">
+        <span style="font-size:12px;color:#5a7a9a"><strong style="color:#1a2a3a">2</strong> engineers</span>
+      </div>
+      <p style="font-size:12px;color:#5a7a9a;line-height:1.7;margin:0">Tracing and monitoring. OpenTelemetry instrumentation across all services, W3C traceparent propagation, Akamai header correlation, auth pipeline tracing, Dynatrace integration, SLO monitoring, and health endpoints.</p>
+    </div>
+    <div style="padding:14px 16px;background:#ffffff;border:1px solid #d0dae8;border-left:4px solid #8B1A1A;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,0.04)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span style="font-size:13px;font-weight:700;color:#8B1A1A">Release Squad</span>
+        <span style="font-size:10px;color:#7a8a9a;background:#f4f7fb;border:1px solid #d0dae8;border-radius:3px;padding:1px 7px">P7</span>
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:8px">
+        <span style="font-size:12px;color:#5a7a9a"><strong style="color:#1a2a3a">19 (all squads)</strong> engineers</span>
+      </div>
+      <p style="font-size:12px;color:#5a7a9a;line-height:1.7;margin:0">All squads converge for program readiness and go-live. Sidecar pattern deployment to production Kubernetes, multi-cloud validation, disaster recovery testing, penetration testing and remediation, load testing, runbooks, and phased traffic migration. Each squad leads the hardening work for their own components.</p>
+    </div>
+  </div>
+</div>
+
+<!-- OVERVIEW -->
+<div class="overview-section" id="overview">
+  <div class="section-title">Program Overview</div>
+  <div class="gantt-wrapper">
+    <pre class="mermaid">%%{init: {'theme': 'default', 'themeVariables': {
+  'taskBkgColor': '#1a4a8a', 'taskBorderColor': '#1a3a7a',
+  'activeTaskBkgColor': '#8fa8c8', 'activeTaskBorderColor': '#6a8aaa',
+  'critBkgColor': '#c0392b', 'critBorderColor': '#922b21',
+  'gridColor': '#d0dae8', 'sectionBkgColor': '#eef3fa',
+  'altSectionBkgColor': '#e4ecf7', 'taskTextColor': '#ffffff',
+  'taskTextOutsideColor': '#1a2a3a', 'titleColor': '#1a2a3a',
+  'todayLineColor': '#BA7517', 'fontFamily': 'Arial, sans-serif'
+}}}%%
+gantt
+    title CIB Unified Ingress - Program Timeline
+    dateFormat YYYY-MM-DD
+    axisFormat %b '%y
+    section Program
+    CIB Unified Ingress :active, overview, 2026-04-14, 2027-03-30
+    section P0 — Gateway Squad
+    Foundation (5w) :p0, 2026-04-28, 5w
+    section P1 — Gateway Squad
+    Data Plane (16w) :p1, after p0, 16w
+    section P2 — Identity Squad
+    Authentication (13w) :p2, after p0, 13w
+    section P4 — Policy Squad
+    Authorization (16w) :p4, after p0, 16w
+    section P5a — Gateway Squad
+    Control Plane (10w) :p5a, after p1, 10w
+    section P5b — Console Squad
+    Console UI (6w) :p5b, 2026-10-21, 6w
+    section P3 — Identity Squad
+    Session Mgmt (13w) :p3, after p2, 13w
+    section P6 — Observability Squad
+    Observability (6w) :p6, after p3, 6w
+    section P7 — All Squads
+    Hardening and Go-Live (10w) :p7, after p6, 10w</pre>
+  </div>
+  <table class="overview-table">
+    <thead>
+      <tr>
+        <th style="width:4%">Phase</th>
+        <th style="width:15%">Name</th>
+        <th style="width:14%">Squad</th>
+        <th style="width:9%">Duration</th>
+        <th style="width:9%">Team</th>
+        <th style="width:5%">Items</th>
+        <th>Summary</th>
+      </tr>
+    </thead>
+    <tbody>
+  <tr>
+    <td><span class="phase-pill" style="background:#546e7a;color:#fff">P0</span></td>
+    <td style="color:#1a4a8a;font-weight:600">Foundation & Platform</td>
+    <td><span style="font-size:11px;font-weight:600;color:#546e7a;background:#546e7a18;border:1px solid #546e7a44;border-radius:3px;padding:2px 8px">Gateway Squad</span></td>
+    <td style="text-align:center"><span class="est-badge">5 weeks</span></td>
+    <td style="text-align:center;color:#5a7a9a">3 engineers</td>
+    <td style="text-align:center;color:#2a3a4a">7</td>
+    <td style="color:#7a8a9a;font-size:11px">Foundational infrastructure that all subsequent phases depend on. Must be substantially complete before service development begins.</td>
+  </tr>
+  <tr class="alt">
+    <td><span class="phase-pill" style="background:#BA7517;color:#fff">P1</span></td>
+    <td style="color:#1a4a8a;font-weight:600">Data Plane</td>
+    <td><span style="font-size:11px;font-weight:600;color:#546e7a;background:#546e7a18;border:1px solid #546e7a44;border-radius:3px;padding:2px 8px">Gateway Squad</span></td>
+    <td style="text-align:center"><span class="est-badge">16 weeks</span></td>
+    <td style="text-align:center;color:#5a7a9a">6 engineers</td>
+    <td style="text-align:center;color:#2a3a4a">9</td>
+    <td style="color:#7a8a9a;font-size:11px">End-to-end request path from CDN/WAF edge through to L5 backend services. Delivers basic routing capability without auth enforcement. Includes a 2-week team ramp-up for Akamai and Cloudflare, which are new platforms to the team. Runs in parallel with Phase 2.</td>
+  </tr>
+  <tr>
+    <td><span class="phase-pill" style="background:#9b59b6;color:#fff">P2</span></td>
+    <td style="color:#1a4a8a;font-weight:600">Authentication</td>
+    <td><span style="font-size:11px;font-weight:600;color:#9b59b6;background:#9b59b618;border:1px solid #9b59b644;border-radius:3px;padding:2px 8px">Identity Squad</span></td>
+    <td style="text-align:center"><span class="est-badge">13 weeks</span></td>
+    <td style="text-align:center;color:#5a7a9a">5 engineers</td>
+    <td style="text-align:center;color:#2a3a4a">6</td>
+    <td style="color:#7a8a9a;font-size:11px">Cryptographic identity establishment for all request types. Delivers the authentication layer across Envoy and Kong, including DPoP token binding and Session Manager core. All browser and API authentication flows route through Sentry (identity broker) backed by AuthE (IdP). Runs in parallel with Phase 1.</td>
+  </tr>
+  <tr class="alt">
+    <td><span class="phase-pill" style="background:#534AB7;color:#fff">P3</span></td>
+    <td style="color:#1a4a8a;font-weight:600">Session Management</td>
+    <td><span style="font-size:11px;font-weight:600;color:#9b59b6;background:#9b59b618;border:1px solid #9b59b644;border-radius:3px;padding:2px 8px">Identity Squad</span></td>
+    <td style="text-align:center"><span class="est-badge">13 weeks</span></td>
+    <td style="text-align:center;color:#5a7a9a">5 engineers</td>
+    <td style="text-align:center;color:#2a3a4a">6</td>
+    <td style="color:#7a8a9a;font-size:11px">Stateful real-time session protection. Delivers sub-second revocation propagation across all regions and the CAEP risk signal channel.</td>
+  </tr>
+  <tr>
+    <td><span class="phase-pill" style="background:#1D9E75;color:#fff">P4</span></td>
+    <td style="color:#1a4a8a;font-weight:600">Authorization</td>
+    <td><span style="font-size:11px;font-weight:600;color:#1D9E75;background:#1D9E7518;border:1px solid #1D9E7544;border-radius:3px;padding:2px 8px">Policy Squad</span></td>
+    <td style="text-align:center"><span class="est-badge">16 weeks</span></td>
+    <td style="text-align:center;color:#5a7a9a">4 engineers</td>
+    <td style="text-align:center;color:#2a3a4a">6</td>
+    <td style="color:#7a8a9a;font-size:11px">Dynamic ABAC-based access control at L4, with ReBAC available as an opt-in pattern for L5 service teams. OPA at L4 acts as a Policy Decision Point (PDP), called by Envoy via ext_authz (the Policy Enforcement Point), resolving entitlement attributes dynamically from the existing CIB ABAC attribute source rather than reading static token claims. This ensures access decisions reflect live permission state. SpiceDB is provided as a supported L5 pattern for services requiring relationship-based authorization, managed by the Policy Squad and adopted by service teams as needed. Runs in parallel with the Identity Squad from Phase 2 start.</td>
+  </tr>
+  <tr class="alt">
+    <td><span class="phase-pill" style="background:#185FA5;color:#fff">P5</span></td>
+    <td style="color:#1a4a8a;font-weight:600">Management & Control Plane</td>
+    <td><span style="font-size:11px;font-weight:600;color:#185FA5;background:#185FA518;border:1px solid #185FA544;border-radius:3px;padding:2px 8px">Gateway + Console Squads</span></td>
+    <td style="text-align:center"><span class="est-badge">10 weeks</span></td>
+    <td style="text-align:center;color:#5a7a9a">6 + 2 engineers</td>
+    <td style="text-align:center;color:#2a3a4a">6</td>
+    <td style="color:#7a8a9a;font-size:11px">Starts after the data plane (P1) is complete. Gateway Squad delivers the control plane backend: Management API, Ingress Registry, drift detection, audit log, and GitOps pipeline. Console Squad runs in parallel delivering the DE Console UI and developer documentation, which consume the Management API.</td>
+  </tr>
+  <tr>
+    <td><span class="phase-pill" style="background:#2e7d32;color:#fff">P6</span></td>
+    <td style="color:#1a4a8a;font-weight:600">Observability & Traceability</td>
+    <td><span style="font-size:11px;font-weight:600;color:#2e7d32;background:#2e7d3218;border:1px solid #2e7d3244;border-radius:3px;padding:2px 8px">Observability Squad</span></td>
+    <td style="text-align:center"><span class="est-badge">6 weeks</span></td>
+    <td style="text-align:center;color:#5a7a9a">2 engineers</td>
+    <td style="text-align:center;color:#2a3a4a">6</td>
+    <td style="color:#7a8a9a;font-size:11px">Full-stack distributed tracing, auth pipeline visibility, and health monitoring across all ingress components.</td>
+  </tr>
+  <tr class="alt">
+    <td><span class="phase-pill" style="background:#8B1A1A;color:#fff">P7</span></td>
+    <td style="color:#1a4a8a;font-weight:600">Hardening & Go-Live</td>
+    <td><span style="font-size:11px;font-weight:600;color:#8B1A1A;background:#8B1A1A18;border:1px solid #8B1A1A44;border-radius:3px;padding:2px 8px">Release Squad</span></td>
+    <td style="text-align:center"><span class="est-badge">10 weeks</span></td>
+    <td style="text-align:center;color:#5a7a9a">19 engineers</td>
+    <td style="text-align:center;color:#2a3a4a">7</td>
+    <td style="color:#7a8a9a;font-size:11px">Security validation, multi-cloud verification, disaster recovery testing, performance hardening, and controlled traffic migration. All gates must pass before production traffic.</td>
+  </tr></tbody>
+  </table>
+</div>
+
+<!-- ADOPTION -->
+
+<section id="adoption" class="phase-section">
+  <div class="phase-header" style="border-left:4px solid #1a3a6a">
+    <div class="phase-meta">
+      <span class="phase-number" style="background:#1a3a6a">LOB</span>
+      <h2>Adoption: Lines of Business</h2>
+    </div>
+  </div>
+
+  <p class="phase-desc">
+    Initial adopting entities at platform launch. JPMM, JPMDB, JPMA, PDP, and HRL all require the full authentication and authorization pipeline.
+    Gateway type is determined by traffic profile. Envoy for web/browser flows requiring HTTP/2, streaming, and DPoP enforcement;
+    Kong for programmatic API clients requiring consumer identity, rate limiting, and managed API lifecycle.
+    HRL is workforce-only traffic (not external clients) and requires network segmentation routing for high-risk geographic regions. Approved patterns from elsewhere in CIB will be incorporated during P5 route configuration.
+    Route counts, contacts, readiness assessments, and target onboarding dates to be confirmed with each entity.
+  </p>
+
+  <table class="deliverables-table">
+    <thead>
+      <tr>
+        <th style="width:10%">Line of Business</th>
+        <th style="width:10%">Entity</th>
+        <th style="width:10%">Gateway</th>
+        <th style="width:8%">Routes</th>
+        <th style="width:10%">Status</th>
+        <th style="width:12%">Target date</th>
+        <th style="width:12%">Contact</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      
+      <tr>
+        <td style="font-weight:600;color:#1a2a3a">Markets</td>
+        <td style="font-weight:700;color:#1a4a8a;font-size:13px">JPMM</td>
+        <td>
+          <span style="display:inline-block;padding:2px 9px;border-radius:4px;font-size:11px;font-weight:700;background:#1a4a8a18;color:#1a4a8a;border:1px solid #1a4a8a44">
+            Envoy
+          </span>
+        </td>
+        <td style="text-align:center;color:#9aaaba;font-style:italic">TBC</td>
+        <td>
+          <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fff3e0;color:#8a5200">
+            Pipeline
+          </span>
+        </td>
+        <td style="color:#9aaaba;font-style:italic">TBC</td>
+        <td style="color:#9aaaba;font-style:italic">TBC</td>
+        <td class="notes">Web portal and API routes. Envoy handles HTTP/2 and streaming required for Markets use cases.</td>
+      </tr>
+      <tr class="alt">
+        <td style="font-weight:600;color:#1a2a3a">Payments</td>
+        <td style="font-weight:700;color:#1a4a8a;font-size:13px">JPMDB</td>
+        <td>
+          <span style="display:inline-block;padding:2px 9px;border-radius:4px;font-size:11px;font-weight:700;background:#1a4a8a18;color:#1a4a8a;border:1px solid #1a4a8a44">
+            Envoy
+          </span>
+        </td>
+        <td style="text-align:center;color:#9aaaba;font-style:italic">TBC</td>
+        <td>
+          <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fff3e0;color:#8a5200">
+            Pipeline
+          </span>
+        </td>
+        <td style="color:#9aaaba;font-style:italic">TBC</td>
+        <td style="color:#9aaaba;font-style:italic">TBC</td>
+        <td class="notes">Payments web flows. Envoy filter chain required for DPoP enforcement on browser-originated requests.</td>
+      </tr>
+      <tr>
+        <td style="font-weight:600;color:#1a2a3a">Payments</td>
+        <td style="font-weight:700;color:#1a4a8a;font-size:13px">JPMA</td>
+        <td>
+          <span style="display:inline-block;padding:2px 9px;border-radius:4px;font-size:11px;font-weight:700;background:#1a4a8a18;color:#1a4a8a;border:1px solid #1a4a8a44">
+            Envoy
+          </span>
+        </td>
+        <td style="text-align:center;color:#9aaaba;font-style:italic">TBC</td>
+        <td>
+          <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fff3e0;color:#8a5200">
+            Pipeline
+          </span>
+        </td>
+        <td style="color:#9aaaba;font-style:italic">TBC</td>
+        <td style="color:#9aaaba;font-style:italic">TBC</td>
+        <td class="notes">Payments web flows. Envoy filter chain required for DPoP enforcement on browser-originated requests.</td>
+      </tr>
+      <tr class="alt">
+        <td style="font-weight:600;color:#1a2a3a">Payments</td>
+        <td style="font-weight:700;color:#1a4a8a;font-size:13px">PDP</td>
+        <td>
+          <span style="display:inline-block;padding:2px 9px;border-radius:4px;font-size:11px;font-weight:700;background:#1D6A4018;color:#1D6A40;border:1px solid #1D6A4044">
+            Kong
+          </span>
+        </td>
+        <td style="text-align:center;color:#9aaaba;font-style:italic">TBC</td>
+        <td>
+          <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fff3e0;color:#8a5200">
+            Pipeline
+          </span>
+        </td>
+        <td style="color:#9aaaba;font-style:italic">TBC</td>
+        <td style="color:#9aaaba;font-style:italic">TBC</td>
+        <td class="notes">Programmatic and API client traffic. Kong plugin chain provides consumer identity, rate limiting, and managed API lifecycle required by PDP.</td>
+      </tr>
+      <tr>
+        <td style="font-weight:600;color:#1a2a3a">Payments</td>
+        <td style="font-weight:700;color:#1a4a8a;font-size:13px">HRL</td>
+        <td>
+          <span style="display:inline-block;padding:2px 9px;border-radius:4px;font-size:11px;font-weight:700;background:#1a4a8a18;color:#1a4a8a;border:1px solid #1a4a8a44">
+            Envoy
+          </span>
+        </td>
+        <td style="text-align:center;color:#9aaaba;font-style:italic">TBC</td>
+        <td>
+          <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#fff3e0;color:#8a5200">
+            Pipeline
+          </span>
+        </td>
+        <td style="color:#9aaaba;font-style:italic">TBC</td>
+        <td style="color:#9aaaba;font-style:italic">TBC</td>
+        <td class="notes">High Risk Location: network segmentation initiative for workforce users in high-risk geographic regions (e.g. China, Turkey). Workforce traffic only, not external clients. Approved routing patterns already exist within CIB and will be incorporated into the Ingress Registry route configuration during P5. Requires HRL-specific route attributes to be included in the registry schema design.</td>
+      </tr>
+    </tbody>
+  </table>
+
+</section>
+
+<!-- PHASE SECTIONS -->
+
+  <section id="phase-0" class="phase-section">
+    <div class="phase-header" style="border-left: 4px solid #546e7a">
+      <div class="phase-meta">
+        <span class="phase-number" style="background:#546e7a">P0</span>
+        <h2>Phase 0 — Foundation & Platform</h2>
+        <span style="display:inline-block;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;background:#546e7a18;color:#546e7a;border:1px solid #546e7a44;letter-spacing:0.05em">Gateway Squad</span>
+      </div>
+      <div class="phase-stats">
+        <span class="stat"><span class="stat-val">5 weeks</span><span class="stat-lbl">elapsed</span></span>
+        <span class="stat" style="background:#eaf5ee;border-color:#b8dfc6"><span class="stat-val" style="color:#1D6A40">11w</span><span class="stat-lbl">total effort</span></span>
+        <span class="stat"><span class="stat-val">3 engineers</span><span class="stat-lbl">team</span></span>
+        <span class="stat"><span class="stat-val">7</span><span class="stat-lbl">deliverables</span></span>
+      </div>
+    </div>
+    <p class="phase-desc">Foundational infrastructure that all subsequent phases depend on. Must be substantially complete before service development begins.</p>
+    <div class="gantt-wrapper">
+      <pre class="mermaid">%%{init: {'theme': 'default', 'themeVariables': {
+  'taskBkgColor': '#1a4a8a', 'taskBorderColor': '#1a3a7a',
+  'activeTaskBkgColor': '#8fa8c8', 'activeTaskBorderColor': '#6a8aaa',
+  'critBkgColor': '#c0392b', 'critBorderColor': '#922b21',
+  'gridColor': '#d0dae8', 'sectionBkgColor': '#eef3fa',
+  'altSectionBkgColor': '#e4ecf7', 'taskTextColor': '#ffffff',
+  'taskTextOutsideColor': '#1a2a3a', 'titleColor': '#1a2a3a',
+  'todayLineColor': '#BA7517', 'fontFamily': 'Arial, sans-serif'
+}}}%%
+gantt
+    title Phase 0 Foundation & Platform
+    dateFormat YYYY-MM-DD
+    axisFormat %d %b
+    section Phase
+    Phase 0 Foundation & Platform :active, phaseBar, 2026-04-21, 2026-06-02
+    section Standards
+    Engineering standards and shared libraries :g00, 2026-04-28, 1w
+    section Infrastructure
+    K8s cluster provisioning :g01, 2026-04-28, 2w
+    section Platform
+    Kafka cluster and topic provisioning :g02, after g01, 1w
+    CI/CD pipeline. Bitbucket and ArgoCD :g03, after g01, 2w
+    Dynatrace baseline instrumentation :g04, after g01, 2w
+    section Infrastructure
+    Network topology and perimeter connectivity :g05, after g01, 2w
+    Certificate management :g06, after g05, 1w</pre>
+    </div>
+    
+    <table class="deliverables-table">
+      <thead>
+        <tr>
+          <th style="width:22%">Deliverable</th>
+          <th style="width:40%">Description</th>
+          <th style="width:6%">Est.</th>
+          <th style="width:32%">Dependencies &amp; Notes</th>
+        </tr>
+      </thead>
+      <tbody><tr class="ws-header"><td colspan="4">Infrastructure</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>Kubernetes cluster provisioning</strong></td>
+          <td class="desc">Provision GKP and AWS EKS clusters across all required regions (NA, EMEA, APAC). Configure namespaces, RBAC, network policies, and node pools sized for gateway workloads.</td>
+          <td class="est-cell"><span class="est-badge">2w</span></td>
+          <td class="notes">Cloud platform access, capacity allocation</td>
+        </tr>
+        <tr class="alt">
+          <td class="deliverable-name"><strong>Network topology and perimeter connectivity</strong></td>
+          <td class="desc">Provision connectivity between new GKP/AWS K8s clusters and the PSaaS+/CTC Edge perimeter layer. Configure VPC/VNet peering, routing rules, firewall policies, and internal DNS resolution to allow perimeter-to-gateway traffic flow.</td>
+          <td class="est-cell"><span class="est-badge">2w</span></td>
+          <td class="notes">Cluster provisioning, PSaaS+ and network team engagement</td>
+        </tr>
+        <tr>
+          <td class="deliverable-name"><strong>Certificate management</strong></td>
+          <td class="desc">Integrate new clusters with the existing cert-manager instance. Configure certificate issuers and ingress certificate resources for all gateway hostnames. Onboard Akamai edge certificates for CIB ingress hostnames via the established workflow.</td>
+          <td class="est-cell"><span class="est-badge">1w</span></td>
+          <td class="notes">Network topology, existing cert-manager instance</td>
+        </tr><tr class="ws-header"><td colspan="4">Platform</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>Kafka cluster and topic provisioning</strong></td>
+          <td class="desc">Deploy Kafka cluster with required topics: session-events, revocation-events, risk-signals, policy-bundle-push. Configure retention, replication factor, and partition counts per topic SLA.</td>
+          <td class="est-cell"><span class="est-badge">1w</span></td>
+          <td class="notes">Infrastructure provisioned</td>
+        </tr>
+        <tr class="alt">
+          <td class="deliverable-name"><strong>CI/CD pipeline. Bitbucket Pipelines + ArgoCD</strong></td>
+          <td class="desc">Configure Bitbucket Pipelines for build, test, and policy CI. Install and configure ArgoCD in each cluster with ApplicationSet for multi-cluster deployments. Define GitOps repo structure and branch strategy.</td>
+          <td class="est-cell"><span class="est-badge">2w</span></td>
+          <td class="notes">Cluster provisioning</td>
+        </tr>
+        <tr>
+          <td class="deliverable-name"><strong>Dynatrace baseline instrumentation</strong></td>
+          <td class="desc">Deploy Dynatrace OneAgent to all clusters. Configure OTLP ingest endpoint for OpenTelemetry spans. Define initial dashboards and alerting thresholds. Establish SLO baseline for gateway availability and latency.</td>
+          <td class="est-cell"><span class="est-badge">2w</span></td>
+          <td class="notes">Cluster provisioning</td>
+        </tr><tr class="ws-header"><td colspan="4">Standards</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>Engineering standards and shared libraries</strong></td>
+          <td class="desc">Define Go module structure, shared OTEL instrumentation library, health check contract, DPoP verification library, and W3C trace context propagation helpers. Publish to internal artifact registry.</td>
+          <td class="est-cell"><span class="est-badge">1w</span></td>
+          <td class="notes">None</td>
+        </tr>
+    <tr class="totals-row">
+      <td colspan="2" style="text-align:right;padding-right:16px;font-size:11px;color:#7a8a9a;font-style:italic">
+        Total estimated effort across 7 deliverables
+        <span style="color:#9aaaba;margin-left:6px">(note: parallel workstreams mean elapsed time is less than total effort)</span>
+      </td>
+      <td class="est-cell">
+        <span class="est-badge" style="background:#e8f0fe;color:#1a3a8a;border-color:#b8ccf0;font-size:12px">11w</span>
+      </td>
+      <td></td>
+    </tr></tbody></table>
+  </section>
+
+  <section id="phase-1" class="phase-section">
+    <div class="phase-header" style="border-left: 4px solid #BA7517">
+      <div class="phase-meta">
+        <span class="phase-number" style="background:#BA7517">P1</span>
+        <h2>Phase 1 — Data Plane</h2>
+        <span style="display:inline-block;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;background:#546e7a18;color:#546e7a;border:1px solid #546e7a44;letter-spacing:0.05em">Gateway Squad</span>
+      </div>
+      <div class="phase-stats">
+        <span class="stat"><span class="stat-val">16 weeks</span><span class="stat-lbl">elapsed</span></span>
+        <span class="stat" style="background:#eaf5ee;border-color:#b8dfc6"><span class="stat-val" style="color:#1D6A40">34w</span><span class="stat-lbl">total effort</span></span>
+        <span class="stat"><span class="stat-val">6 engineers</span><span class="stat-lbl">team</span></span>
+        <span class="stat"><span class="stat-val">9</span><span class="stat-lbl">deliverables</span></span>
+      </div>
+    </div>
+    <p class="phase-desc">End-to-end request path from CDN/WAF edge through to L5 backend services. Delivers basic routing capability without auth enforcement. Includes a 2-week team ramp-up for Akamai and Cloudflare, which are new platforms to the team. Runs in parallel with Phase 2.</p>
+    <div class="gantt-wrapper">
+      <pre class="mermaid">%%{init: {'theme': 'default', 'themeVariables': {
+  'taskBkgColor': '#1a4a8a', 'taskBorderColor': '#1a3a7a',
+  'activeTaskBkgColor': '#8fa8c8', 'activeTaskBorderColor': '#6a8aaa',
+  'critBkgColor': '#c0392b', 'critBorderColor': '#922b21',
+  'gridColor': '#d0dae8', 'sectionBkgColor': '#eef3fa',
+  'altSectionBkgColor': '#e4ecf7', 'taskTextColor': '#ffffff',
+  'taskTextOutsideColor': '#1a2a3a', 'titleColor': '#1a2a3a',
+  'todayLineColor': '#BA7517', 'fontFamily': 'Arial, sans-serif'
+}}}%%
+gantt
+    title Phase 1 Data Plane
+    dateFormat YYYY-MM-DD
+    axisFormat %d %b
+    section Phase
+    Phase 1 Data Plane :active, phaseBar, 2026-05-26, 2026-09-01
+    section Ramp-up
+    Team ramp-up. Akamai and Cloudflare :g10r, 2026-06-02, 2w
+    section Akamai
+    Akamai GTM configuration :g10, after g10r, 4w
+    section L3 Perimeter
+    PSaaS+ and CTC Edge integration :g11, after g10r, 3w
+    section Envoy
+    Envoy proxy pod deployment :g12, after g10r, 2w
+    section Kong
+    Kong API gateway deployment :g13, after g10r, 2w
+    section Akamai
+    Akamai Ion CDN and Kona WAF :g14, after g10, 6w
+    Cloudflare DR config and runbook :g15, after g10, 4w
+    section Envoy
+    Envoy control plane, gRPC ADS :g16, after g12, 7w
+    section Kong
+    Kong admin proxy and reconciler :g17, after g13, 4w
+    section Testing
+    Data plane load testing baseline :g18, after g16, 2w</pre>
+    </div>
+    
+    <table class="deliverables-table">
+      <thead>
+        <tr>
+          <th style="width:22%">Deliverable</th>
+          <th style="width:40%">Description</th>
+          <th style="width:6%">Est.</th>
+          <th style="width:32%">Dependencies &amp; Notes</th>
+        </tr>
+      </thead>
+      <tbody><tr class="ws-header"><td colspan="4">Akamai</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>Akamai GTM configuration</strong></td>
+          <td class="desc">GeoDNS steering rules for NA/EMEA/APAC datacenters. Composite regional health check design: define what constitutes a healthy region (gateway capacity threshold, auth pipeline responsiveness) and the signal that triggers automatic regional failover. Failover policies, TTL tuning, and hysteresis to prevent region flapping on recovery. Onboard all CIB hostnames.</td>
+          <td class="est-cell"><span class="est-badge">4w</span></td>
+          <td class="notes">Network topology, Akamai contract. Regional health check design must be agreed before GTM configuration begins: this is a functional decision, not a tuning exercise.</td>
+        </tr>
+        <tr class="alt">
+          <td class="deliverable-name"><strong>Akamai Ion CDN + Kona WAF configuration</strong></td>
+          <td class="desc">CDN property configuration for web traffic. Kona WAF ruleset baseline. OWASP Core Ruleset, CIB-specific custom rules, bot management. TLS edge certificates. Cache policies per route type.</td>
+          <td class="est-cell"><span class="est-badge">6w</span></td>
+          <td class="notes">GTM, certificate management</td>
+        </tr>
+        <tr>
+          <td class="deliverable-name"><strong>Cloudflare DR configuration and runbook</strong></td>
+          <td class="desc">Cloudflare LB configuration for critical-function traffic as standby path. DNS cutover procedure. Runbook for manual failover activation. Quarterly DR test schedule.</td>
+          <td class="est-cell"><span class="est-badge">4w</span></td>
+          <td class="notes">GTM, DNS</td>
+        </tr><tr class="ws-header"><td colspan="4">L3 Perimeter</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>PSaaS+ / CTC Edge integration</strong></td>
+          <td class="desc">Configure PSaaS+ (GKP path) and CTC Edge (AWS path) to forward to L4 gateway targets. TLS re-origination configuration. Regional routing rules per datacenter. Header injection standards.</td>
+          <td class="est-cell"><span class="est-badge">3w</span></td>
+          <td class="notes">Network topology, L4 gateway endpoints</td>
+        </tr><tr class="ws-header"><td colspan="4">Envoy Gateway</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>Envoy proxy pod deployment</strong></td>
+          <td class="desc">Deploy Envoy proxy pods to all regions via Helm chart. Configure resource limits, HPA autoscaling, and PodDisruptionBudgets. Establish baseline listener config for HTTP/HTTPS, HTTP/2, WebSocket.</td>
+          <td class="est-cell"><span class="est-badge">2w</span></td>
+          <td class="notes">Cluster provisioning, Envoy control plane</td>
+        </tr>
+        <tr class="alt">
+          <td class="deliverable-name"><strong>Envoy control plane (gRPC ADS)</strong></td>
+          <td class="desc">Deploy Aggregated Discovery Service server. Implement snapshot builder translating route config to xDS resources (LDS, RDS, CDS, EDS). Wire to Ingress Registry as desired-state source. Validate route propagation latency < 5 seconds.</td>
+          <td class="est-cell"><span class="est-badge">7w</span></td>
+          <td class="notes">Management API, Ingress Registry</td>
+        </tr><tr class="ws-header"><td colspan="4">Kong Gateway</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>Kong API gateway deployment</strong></td>
+          <td class="desc">Deploy Kong in DB-less mode to all regions. Configure base plugins globally: CORS, OpenTelemetry, correlation-id. Expose admin API internally only. Establish baseline consumer and route structure.</td>
+          <td class="est-cell"><span class="est-badge">2w</span></td>
+          <td class="notes">Cluster provisioning</td>
+        </tr>
+        <tr class="alt">
+          <td class="deliverable-name"><strong>Kong admin proxy and reconciler</strong></td>
+          <td class="desc">Deploy admin proxy service. Implement reconciliation loop consuming Ingress Registry desired state and applying via Kong Admin API. Expose /sync-status/routes for drift detection. Idempotent create/update/delete.</td>
+          <td class="est-cell"><span class="est-badge">4w</span></td>
+          <td class="notes">Kong deployment, Management API</td>
+        </tr><tr class="ws-header"><td colspan="4">Testing</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>Data plane load testing and baseline</strong></td>
+          <td class="desc">Establish performance baseline under production-representative load. Validate latency SLOs (P99 < 50ms gateway overhead). Identify and resolve bottlenecks before auth layer is added.</td>
+          <td class="est-cell"><span class="est-badge">2w</span></td>
+          <td class="notes">Full data plane deployed</td>
+        </tr>
+    <tr class="totals-row">
+      <td colspan="2" style="text-align:right;padding-right:16px;font-size:11px;color:#7a8a9a;font-style:italic">
+        Total estimated effort across 9 deliverables
+        <span style="color:#9aaaba;margin-left:6px">(note: parallel workstreams mean elapsed time is less than total effort)</span>
+      </td>
+      <td class="est-cell">
+        <span class="est-badge" style="background:#e8f0fe;color:#1a3a8a;border-color:#b8ccf0;font-size:12px">34w</span>
+      </td>
+      <td></td>
+    </tr></tbody></table>
+  </section>
+
+  <section id="phase-2" class="phase-section">
+    <div class="phase-header" style="border-left: 4px solid #9b59b6">
+      <div class="phase-meta">
+        <span class="phase-number" style="background:#9b59b6">P2</span>
+        <h2>Phase 2 — Authentication</h2>
+        <span style="display:inline-block;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;background:#9b59b618;color:#9b59b6;border:1px solid #9b59b644;letter-spacing:0.05em">Identity Squad</span>
+      </div>
+      <div class="phase-stats">
+        <span class="stat"><span class="stat-val">13 weeks</span><span class="stat-lbl">elapsed</span></span>
+        <span class="stat" style="background:#eaf5ee;border-color:#b8dfc6"><span class="stat-val" style="color:#1D6A40">21w</span><span class="stat-lbl">total effort</span></span>
+        <span class="stat"><span class="stat-val">5 engineers</span><span class="stat-lbl">team</span></span>
+        <span class="stat"><span class="stat-val">6</span><span class="stat-lbl">deliverables</span></span>
+      </div>
+    </div>
+    <p class="phase-desc">Cryptographic identity establishment for all request types. Delivers the authentication layer across Envoy and Kong, including DPoP token binding and Session Manager core. All browser and API authentication flows route through Sentry (identity broker) backed by AuthE (IdP). Runs in parallel with Phase 1.</p>
+    <div class="gantt-wrapper">
+      <pre class="mermaid">%%{init: {'theme': 'default', 'themeVariables': {
+  'taskBkgColor': '#1a4a8a', 'taskBorderColor': '#1a3a7a',
+  'activeTaskBkgColor': '#8fa8c8', 'activeTaskBorderColor': '#6a8aaa',
+  'critBkgColor': '#c0392b', 'critBorderColor': '#922b21',
+  'gridColor': '#d0dae8', 'sectionBkgColor': '#eef3fa',
+  'altSectionBkgColor': '#e4ecf7', 'taskTextColor': '#ffffff',
+  'taskTextOutsideColor': '#1a2a3a', 'titleColor': '#1a2a3a',
+  'todayLineColor': '#BA7517', 'fontFamily': 'Arial, sans-serif'
+}}}%%
+gantt
+    title Phase 2 Authentication
+    dateFormat YYYY-MM-DD
+    axisFormat %d %b
+    section Phase
+    Phase 2 Authentication :active, phaseBar, 2026-05-26, 2026-08-25
+    section Sentry / AuthE
+    Sentry integration. AuthE and IdP :g20, 2026-06-02, 2w
+    section Authentication
+    OAuth 2.0 + PKCE flows :g21, after g20, 3w
+    section Session Manager
+    Session Manager core :g22, after g20, 5w
+    section Authentication
+    DPoP token binding :g23, after g21, 6w
+    section Gateway Auth
+    JWKS caching at gateway :g24, after g22, 2w
+    mTLS for machine-to-machine :g25, after g24, 3w</pre>
+    </div>
+    
+    <table class="deliverables-table">
+      <thead>
+        <tr>
+          <th style="width:22%">Deliverable</th>
+          <th style="width:40%">Description</th>
+          <th style="width:6%">Est.</th>
+          <th style="width:32%">Dependencies &amp; Notes</th>
+        </tr>
+      </thead>
+      <tbody><tr class="ws-header"><td colspan="4">Sentry / AuthE</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>Sentry integration (AuthE / IdP)</strong></td>
+          <td class="desc">An existing Sentry/AuthE integration pattern is in use elsewhere in CIB. Adapt and configure it for the ingress platform, register new OAuth clients, validate OIDC discovery and JWKS endpoints, confirm scope and claims mapping meet ingress requirements, and test end-to-end with the gateway auth pipeline. Confirm regional deployment topology: Sentry and AuthE must have a regional instance per target region, or authentication on regional failover will require cross-region calls, defeating the purpose of the failover model.</td>
+          <td class="est-cell"><span class="est-badge">2w</span></td>
+          <td class="notes">Existing integration pattern available. Regional topology of Sentry and AuthE must be confirmed before Phase 3 begins. If either service is centralised, architectural changes are required and estimates for P2 and P3 should be revisited.</td>
+        </tr><tr class="ws-header"><td colspan="4">Authentication</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>OAuth 2.0 + PKCE flows</strong></td>
+          <td class="desc">Implement PKCE auth code flow for browser-initiated authentication. Validate code_challenge and code_verifier exchange. Ensure no client secrets in browser flows. Implement token refresh.</td>
+          <td class="est-cell"><span class="est-badge">3w</span></td>
+          <td class="notes">Sentry/AuthE integration</td>
+        </tr>
+        <tr class="alt">
+          <td class="deliverable-name"><strong>DPoP token binding</strong></td>
+          <td class="desc">Implement DPoP proof generation (browser via WebCrypto API) and verification (gateway). Validate htm, htu, iat, jti claims. Enforce JWK thumbprint binding between proof and access token cnf claim. Replay store with TTL eviction.</td>
+          <td class="est-cell"><span class="est-badge">6w</span></td>
+          <td class="notes">OAuth flows</td>
+        </tr><tr class="ws-header"><td colspan="4">Session Manager</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>Session Manager core</strong></td>
+          <td class="desc">Session JWT issuance separate from AuthE access tokens. Sentry routes the auth flow but the Session Manager issues and owns the session JWT independently of both Sentry and AuthE. The session JWT carries identity attributes only: sub, sid, entity, client type (workforce or client), and DPoP thumbprint. Entitlement claims are deliberately excluded. Authorization decisions are resolved dynamically at request time from the ABAC attribute source, ensuring revocations and permission changes take effect immediately without waiting for token expiry. EC key pair generation, JWKS publication, session lifecycle management, and key rotation independent of the IdP.</td>
+          <td class="est-cell"><span class="est-badge">5w</span></td>
+          <td class="notes">DPoP, OAuth flows</td>
+        </tr><tr class="ws-header"><td colspan="4">Gateway Auth</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>JWKS caching at gateway</strong></td>
+          <td class="desc">Implement JWKS cache in Envoy (ext_authz sidecar) and Kong (pre-function plugin). Background refresh with 60-second TTL. Validate JWT signature, exp, iss, aud claims locally. No network call in happy path.</td>
+          <td class="est-cell"><span class="est-badge">2w</span></td>
+          <td class="notes">Session Manager core, Envoy/Kong deployed</td>
+        </tr>
+        <tr class="alt">
+          <td class="deliverable-name"><strong>mTLS for machine-to-machine</strong></td>
+          <td class="desc">Configure mTLS client certificate validation for service-to-service and M2M traffic. Certificate thumbprint binding in place of DPoP. Separate OPA policy rules for service account entitlements. Short token TTL enforcement.</td>
+          <td class="est-cell"><span class="est-badge">3w</span></td>
+          <td class="notes">JWKS caching, certificate management</td>
+        </tr>
+    <tr class="totals-row">
+      <td colspan="2" style="text-align:right;padding-right:16px;font-size:11px;color:#7a8a9a;font-style:italic">
+        Total estimated effort across 6 deliverables
+        <span style="color:#9aaaba;margin-left:6px">(note: parallel workstreams mean elapsed time is less than total effort)</span>
+      </td>
+      <td class="est-cell">
+        <span class="est-badge" style="background:#e8f0fe;color:#1a3a8a;border-color:#b8ccf0;font-size:12px">21w</span>
+      </td>
+      <td></td>
+    </tr></tbody></table>
+  </section>
+
+  <section id="phase-3" class="phase-section">
+    <div class="phase-header" style="border-left: 4px solid #534AB7">
+      <div class="phase-meta">
+        <span class="phase-number" style="background:#534AB7">P3</span>
+        <h2>Phase 3 — Session Management</h2>
+        <span style="display:inline-block;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;background:#9b59b618;color:#9b59b6;border:1px solid #9b59b644;letter-spacing:0.05em">Identity Squad</span>
+      </div>
+      <div class="phase-stats">
+        <span class="stat"><span class="stat-val">13 weeks</span><span class="stat-lbl">elapsed</span></span>
+        <span class="stat" style="background:#eaf5ee;border-color:#b8dfc6"><span class="stat-val" style="color:#1D6A40">19w</span><span class="stat-lbl">total effort</span></span>
+        <span class="stat"><span class="stat-val">5 engineers</span><span class="stat-lbl">team</span></span>
+        <span class="stat"><span class="stat-val">6</span><span class="stat-lbl">deliverables</span></span>
+      </div>
+    </div>
+    <p class="phase-desc">Stateful real-time session protection. Delivers sub-second revocation propagation across all regions and the CAEP risk signal channel.</p>
+    <div class="gantt-wrapper">
+      <pre class="mermaid">%%{init: {'theme': 'default', 'themeVariables': {
+  'taskBkgColor': '#1a4a8a', 'taskBorderColor': '#1a3a7a',
+  'activeTaskBkgColor': '#8fa8c8', 'activeTaskBorderColor': '#6a8aaa',
+  'critBkgColor': '#c0392b', 'critBorderColor': '#922b21',
+  'gridColor': '#d0dae8', 'sectionBkgColor': '#eef3fa',
+  'altSectionBkgColor': '#e4ecf7', 'taskTextColor': '#ffffff',
+  'taskTextOutsideColor': '#1a2a3a', 'titleColor': '#1a2a3a',
+  'todayLineColor': '#BA7517', 'fontFamily': 'Arial, sans-serif'
+}}}%%
+gantt
+    title Phase 3 Session Management
+    dateFormat YYYY-MM-DD
+    axisFormat %d %b
+    section Phase
+    Phase 3 Session Management :active, phaseBar, 2026-08-26, 2026-12-02
+    section Session Manager
+    Multi-region active/active Session Manager :g30, 2026-09-02, 4w
+    section Revocation
+    Risk signal integration. Cartographer :g31, 2026-09-02, 5w
+    CAEP implementation :g32, after g30, 4w
+    Revoke Cache at gateway :g33, after g32, 3w
+    section Session
+    Short-TTL session JWT config :g34, after g32, 1w
+    section Testing
+    Revocation propagation testing :g35, after g33, 2w</pre>
+    </div>
+    
+    <table class="deliverables-table">
+      <thead>
+        <tr>
+          <th style="width:22%">Deliverable</th>
+          <th style="width:40%">Description</th>
+          <th style="width:6%">Est.</th>
+          <th style="width:32%">Dependencies &amp; Notes</th>
+        </tr>
+      </thead>
+      <tbody><tr class="ws-header"><td colspan="4">Session Manager</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>Multi-region active/active Session Manager</strong></td>
+          <td class="desc">Deploy Session Manager to all cloud regions and availability zones. Session state replication via Kafka session-events topic. No cross-region dependency in the request path. Key rotation coordination across regions.</td>
+          <td class="est-cell"><span class="est-badge">4w</span></td>
+          <td class="notes">Session Manager core, Kafka, multi-region clusters</td>
+        </tr><tr class="ws-header"><td colspan="4">Revocation</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>CAEP implementation</strong></td>
+          <td class="desc">Implement CAEP event producer in Session Manager. Events published to Kafka revocation-events topic on revocation, fraud signal receipt, or manual operator action. Define event schema and versioning.</td>
+          <td class="est-cell"><span class="est-badge">4w</span></td>
+          <td class="notes">Session Manager multi-region, Kafka</td>
+        </tr>
+        <tr class="alt">
+          <td class="deliverable-name"><strong>Revoke Cache at gateway</strong></td>
+          <td class="desc">In-memory revocation store per gateway instance, updated by CAEP events via Kafka consumer in Session Validator sidecar. Verify revoke cache check on every authenticated request. Target propagation latency < 1 second end-to-end.</td>
+          <td class="est-cell"><span class="est-badge">3w</span></td>
+          <td class="notes">CAEP, Session Validator sidecar</td>
+        </tr>
+        <tr>
+          <td class="deliverable-name"><strong>Risk signal integration (Cartographer/Interdiction)</strong></td>
+          <td class="desc">Subscribe to Kafka risk-signals topic. Route signals from Cartographer and Interdiction to Session Manager for evaluation. Trigger revocation or step-up authentication based on signal severity. Define signal schema.</td>
+          <td class="est-cell"><span class="est-badge">5w</span></td>
+          <td class="notes">Revoke Cache, Kafka risk-signals topic. Cartographer and Interdiction operate on their own roadmaps, engage early to agree signal schema and integration contract. External team dependency that could slip the revocation timeline if not prioritized.</td>
+        </tr><tr class="ws-header"><td colspan="4">Session</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>Short-TTL session JWT configuration</strong></td>
+          <td class="desc">Define and enforce session JWT lifetime policy independent of OAuth token expiry. Implement transparent refresh before expiry. Validate blast radius is bounded to TTL window in threat model.</td>
+          <td class="est-cell"><span class="est-badge">1w</span></td>
+          <td class="notes">Session Manager multi-region</td>
+        </tr><tr class="ws-header"><td colspan="4">Testing</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>Revocation propagation testing</strong></td>
+          <td class="desc">Measure end-to-end revocation latency under load across all regions. Validate < 1 second propagation SLA. Simulate network partition scenarios. Validate catch-up on reconnection.</td>
+          <td class="est-cell"><span class="est-badge">2w</span></td>
+          <td class="notes">Full revocation stack deployed</td>
+        </tr>
+    <tr class="totals-row">
+      <td colspan="2" style="text-align:right;padding-right:16px;font-size:11px;color:#7a8a9a;font-style:italic">
+        Total estimated effort across 6 deliverables
+        <span style="color:#9aaaba;margin-left:6px">(note: parallel workstreams mean elapsed time is less than total effort)</span>
+      </td>
+      <td class="est-cell">
+        <span class="est-badge" style="background:#e8f0fe;color:#1a3a8a;border-color:#b8ccf0;font-size:12px">19w</span>
+      </td>
+      <td></td>
+    </tr></tbody></table>
+  </section>
+
+  <section id="phase-4" class="phase-section">
+    <div class="phase-header" style="border-left: 4px solid #1D9E75">
+      <div class="phase-meta">
+        <span class="phase-number" style="background:#1D9E75">P4</span>
+        <h2>Phase 4 — Authorization</h2>
+        <span style="display:inline-block;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;background:#1D9E7518;color:#1D9E75;border:1px solid #1D9E7544;letter-spacing:0.05em">Policy Squad</span>
+      </div>
+      <div class="phase-stats">
+        <span class="stat"><span class="stat-val">16 weeks</span><span class="stat-lbl">elapsed</span></span>
+        <span class="stat" style="background:#eaf5ee;border-color:#b8dfc6"><span class="stat-val" style="color:#1D6A40">21w</span><span class="stat-lbl">total effort</span></span>
+        <span class="stat"><span class="stat-val">4 engineers</span><span class="stat-lbl">team</span></span>
+        <span class="stat"><span class="stat-val">6</span><span class="stat-lbl">deliverables</span></span>
+      </div>
+    </div>
+    <p class="phase-desc">Dynamic ABAC-based access control at L4, with ReBAC available as an opt-in pattern for L5 service teams. OPA at L4 acts as a Policy Decision Point (PDP), called by Envoy via ext_authz (the Policy Enforcement Point), resolving entitlement attributes dynamically from the existing CIB ABAC attribute source rather than reading static token claims. This ensures access decisions reflect live permission state. SpiceDB is provided as a supported L5 pattern for services requiring relationship-based authorization, managed by the Policy Squad and adopted by service teams as needed. Runs in parallel with the Identity Squad from Phase 2 start.</p>
+    <div class="gantt-wrapper">
+      <pre class="mermaid">%%{init: {'theme': 'default', 'themeVariables': {
+  'taskBkgColor': '#1a4a8a', 'taskBorderColor': '#1a3a7a',
+  'activeTaskBkgColor': '#8fa8c8', 'activeTaskBorderColor': '#6a8aaa',
+  'critBkgColor': '#c0392b', 'critBorderColor': '#922b21',
+  'gridColor': '#d0dae8', 'sectionBkgColor': '#eef3fa',
+  'altSectionBkgColor': '#e4ecf7', 'taskTextColor': '#ffffff',
+  'taskTextOutsideColor': '#1a2a3a', 'titleColor': '#1a2a3a',
+  'todayLineColor': '#BA7517', 'fontFamily': 'Arial, sans-serif'
+}}}%%
+gantt
+    title Phase 4 Authorization
+    dateFormat YYYY-MM-DD
+    axisFormat %d %b
+    section Phase
+    Phase 4 Authorization :active, phaseBar, 2026-05-26, 2026-09-22
+    section OPA
+    OPA policy bundle authoring :g40, 2026-06-02, 3w
+    section SpiceDB
+    SpiceDB - L5 ReBAC pattern :g41, 2026-06-02, 4w
+    section OPA
+    OPA coarse policy at L4 :g42, 2026-08-04, 5w
+    section SpiceDB
+    SpiceDB / AuthZen L5 pattern :g43, after g41, 3w
+    section Context Propagator
+    Context Propagator :g44, after g42, 2w
+    section OPA
+    OPA fine-grained L5 via AuthZen API :g45, after g41, 4w</pre>
+    </div>
+    
+    <table class="deliverables-table">
+      <thead>
+        <tr>
+          <th style="width:22%">Deliverable</th>
+          <th style="width:40%">Description</th>
+          <th style="width:6%">Est.</th>
+          <th style="width:32%">Dependencies &amp; Notes</th>
+        </tr>
+      </thead>
+      <tbody><tr class="ws-header"><td colspan="4">OPA</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>OPA coarse policy at L4 (gateway sidecar)</strong></td>
+          <td class="desc">Deploy OPA as Policy Decision Point (PDP) sidecar per gateway Pod, called by Envoy via the ext_authz filter which acts as the Policy Enforcement Point (PEP). Implement coarse ABAC Rego policies: route access based on entity, client type, and dynamically resolved entitlement attributes fetched from the CIB ABAC attribute source (Policy Information Point). Attribute lookups are cached per session with a configurable TTL to bound latency while ensuring revocations propagate within the cache window. Policy bundle provides the Rego rules; live attributes come from the PIP at request time.</td>
+          <td class="est-cell"><span class="est-badge">5w</span></td>
+          <td class="notes">Sidecar pattern, gateway auth layer, ABAC attribute source (PIP) integration. PIP endpoint and attribute schema must be agreed with the owning team before OPA policy authoring begins.</td>
+        </tr>
+        <tr class="alt">
+          <td class="deliverable-name"><strong>OPA policy bundle authoring and deployment</strong></td>
+          <td class="desc">Define bundle structure, versioning, and signing. Rego policy rules encode routing logic and ABAC evaluation patterns — they define which attributes to fetch from the PIP and how to evaluate them, not static entitlement lists. Implement bundle build and publish pipeline. Kafka-notified bundle refresh on push. Drift monitoring alert if L4/L5 instances diverge > 60 seconds.</td>
+          <td class="est-cell"><span class="est-badge">3w</span></td>
+          <td class="notes">OPA L4, Kafka policy-bundle-push topic, ABAC attribute schema from PIP team</td>
+        </tr>
+        <tr>
+          <td class="deliverable-name"><strong>OPA fine-grained policy at L5 via AuthZen API</strong></td>
+          <td class="desc">Deploy OPA L5 service exposing IETF AuthZen API. L5 services call AuthZen for resource-level entitlement decisions, receiving allow/deny with structured obligations. OPA evaluates against both the ABAC attribute source (for attribute-based decisions) and SpiceDB (for relationship-based decisions) depending on the service schema. Decoupled from OPA: the policy engine is substitutable without service code changes.</td>
+          <td class="est-cell"><span class="est-badge">4w</span></td>
+          <td class="notes">Context Propagator, L5 service integration, SpiceDB for services requiring ReBAC</td>
+        </tr><tr class="ws-header"><td colspan="4">SpiceDB</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>SpiceDB — L5 ReBAC pattern</strong></td>
+          <td class="desc">Deploy SpiceDB as a supported L5 authorization pattern for service teams requiring relationship-based access control (e.g. trading desk membership, client-to-trader relationships, portfolio ownership). The Policy Squad defines reference schema patterns, AuthZen integration guidance, and onboarding documentation. Service team adoption is opt-in based on their specific authorization requirements. SpiceDB is not in the L4 gateway request path.</td>
+          <td class="est-cell"><span class="est-badge">4w</span></td>
+          <td class="notes">SpiceDB (Authzed) requires technology approval if not already on the CIB approved list — initiate TAC submission early. Fallback: custom ReBAC on PostgreSQL. L5 service teams engage the Policy Squad to design their specific schema.</td>
+        </tr>
+        <tr class="alt">
+          <td class="deliverable-name"><strong>SpiceDB / AuthZen integration pattern</strong></td>
+          <td class="desc">Implement and document the reference integration pattern for L5 services: service calls AuthZen API, OPA evaluates the request against SpiceDB relationship data, returns allow/deny with structured obligations. Provide a working reference implementation, latency benchmarks, and onboarding guide for service teams. This pattern is available to L5 services; it is not used at L4.</td>
+          <td class="est-cell"><span class="est-badge">3w</span></td>
+          <td class="notes">SpiceDB deployment, OPA AuthZen L5 service. Integration pattern is delivered as a service-team enablement artifact, not deployed as shared infrastructure.</td>
+        </tr><tr class="ws-header"><td colspan="4">Context Propagator</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>Context Propagator</strong></td>
+          <td class="desc">Implement trust boundary crossing between internet-origin and internal zones. Strip all client-supplied headers unconditionally. Forward an explicit allowlist of verified identity attributes from the session JWT (sub, sid, entity, client type) as x-auth-* headers to backend services. Entitlement decisions are not forwarded — L5 services make their own authorization calls against the AuthZen API using the forwarded identity. Unknown headers dropped. Implemented as Envoy filter and Kong plugin.</td>
+          <td class="est-cell"><span class="est-badge">2w</span></td>
+          <td class="notes">OPA L4, gateway auth layer</td>
+        </tr>
+    <tr class="totals-row">
+      <td colspan="2" style="text-align:right;padding-right:16px;font-size:11px;color:#7a8a9a;font-style:italic">
+        Total estimated effort across 6 deliverables
+        <span style="color:#9aaaba;margin-left:6px">(note: parallel workstreams mean elapsed time is less than total effort)</span>
+      </td>
+      <td class="est-cell">
+        <span class="est-badge" style="background:#e8f0fe;color:#1a3a8a;border-color:#b8ccf0;font-size:12px">21w</span>
+      </td>
+      <td></td>
+    </tr></tbody></table>
+  </section>
+
+  <section id="phase-5" class="phase-section">
+    <div class="phase-header" style="border-left: 4px solid #185FA5">
+      <div class="phase-meta">
+        <span class="phase-number" style="background:#185FA5">P5</span>
+        <h2>Phase 5 — Management & Control Plane</h2>
+        <span style="display:inline-block;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;background:#185FA518;color:#185FA5;border:1px solid #185FA544;letter-spacing:0.05em">Gateway + Console Squads</span>
+      </div>
+      <div class="phase-stats">
+        <span class="stat"><span class="stat-val">10 weeks</span><span class="stat-lbl">elapsed</span></span>
+        <span class="stat" style="background:#eaf5ee;border-color:#b8dfc6"><span class="stat-val" style="color:#1D6A40">18w</span><span class="stat-lbl">total effort</span></span>
+        <span class="stat"><span class="stat-val">6 + 2 engineers</span><span class="stat-lbl">team</span></span>
+        <span class="stat"><span class="stat-val">6</span><span class="stat-lbl">deliverables</span></span>
+      </div>
+    </div>
+    <p class="phase-desc">Starts after the data plane (P1) is complete. Gateway Squad delivers the control plane backend: Management API, Ingress Registry, drift detection, audit log, and GitOps pipeline. Console Squad runs in parallel delivering the DE Console UI and developer documentation, which consume the Management API.</p>
+    <div class="gantt-wrapper">
+      <pre class="mermaid">%%{init: {'theme': 'default', 'themeVariables': {
+  'taskBkgColor': '#1a4a8a', 'taskBorderColor': '#1a3a7a',
+  'activeTaskBkgColor': '#8fa8c8', 'activeTaskBorderColor': '#6a8aaa',
+  'critBkgColor': '#c0392b', 'critBorderColor': '#922b21',
+  'gridColor': '#d0dae8', 'sectionBkgColor': '#eef3fa',
+  'altSectionBkgColor': '#e4ecf7', 'taskTextColor': '#ffffff',
+  'taskTextOutsideColor': '#1a2a3a', 'titleColor': '#1a2a3a',
+  'todayLineColor': '#BA7517', 'fontFamily': 'Arial, sans-serif'
+}}}%%
+gantt
+    title Phase 5 Management & Control Plane
+    dateFormat YYYY-MM-DD
+    axisFormat %d %b
+    section Phase
+    Phase 5 Management & Control Plane :active, phaseBar, 2026-09-16, 2026-12-02
+    section Console Squad
+    DE Console - all pages :g50, 2026-10-21, 6w
+    section Gateway Squad
+    Management API and Ingress Registry :g51, 2026-09-23, 4w
+    Drift detection :g52, after g51, 2w
+    Audit log :g53, after g51, 1w
+    GitOps path. Bitbucket and ArgoCD :g54, after g51, 3w
+    section Console Squad
+    Developer documentation :g55, after g54, 2w</pre>
+    </div>
+    
+    <table class="deliverables-table">
+      <thead>
+        <tr>
+          <th style="width:22%">Deliverable</th>
+          <th style="width:40%">Description</th>
+          <th style="width:6%">Est.</th>
+          <th style="width:32%">Dependencies &amp; Notes</th>
+        </tr>
+      </thead>
+      <tbody><tr class="ws-header"><td colspan="4">Registry — Gateway Squad</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>Management API + Ingress Registry</strong></td>
+          <td class="desc">REST API for route intent submission. Policy validation at authoring time, blocks non-compliant routes before commit. Postgres schema for desired state (routes) and actual state (actual_routes). CRUD endpoints with full audit trail. Registry schema must support HRL (High Risk Location) route attributes to enable network segmentation routing for workforce users in high-risk geographic regions. Approved HRL routing patterns from elsewhere in CIB to be incorporated at schema design time.</td>
+          <td class="est-cell"><span class="est-badge">4w</span></td>
+          <td class="notes">Postgres, policy rules defined</td>
+        </tr>
+        <tr class="alt">
+          <td class="deliverable-name"><strong>Drift detection</strong></td>
+          <td class="desc">Background process comparing desired state (Registry) against actual state reported by Envoy control plane (/snapshot/routes) and Kong admin proxy (/sync-status/routes). Divergence surfaced in DE Console within 10 seconds of detection.</td>
+          <td class="est-cell"><span class="est-badge">2w</span></td>
+          <td class="notes">Management API, Envoy control plane, Kong admin proxy</td>
+        </tr>
+        <tr>
+          <td class="deliverable-name"><strong>Audit log</strong></td>
+          <td class="desc">Immutable append-only record of every route change: actor, timestamp, change path (Console / GitOps), before/after state. Indexed for compliance queries. Retention aligned to CIB data governance policy.</td>
+          <td class="est-cell"><span class="est-badge">1w</span></td>
+          <td class="notes">Management API</td>
+        </tr><tr class="ws-header"><td colspan="4">Console</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>DE Console — all pages</strong></td>
+          <td class="desc">Operator web interface: Dashboard (health + live request feed), Routes (lifecycle management with inline validation), Drift Dashboard (desired vs actual), Request Log (with Dynatrace trace deep-links), Sessions (with single-click revocation), Traces (Dynatrace integration).</td>
+          <td class="est-cell"><span class="est-badge">6w</span></td>
+          <td class="notes">Management API, auth-service, Dynatrace endpoint</td>
+        </tr><tr class="ws-header"><td colspan="4">GitOps — Gateway Squad</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>GitOps path (Bitbucket + ArgoCD)</strong></td>
+          <td class="desc">Bitbucket as source of truth. Policy CI in Bitbucket Pipelines, non-compliant routes block merge. ArgoCD ApplicationSets for multi-cluster reconciliation. Peer review workflow. Emergency override procedure with audit trail.</td>
+          <td class="est-cell"><span class="est-badge">3w</span></td>
+          <td class="notes">CI/CD pipeline foundation, ArgoCD, Management API</td>
+        </tr><tr class="ws-header"><td colspan="4">Docs — Console Squad</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>Developer documentation and API catalog</strong></td>
+          <td class="desc">Route onboarding guide for CIB application teams. Auth pipeline documentation. API catalog for Management API and AuthZen endpoints. Runbooks for common operator actions.</td>
+          <td class="est-cell"><span class="est-badge">2w</span></td>
+          <td class="notes">All control plane components</td>
+        </tr>
+    <tr class="totals-row">
+      <td colspan="2" style="text-align:right;padding-right:16px;font-size:11px;color:#7a8a9a;font-style:italic">
+        Total estimated effort across 6 deliverables
+        <span style="color:#9aaaba;margin-left:6px">(note: parallel workstreams mean elapsed time is less than total effort)</span>
+      </td>
+      <td class="est-cell">
+        <span class="est-badge" style="background:#e8f0fe;color:#1a3a8a;border-color:#b8ccf0;font-size:12px">18w</span>
+      </td>
+      <td></td>
+    </tr></tbody></table>
+  </section>
+
+  <section id="phase-6" class="phase-section">
+    <div class="phase-header" style="border-left: 4px solid #2e7d32">
+      <div class="phase-meta">
+        <span class="phase-number" style="background:#2e7d32">P6</span>
+        <h2>Phase 6 — Observability & Traceability</h2>
+        <span style="display:inline-block;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;background:#2e7d3218;color:#2e7d32;border:1px solid #2e7d3244;letter-spacing:0.05em">Observability Squad</span>
+      </div>
+      <div class="phase-stats">
+        <span class="stat"><span class="stat-val">6 weeks</span><span class="stat-lbl">elapsed</span></span>
+        <span class="stat" style="background:#eaf5ee;border-color:#b8dfc6"><span class="stat-val" style="color:#1D6A40">12w</span><span class="stat-lbl">total effort</span></span>
+        <span class="stat"><span class="stat-val">2 engineers</span><span class="stat-lbl">team</span></span>
+        <span class="stat"><span class="stat-val">6</span><span class="stat-lbl">deliverables</span></span>
+      </div>
+    </div>
+    <p class="phase-desc">Full-stack distributed tracing, auth pipeline visibility, and health monitoring across all ingress components.</p>
+    <div class="gantt-wrapper">
+      <pre class="mermaid">%%{init: {'theme': 'default', 'themeVariables': {
+  'taskBkgColor': '#1a4a8a', 'taskBorderColor': '#1a3a7a',
+  'activeTaskBkgColor': '#8fa8c8', 'activeTaskBorderColor': '#6a8aaa',
+  'critBkgColor': '#c0392b', 'critBorderColor': '#922b21',
+  'gridColor': '#d0dae8', 'sectionBkgColor': '#eef3fa',
+  'altSectionBkgColor': '#e4ecf7', 'taskTextColor': '#ffffff',
+  'taskTextOutsideColor': '#1a2a3a', 'titleColor': '#1a2a3a',
+  'todayLineColor': '#BA7517', 'fontFamily': 'Arial, sans-serif'
+}}}%%
+gantt
+    title Phase 6 Observability & Traceability
+    dateFormat YYYY-MM-DD
+    axisFormat %d %b
+    section Phase
+    Phase 6 Observability & Traceability :active, phaseBar, 2026-11-24, 2027-01-05
+    section Health
+    Health endpoints - all services :g60, 2026-12-01, 1w
+    section OTEL
+    OpenTelemetry instrumentation :g61, 2026-12-01, 3w
+    section Dynatrace
+    Dynatrace integration and dashboards :g62, 2026-12-01, 3w
+    section OTEL
+    W3C traceparent and Akamai correlation :g63, after g61, 1w
+    Auth pipeline tracing :g64, after g61, 2w
+    section Dynatrace
+    SLO monitoring and alerting :g65, after g62, 2w</pre>
+    </div>
+    
+    <table class="deliverables-table">
+      <thead>
+        <tr>
+          <th style="width:22%">Deliverable</th>
+          <th style="width:40%">Description</th>
+          <th style="width:6%">Est.</th>
+          <th style="width:32%">Dependencies &amp; Notes</th>
+        </tr>
+      </thead>
+      <tbody><tr class="ws-header"><td colspan="4">OTEL</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>OpenTelemetry instrumentation — all services</strong></td>
+          <td class="desc">Instrument all ingress components with the shared OTEL Go library. Consistent span shape, attribute naming, and sampling policy. OTLP export to Dynatrace from all services. 100% sampling in production for ingress traffic.</td>
+          <td class="est-cell"><span class="est-badge">3w</span></td>
+          <td class="notes">Shared OTEL library, Dynatrace endpoint</td>
+        </tr>
+        <tr class="alt">
+          <td class="deliverable-name"><strong>W3C traceparent propagation and Akamai fallback</strong></td>
+          <td class="desc">W3C Trace Context propagated across every hop from CDN edge to L5 service. Akamai header fallback: deterministic trace ID synthesised from x-akamai-request-id / x-edge-request-id where W3C headers are absent. Every request is traceable regardless of origin.</td>
+          <td class="est-cell"><span class="est-badge">1w</span></td>
+          <td class="notes">OTEL instrumentation</td>
+        </tr>
+        <tr>
+          <td class="deliverable-name"><strong>Auth pipeline tracing</strong></td>
+          <td class="desc">Structured spans for each auth pipeline step: JWT validation, DPoP verification, revocation cache check, OPA coarse evaluation, Context Propagator execution. Rejected requests as observable as successful ones. Span attributes include deny reason and step latency.</td>
+          <td class="est-cell"><span class="est-badge">2w</span></td>
+          <td class="notes">OTEL instrumentation, auth pipeline deployed</td>
+        </tr><tr class="ws-header"><td colspan="4">Dynatrace</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>Dynatrace integration and dashboards</strong></td>
+          <td class="desc">Configure OTLP ingest in Dynatrace. Build dashboards: request waterfall, auth pipeline step timing, gateway throughput/latency/error rate, revocation propagation latency, OPA policy evaluation latency. AI-assisted anomaly detection configuration.</td>
+          <td class="est-cell"><span class="est-badge">3w</span></td>
+          <td class="notes">OTEL instrumentation, Dynatrace tenant</td>
+        </tr>
+        <tr class="alt">
+          <td class="deliverable-name"><strong>SLO monitoring and alerting</strong></td>
+          <td class="desc">Define SLOs: gateway availability (99.99%), P99 gateway latency (< 50ms overhead), revocation propagation (< 1s), auth pipeline latency (< 20ms). Alerting thresholds and escalation paths. Synthetic monitoring via Dynatrace health endpoints.</td>
+          <td class="est-cell"><span class="est-badge">2w</span></td>
+          <td class="notes">Dynatrace dashboards, on-call setup</td>
+        </tr><tr class="ws-header"><td colspan="4">Health</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>Health endpoints — all services</strong></td>
+          <td class="desc">Liveness (/health) and readiness (/health/detail) probes on every service. Kubernetes probe configuration per service. Readiness checks validate critical dependencies: JWKS loaded, OPA bundle loaded, Kafka connected, DB reachable. Used by Kubernetes for traffic routing and Dynatrace for synthetic monitoring.</td>
+          <td class="est-cell"><span class="est-badge">1w</span></td>
+          <td class="notes">All services deployed</td>
+        </tr>
+    <tr class="totals-row">
+      <td colspan="2" style="text-align:right;padding-right:16px;font-size:11px;color:#7a8a9a;font-style:italic">
+        Total estimated effort across 6 deliverables
+        <span style="color:#9aaaba;margin-left:6px">(note: parallel workstreams mean elapsed time is less than total effort)</span>
+      </td>
+      <td class="est-cell">
+        <span class="est-badge" style="background:#e8f0fe;color:#1a3a8a;border-color:#b8ccf0;font-size:12px">12w</span>
+      </td>
+      <td></td>
+    </tr></tbody></table>
+  </section>
+
+  <section id="phase-7" class="phase-section">
+    <div class="phase-header" style="border-left: 4px solid #8B1A1A">
+      <div class="phase-meta">
+        <span class="phase-number" style="background:#8B1A1A">P7</span>
+        <h2>Phase 7 — Hardening & Go-Live</h2>
+        <span style="display:inline-block;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;background:#8B1A1A18;color:#8B1A1A;border:1px solid #8B1A1A44;letter-spacing:0.05em">Release Squad</span>
+      </div>
+      <div class="phase-stats">
+        <span class="stat"><span class="stat-val">10 weeks</span><span class="stat-lbl">elapsed</span></span>
+        <span class="stat" style="background:#eaf5ee;border-color:#b8dfc6"><span class="stat-val" style="color:#1D6A40">19w</span><span class="stat-lbl">total effort</span></span>
+        <span class="stat"><span class="stat-val">19 engineers</span><span class="stat-lbl">team</span></span>
+        <span class="stat"><span class="stat-val">7</span><span class="stat-lbl">deliverables</span></span>
+      </div>
+    </div>
+    <p class="phase-desc">Security validation, multi-cloud verification, disaster recovery testing, performance hardening, and controlled traffic migration. All gates must pass before production traffic.</p>
+    <div class="gantt-wrapper">
+      <pre class="mermaid">%%{init: {'theme': 'default', 'themeVariables': {
+  'taskBkgColor': '#1a4a8a', 'taskBorderColor': '#1a3a7a',
+  'activeTaskBkgColor': '#8fa8c8', 'activeTaskBorderColor': '#6a8aaa',
+  'critBkgColor': '#c0392b', 'critBorderColor': '#922b21',
+  'gridColor': '#d0dae8', 'sectionBkgColor': '#eef3fa',
+  'altSectionBkgColor': '#e4ecf7', 'taskTextColor': '#ffffff',
+  'taskTextOutsideColor': '#1a2a3a', 'titleColor': '#1a2a3a',
+  'todayLineColor': '#BA7517', 'fontFamily': 'Arial, sans-serif'
+}}}%%
+gantt
+    title Phase 7 Hardening & Go-Live
+    dateFormat YYYY-MM-DD
+    axisFormat %d %b
+    section Phase
+    Phase 7 Hardening & Go-Live :active, phaseBar, 2027-01-06, 2027-03-24
+    section Architecture
+    Sidecar pattern - production K8s :g70, 2027-01-13, 3w
+    section Multi-cloud
+    Multi-cloud validation GKP and AWS :g71, 2027-01-13, 2w
+    section Security
+    Penetration testing :g72, 2027-01-13, 3w
+    section Performance
+    Production load testing :g73, after g71, 2w
+    section Operations
+    Runbooks and on-call setup :g74, after g71, 2w
+    section Resilience
+    Disaster recovery testing :g75, after g70, 3w
+    section Go-Live
+    Phased traffic migration :g76, after g75, 4w</pre>
+    </div>
+    
+    <table class="deliverables-table">
+      <thead>
+        <tr>
+          <th style="width:22%">Deliverable</th>
+          <th style="width:40%">Description</th>
+          <th style="width:6%">Est.</th>
+          <th style="width:32%">Dependencies &amp; Notes</th>
+        </tr>
+      </thead>
+      <tbody><tr class="ws-header"><td colspan="4">Architecture</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>Sidecar pattern — production Kubernetes</strong></td>
+          <td class="desc">Deploy Session Validator, OPA PDP, and OTEL Collector as sidecars per gateway Pod. All auth hot-path communication over loopback. Validate latency improvement vs standalone service calls. Sidecar failure isolation testing.</td>
+          <td class="est-cell"><span class="est-badge">3w</span></td>
+          <td class="notes">All auth components, K8s deployment</td>
+        </tr><tr class="ws-header"><td colspan="4">Multi-cloud</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>Multi-cloud validation (GKP + AWS)</strong></td>
+          <td class="desc">Validate full data plane and control plane independence across GKP and AWS. Confirm no cross-cloud dependency in the request path. Auth, authorization, and policy evaluation self-contained per cloud. Failover between clouds validated.</td>
+          <td class="est-cell"><span class="est-badge">2w</span></td>
+          <td class="notes">All phases deployed to both clouds</td>
+        </tr><tr class="ws-header"><td colspan="4">Resilience</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>Disaster recovery testing</strong></td>
+          <td class="desc">Full regional failover simulation: take an entire region out of service and validate that GTM composite health check triggers correctly, traffic shifts to surviving regions, session state is intact for active users, and SLOs are maintained under the additional load. Cloudflare DR failover exercise. Kafka partition failure simulation. Session Manager regional failure and catch-up validation. Chaos engineering for gateway sidecar failures. Document RTO and RPO for each failure scenario including full-region loss.</td>
+          <td class="est-cell"><span class="est-badge">3w</span></td>
+          <td class="notes">Full stack deployed, DR runbooks, N+1 capacity confirmed. Regional failover simulation requires coordination across infrastructure, networking, and application teams. Estimate increased from 2w to 3w to account for the additional test scenario and remediation time.</td>
+        </tr><tr class="ws-header"><td colspan="4">Security</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>Penetration testing and security review</strong></td>
+          <td class="desc">External pen test of auth pipeline, token theft, DPoP bypass, replay, injection. Internal threat model review against STRIDE. Remediation sprint.</td>
+          <td class="est-cell"><span class="est-badge">3w</span></td>
+          <td class="notes">Full stack deployed. Raise pen test request at the start of Phase 5. Internal red team scheduling lead times mean a late request will delay the go-live date regardless of engineering completion.</td>
+        </tr><tr class="ws-header"><td colspan="4">Performance</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>Production load testing and capacity planning</strong></td>
+          <td class="desc">Load test at 150% projected production volume. Validate SLOs hold under peak. N+1 regional capacity validation: simulate a full regional failure and confirm the remaining regions can absorb the additional traffic load while maintaining SLOs. If they cannot, infrastructure sizing must be adjusted before go-live. Define HPA autoscaling thresholds. Document per-region capacity requirements for first 12 months.</td>
+          <td class="est-cell"><span class="est-badge">2w</span></td>
+          <td class="notes">Full stack deployed, production-representative test data. N+1 capacity validation is a go/no-go gate for the traffic migration.</td>
+        </tr><tr class="ws-header"><td colspan="4">Operations</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>Runbooks and on-call setup</strong></td>
+          <td class="desc">Runbooks for: gateway instance failure, Kafka consumer lag, JWKS refresh failure, OPA bundle stale, Session Manager regional outage, emergency route bypass. Regional failover recovery procedure: define how a failed region re-enters service rotation after recovery, including the validation steps required before traffic is re-admitted and a deliberate hold period to prevent flapping. On-call rotation definition. Escalation matrix.</td>
+          <td class="est-cell"><span class="est-badge">2w</span></td>
+          <td class="notes">Dynatrace alerting, all components documented. Regional re-entry procedure must be reviewed and signed off before go-live.</td>
+        </tr><tr class="ws-header"><td colspan="4">Go-Live</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>Phased traffic migration</strong></td>
+          <td class="desc">Canary traffic migration: 1% → 10% → 50% → 100% per region. Define rollback criteria and automated rollback triggers. Stakeholder go/no-go gates per phase. Final production cutover and hypercare period (2 weeks post-cutover).</td>
+          <td class="est-cell"><span class="est-badge">4w</span></td>
+          <td class="notes">All hardening complete, sign-off from CIB CTO/CRO</td>
+        </tr>
+    <tr class="totals-row">
+      <td colspan="2" style="text-align:right;padding-right:16px;font-size:11px;color:#7a8a9a;font-style:italic">
+        Total estimated effort across 7 deliverables
+        <span style="color:#9aaaba;margin-left:6px">(note: parallel workstreams mean elapsed time is less than total effort)</span>
+      </td>
+      <td class="est-cell">
+        <span class="est-badge" style="background:#e8f0fe;color:#1a3a8a;border-color:#b8ccf0;font-size:12px">19w</span>
+      </td>
+      <td></td>
+    </tr></tbody></table>
+  </section>
+
+<footer>
+  <span>CIB Digital Enablement</span>
+  <span></span>
+</footer>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'default',
+    securityLevel: 'loose',
+    gantt: {
+      numberSectionStyles: 4,
+      axisFormat: '%d %b',
+      useWidth: 1200
+    }
+  });
+</script>
+
+</body>
+</html>

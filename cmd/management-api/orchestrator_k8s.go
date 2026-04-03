@@ -410,10 +410,41 @@ func (k *K8sOrchestrator) lambdaManifestPath(routeID string) string {
 // YAML generation helpers (template strings - avoids external YAML deps)
 // ---------------------------------------------------------------------------
 
+// fleetNameToK8sSlug converts a human-readable fleet display name into a
+// Kubernetes-safe resource name. The result is prefixed with "fleet-" and
+// uses only lowercase alphanumerics and hyphens, capped at 52 chars.
+// Example: "JPMM Markets" → "fleet-jpmm-markets"
+func fleetNameToK8sSlug(name string) string {
+	slug := strings.ToLower(name)
+	var b strings.Builder
+	prev := '-'
+	for _, ch := range slug {
+		switch {
+		case ch >= 'a' && ch <= 'z', ch >= '0' && ch <= '9':
+			b.WriteRune(ch)
+			prev = ch
+		default:
+			if prev != '-' {
+				b.WriteRune('-')
+			}
+			prev = '-'
+		}
+	}
+	s := strings.Trim(b.String(), "-")
+	if len(s) > 46 { // leave room for "fleet-" prefix
+		s = s[:46]
+	}
+	if s == "" {
+		return "fleet-unnamed"
+	}
+	return "fleet-" + s
+}
+
 func generateFleetCRD(fleetID, fallbackGatewayType string, replicas int, nodes []gitopsNodeSpec) string {
-	// Look up fleet name and subdomain from DB for CRD validation
+	// Look up fleet name, subdomain, and k8s_name from DB for CRD generation.
 	fleetName := fleetID
 	fleetSubdomain := fleetID + ".jpm.com"
+	k8sName := fleetID // default: use UUID (backwards compat for existing fleets)
 	if db != nil {
 		var f Fleet
 		if err := db.Get(&f, "SELECT * FROM fleets WHERE id=$1", fleetID); err == nil {
@@ -422,6 +453,9 @@ func generateFleetCRD(fleetID, fallbackGatewayType string, replicas int, nodes [
 			}
 			if f.Subdomain != "" {
 				fleetSubdomain = f.Subdomain
+			}
+			if f.K8sName != "" {
+				k8sName = f.K8sName
 			}
 		}
 	}
@@ -461,13 +495,14 @@ metadata:
   namespace: ingress-dp
   labels:
     app.kubernetes.io/managed-by: management-api
+    fleet.jpmc.com/id: %q
 spec:
   name: %q
   subdomain: %q
   gatewayType: %s
   replicas: %d
   nodes:
-%s`, fleetID, fleetName, fleetSubdomain, gatewayType, replicas, nodesYAML)
+%s`, k8sName, fleetID, fleetName, fleetSubdomain, gatewayType, replicas, nodesYAML)
 }
 
 type gitopsNodeSpec struct {
@@ -799,7 +834,7 @@ func (k *K8sOrchestrator) ScaleFleetNodes(fleetID, gatewayType string, desiredCo
 	return k.ListFleetNodes(fleetID)
 }
 
-func (k *K8sOrchestrator) RemoveFleetNodes(fleetID string) error {
+func (k *K8sOrchestrator) RemoveFleetNodes(fleetID, k8sName string) error {
 	clusters := k.targetClusters(fleetID)
 	for _, cluster := range clusters {
 		path := fleetManifestPathFor(cluster, fleetID)
@@ -812,8 +847,13 @@ func (k *K8sOrchestrator) RemoveFleetNodes(fleetID string) error {
 	}
 	log.Printf("k8s: removed fleet manifest for %s from clusters: %s", fleetID, strings.Join(clusters, ", "))
 
-	// Delete Fleet CRD from cluster
-	k.deleteFromCluster(fleetGVR, "ingress-dp", fleetID)
+	// Delete Fleet CR from cluster using the correct resource name.
+	// New fleets use a human-readable k8sName slug; existing fleets have k8sName == UUID.
+	crName := k8sName
+	if crName == "" {
+		crName = fleetID
+	}
+	k.deleteFromCluster(fleetGVR, "ingress-dp", crName)
 
 	return nil
 }
