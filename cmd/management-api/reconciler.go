@@ -110,12 +110,37 @@ func reconcileOnce(clientset *kubernetes.Clientset) {
 		return
 	}
 
-	// Build a map of fleet-name → running pod count
+	// Build k8s_name → fleet UUID map so pod names (which use k8s_name slugs for
+	// new fleets) can be translated back to the DB fleet ID.
+	var k8sNameRows []struct {
+		ID      string `db:"id"`
+		K8sName string `db:"k8s_name"`
+	}
+	if err := db.Select(&k8sNameRows, "SELECT id, k8s_name FROM fleets WHERE fleet_type='data'"); err != nil {
+		log.Printf("reconciler: failed to query k8s_name map: %v", err)
+		return
+	}
+	k8sNameToID := map[string]string{}
+	for _, r := range k8sNameRows {
+		if r.K8sName != "" {
+			k8sNameToID[r.K8sName] = r.ID
+		}
+		// Also map UUID → UUID for old fleets whose k8s_name == id
+		k8sNameToID[r.ID] = r.ID
+	}
+
+	// Build a map of fleet UUID → running pod count.
+	// extractFleetID returns the k8s deployment name (slug or UUID); translate
+	// it to the fleet UUID via k8sNameToID before counting.
 	fleetPodCount := map[string]int{}
 	for _, pod := range pods.Items {
-		fleetID := extractFleetID(pod.Name, pod.OwnerReferences)
-		if fleetID == "" {
+		extracted := extractFleetID(pod.Name, pod.OwnerReferences)
+		if extracted == "" {
 			continue
+		}
+		fleetID := k8sNameToID[extracted]
+		if fleetID == "" {
+			fleetID = extracted
 		}
 		if pod.Status.Phase == "Running" {
 			allReady := true
@@ -166,18 +191,17 @@ func reconcileOnce(clientset *kubernetes.Clientset) {
 		if suspendedFleets[node.FleetID] {
 			continue
 		}
-		// Skip nodes explicitly stopped by the user — don't override their intent
-		if node.Status == "stopped" {
-			continue
-		}
-
 		runningCount := fleetPodCount[node.FleetID]
 		if runningCount > 0 {
+			// Pods are actually running — bring DB in line regardless of previous stopped state.
+			// A stopped node with live pods means the node was marked stopped during a
+			// transient gap (e.g. pod cycling during seed re-deploy) not by user intent.
 			if node.Status != "running" {
 				db.Exec("UPDATE fleet_nodes SET status='running' WHERE node_name=$1", node.NodeName)
 				updatedCount++
 			}
 		} else {
+			// No live pods — only mark as stopped if currently running (respect explicit stopped/drifted states)
 			if node.Status == "running" {
 				db.Exec("UPDATE fleet_nodes SET status='stopped' WHERE node_name=$1", node.NodeName)
 				updatedCount++

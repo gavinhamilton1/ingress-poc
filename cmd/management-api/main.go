@@ -56,6 +56,30 @@ func main() {
 	r := chi.NewRouter()
 	r.Use(appMiddleware.CORS())
 
+	// Optional API key auth — enforced when MANAGEMENT_API_KEY env var is set.
+	// Internal cluster traffic (console, mcp-server in-cluster) can omit the key
+	// unless the operator has set it explicitly.
+	if apiKey := getEnvOr("MANAGEMENT_API_KEY", ""); apiKey != "" {
+		log.Printf("management-api: API key auth enabled")
+		r.Use(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				if req.URL.Path == "/health" {
+					next.ServeHTTP(w, req)
+					return
+				}
+				auth := req.Header.Get("Authorization")
+				token := strings.TrimPrefix(auth, "Bearer ")
+				if token != apiKey {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusUnauthorized)
+					w.Write([]byte(`{"error":"unauthorized","detail":"valid Authorization: Bearer <key> required"}`))
+					return
+				}
+				next.ServeHTTP(w, req)
+			})
+		})
+	}
+
 	// Routes
 	r.Get("/routes", listRoutes)
 	r.Get("/routes/{id}", getRoute)
@@ -196,8 +220,12 @@ func listRoutes(w http.ResponseWriter, r *http.Request) {
 	}
 	if fleetID != "" {
 		n++
-		query += fmt.Sprintf(" AND hostname IN (SELECT subdomain FROM fleets WHERE id=$%d)", n)
-		args = append(args, fleetID)
+		n2 := n + 1
+		// Match by UUID (id) OR by k8s_name slug — xDS sends the k8s deployment name
+		// (e.g. "fleet-test") but new fleets have a UUID as their DB id.
+		query += fmt.Sprintf(" AND hostname IN (SELECT subdomain FROM fleets WHERE id=$%d OR k8s_name=$%d)", n, n2)
+		args = append(args, fleetID, fleetID)
+		n++
 	}
 	if unassigned == "true" {
 		query += " AND id NOT IN (SELECT route_id FROM route_node_assignments WHERE status='active')"
@@ -668,13 +696,21 @@ func listFleets(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, result)
 }
 
+// resolveFleet looks up a fleet by UUID or k8s_name slug (e.g. "fleet-test").
+func resolveFleet(fleetID string) (Fleet, error) {
+	var f Fleet
+	err := db.Get(&f, "SELECT * FROM fleets WHERE id=$1 OR k8s_name=$1", fleetID)
+	return f, err
+}
+
 func getFleet(w http.ResponseWriter, r *http.Request) {
 	fleetID := chi.URLParam(r, "fleet_id")
-	var f Fleet
-	if err := db.Get(&f, "SELECT * FROM fleets WHERE id=$1", fleetID); err != nil {
+	f, err := resolveFleet(fleetID)
+	if err != nil {
 		writeJSON(w, 404, map[string]string{"detail": "Fleet not found"})
 		return
 	}
+	fleetID = f.ID
 	var instances []FleetInstance
 	db.Select(&instances, "SELECT * FROM fleet_instances WHERE fleet_id=$1 ORDER BY context_path", f.ID)
 	if instances == nil {
@@ -772,11 +808,12 @@ func createFleet(w http.ResponseWriter, r *http.Request) {
 
 func updateFleet(w http.ResponseWriter, r *http.Request) {
 	fleetID := chi.URLParam(r, "fleet_id")
-	var existing Fleet
-	if err := db.Get(&existing, "SELECT * FROM fleets WHERE id=$1", fleetID); err != nil {
+	existing, err := resolveFleet(fleetID)
+	if err != nil {
 		writeJSON(w, 404, map[string]string{"detail": "Fleet not found"})
 		return
 	}
+	fleetID = existing.ID
 
 	var body map[string]interface{}
 	json.NewDecoder(r.Body).Decode(&body)
@@ -854,11 +891,12 @@ func updateFleet(w http.ResponseWriter, r *http.Request) {
 
 func deployToFleet(w http.ResponseWriter, r *http.Request) {
 	fleetID := chi.URLParam(r, "fleet_id")
-	var f Fleet
-	if err := db.Get(&f, "SELECT * FROM fleets WHERE id=$1", fleetID); err != nil {
+	f, err := resolveFleet(fleetID)
+	if err != nil {
 		writeJSON(w, 404, map[string]string{"detail": "Fleet not found"})
 		return
 	}
+	fleetID = f.ID
 
 	var body map[string]interface{}
 	json.NewDecoder(r.Body).Decode(&body)
@@ -975,11 +1013,12 @@ func removeFleetInstance(w http.ResponseWriter, r *http.Request) {
 
 func deleteFleet(w http.ResponseWriter, r *http.Request) {
 	fleetID := chi.URLParam(r, "fleet_id")
-	var f Fleet
-	if err := db.Get(&f, "SELECT * FROM fleets WHERE id=$1", fleetID); err != nil {
+	f, err := resolveFleet(fleetID)
+	if err != nil {
 		writeJSON(w, 404, map[string]string{"detail": "Fleet not found"})
 		return
 	}
+	fleetID = f.ID
 
 	// Remove all containers for this fleet (gateway instances)
 	if err := orch.RemoveFleetNodes(fleetID, f.K8sName); err != nil {
@@ -1011,11 +1050,12 @@ func deleteFleet(w http.ResponseWriter, r *http.Request) {
 
 func getFleetNodes(w http.ResponseWriter, r *http.Request) {
 	fleetID := chi.URLParam(r, "fleet_id")
-	var f Fleet
-	if err := db.Get(&f, "SELECT * FROM fleets WHERE id=$1", fleetID); err != nil {
+	f, err := resolveFleet(fleetID)
+	if err != nil {
 		writeJSON(w, 404, map[string]string{"detail": "Fleet not found"})
 		return
 	}
+	fleetID = f.ID
 
 	// For control-plane fleets, return virtual nodes from cp_nodes table
 	if f.FleetType == "control" {
@@ -1107,11 +1147,12 @@ func getFleetNodes(w http.ResponseWriter, r *http.Request) {
 
 func scaleFleet(w http.ResponseWriter, r *http.Request) {
 	fleetID := chi.URLParam(r, "fleet_id")
-	var f Fleet
-	if err := db.Get(&f, "SELECT * FROM fleets WHERE id=$1", fleetID); err != nil {
+	f, err := resolveFleet(fleetID)
+	if err != nil {
 		writeJSON(w, 404, map[string]string{"detail": "Fleet not found"})
 		return
 	}
+	fleetID = f.ID
 
 	var body map[string]interface{}
 	json.NewDecoder(r.Body).Decode(&body)
@@ -1168,11 +1209,12 @@ func scaleFleet(w http.ResponseWriter, r *http.Request) {
 
 func handleSuspendFleet(w http.ResponseWriter, r *http.Request) {
 	fleetID := chi.URLParam(r, "fleet_id")
-	var f Fleet
-	if err := db.Get(&f, "SELECT * FROM fleets WHERE id=$1", fleetID); err != nil {
+	f, err := resolveFleet(fleetID)
+	if err != nil {
 		writeJSON(w, 404, map[string]string{"detail": "Fleet not found"})
 		return
 	}
+	fleetID = f.ID
 
 	// 1. Stop all fleet gateway containers
 	if err := orch.StopFleetNodes(fleetID); err != nil {
@@ -1204,11 +1246,12 @@ func handleSuspendFleet(w http.ResponseWriter, r *http.Request) {
 
 func handleResumeFleet(w http.ResponseWriter, r *http.Request) {
 	fleetID := chi.URLParam(r, "fleet_id")
-	var f Fleet
-	if err := db.Get(&f, "SELECT * FROM fleets WHERE id=$1", fleetID); err != nil {
+	f, err := resolveFleet(fleetID)
+	if err != nil {
 		writeJSON(w, 404, map[string]string{"detail": "Fleet not found"})
 		return
 	}
+	fleetID = f.ID
 
 	// 1. Start all fleet gateway containers
 	if err := orch.StartFleetNodes(fleetID); err != nil {
@@ -1361,11 +1404,12 @@ func handleDeleteNode(w http.ResponseWriter, r *http.Request) {
 // POST /fleets/{fleet_id}/nodes/deploy {"gateway_type": "envoy", "datacenter": "us-east-1"}
 func handleDeploySingleNode(w http.ResponseWriter, r *http.Request) {
 	fleetID := chi.URLParam(r, "fleet_id")
-	var f Fleet
-	if err := db.Get(&f, "SELECT * FROM fleets WHERE id=$1", fleetID); err != nil {
+	f, err := resolveFleet(fleetID)
+	if err != nil {
 		writeJSON(w, 404, map[string]string{"detail": "Fleet not found"})
 		return
 	}
+	fleetID = f.ID
 
 	var body map[string]interface{}
 	json.NewDecoder(r.Body).Decode(&body)

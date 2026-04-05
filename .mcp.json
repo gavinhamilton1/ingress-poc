@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "cib-ingress": {
+      "command": "/Users/gavin/bin/cib-ingress-mcp",
+      "env": {
+        "MANAGEMENT_API_URL": "http://localhost:8003",
+        "MANAGEMENT_API_KEY": ""
+      }
+    }
+  }
+}

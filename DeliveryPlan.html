@@ -803,7 +803,7 @@ gantt
     <td><span style="font-size:11px;font-weight:600;color:#546e7a;background:#546e7a18;border:1px solid #546e7a44;border-radius:3px;padding:2px 8px">Gateway Squad</span></td>
     <td style="text-align:center"><span class="est-badge">5 weeks</span></td>
     <td style="text-align:center;color:#5a7a9a">3 engineers</td>
-    <td style="text-align:center;color:#2a3a4a">7</td>
+    <td style="text-align:center;color:#2a3a4a">8</td>
     <td style="color:#7a8a9a;font-size:11px">Foundational infrastructure that all subsequent phases depend on. Must be substantially complete before service development begins.</td>
   </tr>
   <tr class="alt">
@@ -1011,9 +1011,9 @@ gantt
       </div>
       <div class="phase-stats">
         <span class="stat"><span class="stat-val">5 weeks</span><span class="stat-lbl">elapsed</span></span>
-        <span class="stat" style="background:#eaf5ee;border-color:#b8dfc6"><span class="stat-val" style="color:#1D6A40">11w</span><span class="stat-lbl">total effort</span></span>
+        <span class="stat" style="background:#eaf5ee;border-color:#b8dfc6"><span class="stat-val" style="color:#1D6A40">13w</span><span class="stat-lbl">total effort</span></span>
         <span class="stat"><span class="stat-val">3 engineers</span><span class="stat-lbl">team</span></span>
-        <span class="stat"><span class="stat-val">7</span><span class="stat-lbl">deliverables</span></span>
+        <span class="stat"><span class="stat-val">8</span><span class="stat-lbl">deliverables</span></span>
       </div>
     </div>
     <p class="phase-desc">Foundational infrastructure that all subsequent phases depend on. Must be substantially complete before service development begins.</p>
@@ -1033,6 +1033,8 @@ gantt
     axisFormat %d %b
     section Phase
     Phase 0 Foundation & Platform :active, phaseBar, 2026-04-21, 2026-06-02
+    section Governance
+    SEAL PTx process. PTB, PTD, PTO :g07, 2026-04-28, 2w
     section Standards
     Engineering standards and shared libraries :g00, 2026-04-28, 1w
     section Infrastructure
@@ -1055,7 +1057,13 @@ gantt
           <th style="width:32%">Dependencies &amp; Notes</th>
         </tr>
       </thead>
-      <tbody><tr class="ws-header"><td colspan="4">Infrastructure</td></tr>
+      <tbody><tr class="ws-header"><td colspan="4">Governance</td></tr>
+        <tr>
+          <td class="deliverable-name"><strong>SEAL PTx process (PTB, PTD, PTO)</strong></td>
+          <td class="desc">Initiate and complete the SEAL Permit To x governance process covering all three stages: Permit To Build (PTB), Permit To Deploy (PTD), and Permit To Operate (PTO). Each stage requires submission, review, and sign-off from the relevant approvers. Initiating at the start of Phase 0 ensures approvals are in flight while foundational infrastructure is being built and do not gate later phases.</td>
+          <td class="est-cell"><span class="est-badge">2w</span></td>
+          <td class="notes">Engage SEAL process owner at program kick-off. PTD and PTO approvals can be progressed iteratively as components are built and deployed — do not wait for full platform completion before initiating later stages.</td>
+        </tr><tr class="ws-header"><td colspan="4">Infrastructure</td></tr>
         <tr>
           <td class="deliverable-name"><strong>Kubernetes cluster provisioning</strong></td>
           <td class="desc">Provision GKP and AWS EKS clusters across all required regions (NA, EMEA, APAC). Configure namespaces, RBAC, network policies, and node pools sized for gateway workloads.</td>
@@ -1100,11 +1108,11 @@ gantt
         </tr>
     <tr class="totals-row">
       <td colspan="2" style="text-align:right;padding-right:16px;font-size:11px;color:#7a8a9a;font-style:italic">
-        Total estimated effort across 7 deliverables
+        Total estimated effort across 8 deliverables
         <span style="color:#9aaaba;margin-left:6px">(note: parallel workstreams mean elapsed time is less than total effort)</span>
       </td>
       <td class="est-cell">
-        <span class="est-badge" style="background:#e8f0fe;color:#1a3a8a;border-color:#b8ccf0;font-size:12px">11w</span>
+        <span class="est-badge" style="background:#e8f0fe;color:#1a3a8a;border-color:#b8ccf0;font-size:12px">13w</span>
       </td>
       <td></td>
     </tr></tbody></table>

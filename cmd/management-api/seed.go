@@ -520,14 +520,25 @@ func ensureFleetContainers(db *sqlx.DB) {
 			continue
 		}
 
-		// In K8s mode, verify the Fleet CRD actually exists in the cluster.
-		// Git manifests may be stale from a previous deployment cycle.
+		// In K8s mode, the Fleet CR is the source of truth — the operator manages
+		// scaling. If the CR exists and has running nodes, trust it as-is.
+		// Only redeploy if the CR is missing entirely.
 		if k8sOrch, ok := orch.(*K8sOrchestrator); ok && k8sOrch.dynClient != nil {
+			crName := f.K8sName
+			if crName == "" {
+				crName = f.ID
+			}
 			_, getErr := k8sOrch.dynClient.Resource(fleetGVR).Namespace("ingress-dp").Get(
-				context.Background(), f.ID, metav1.GetOptions{})
+				context.Background(), crName, metav1.GetOptions{})
 			if getErr != nil {
-				// Fleet CRD not in cluster — treat as no running nodes
+				// Fleet CR not in cluster — treat as no running nodes so it gets redeployed
 				existing = nil
+			} else if len(existing) > 0 {
+				// CR exists and manifest has nodes — use manifest count as desired so we
+				// don't override the operator with instances_count (which tracks route
+				// deployments, not gateway node count).
+				log.Printf("Fleet %s (%s): %d/%d containers running — OK", f.Name, f.GatewayType, len(existing), len(existing))
+				continue
 			}
 		}
 
