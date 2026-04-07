@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "jpmc-poc",
+      "runtimeExecutable": "/Users/gavin/.nvm/versions/node/v22.7.0/bin/node",
+      "runtimeArgs": ["/tmp/jpmc-poc/serve.js"],
+      "port": 7890
+    }
+  ]
+}

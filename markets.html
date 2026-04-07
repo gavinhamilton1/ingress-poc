@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>J.P. Morgan Markets</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --jpmc-blue: #003087;
+    --jpmc-blue-light: #0060a9;
+    --jpmc-dark: #0a0e1a;
+    --jpmc-darker: #060810;
+    --jpmc-gold: #c8a951;
+    --jpmc-border: rgba(255,255,255,0.08);
+    --jpmc-text-secondary: rgba(255,255,255,0.55);
+  }
+  body { font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif; background: var(--jpmc-dark); color: #fff; }
+
+  /* TICKER */
+  .ticker-bar {
+    background: #000;
+    padding: 6px 0;
+    overflow: hidden;
+    border-bottom: 1px solid var(--jpmc-border);
+    font-size: 11.5px;
+    color: rgba(255,255,255,0.7);
+  }
+  .ticker-inner { display: flex; gap: 40px; animation: ticker 30s linear infinite; white-space: nowrap; padding-left: 100%; }
+  @keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+  .tick-item { display: flex; gap: 8px; align-items: center; }
+  .tick-name { color: #fff; font-weight: 500; }
+  .tick-up { color: #2ecc71; }
+  .tick-down { color: #e74c3c; }
+  .tick-neutral { color: rgba(255,255,255,0.5); }
+
+  /* NAV */
+  nav {
+    background: var(--jpmc-darker);
+    border-bottom: 1px solid var(--jpmc-border);
+    position: sticky; top: 0; z-index: 1000;
+  }
+  .nav-inner {
+    max-width: 1400px; margin: 0 auto;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 32px; height: 60px;
+  }
+  .logo { display: flex; align-items: center; gap: 14px; text-decoration: none; }
+  .logo-mark {
+    width: 36px; height: 36px; background: var(--jpmc-blue);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 800; letter-spacing: -0.5px; color: #fff;
+    clip-path: polygon(0 0, 85% 0, 100% 15%, 100% 100%, 15% 100%, 0 85%);
+  }
+  .logo-text { display: flex; flex-direction: column; line-height: 1.1; }
+  .logo-text span:first-child { font-size: 10px; color: rgba(255,255,255,0.5); letter-spacing: 2px; text-transform: uppercase; }
+  .logo-text span:last-child { font-size: 15px; font-weight: 600; color: #fff; letter-spacing: 0.3px; }
+
+  .nav-links { display: flex; align-items: center; gap: 4px; }
+  .nav-links a {
+    color: rgba(255,255,255,0.7); text-decoration: none;
+    font-size: 13px; padding: 8px 14px; border-radius: 4px;
+    transition: all 0.15s; letter-spacing: 0.2px;
+  }
+  .nav-links a:hover { color: #fff; background: rgba(255,255,255,0.06); }
+  .nav-links a.active { color: #fff; }
+  .nav-links .divider { width: 1px; height: 20px; background: var(--jpmc-border); margin: 0 6px; }
+
+  .nav-right { display: flex; align-items: center; gap: 12px; }
+  .nav-btn {
+    padding: 7px 16px; border-radius: 4px; font-size: 13px;
+    font-weight: 500; cursor: pointer; transition: all 0.15s; border: none;
+  }
+  .btn-ghost { background: transparent; color: rgba(255,255,255,0.7); border: 1px solid rgba(255,255,255,0.15); }
+  .btn-ghost:hover { color: #fff; border-color: rgba(255,255,255,0.35); }
+  .btn-primary { background: var(--jpmc-blue); color: #fff; }
+  .btn-primary:hover { background: var(--jpmc-blue-light); }
+
+  /* IDENTITY LINK BANNER */
+  .link-banner {
+    background: linear-gradient(135deg, #1a2744 0%, #1e3a5f 100%);
+    border-bottom: 1px solid rgba(0,96,169,0.4);
+    padding: 10px 32px;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 13px;
+  }
+  .link-banner-content { display: flex; align-items: center; gap: 12px; }
+  .link-badge {
+    background: var(--jpmc-blue-light);
+    color: #fff; font-size: 10px; font-weight: 700;
+    padding: 2px 8px; border-radius: 20px; letter-spacing: 0.8px;
+    text-transform: uppercase;
+  }
+  .link-banner p { color: rgba(255,255,255,0.85); }
+  .link-banner strong { color: #fff; }
+  .link-banner-actions { display: flex; align-items: center; gap: 8px; }
+  .btn-link-connect {
+    background: var(--jpmc-blue); color: #fff;
+    border: none; padding: 6px 16px; border-radius: 4px;
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    transition: background 0.15s; white-space: nowrap;
+  }
+  .btn-link-connect:hover { background: var(--jpmc-blue-light); }
+  .btn-link-dismiss {
+    background: transparent; color: rgba(255,255,255,0.45);
+    border: none; font-size: 18px; cursor: pointer; line-height: 1;
+    padding: 2px 6px; transition: color 0.15s;
+  }
+  .btn-link-dismiss:hover { color: rgba(255,255,255,0.8); }
+
+  /* HERO */
+  .hero {
+    background: linear-gradient(160deg, #0a0e1a 0%, #0d1628 50%, #0a0e1a 100%);
+    padding: 64px 32px 48px;
+    position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: ''; position: absolute; top: -40%; right: -10%;
+    width: 700px; height: 700px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,48,135,0.18) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero-inner { max-width: 1400px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
+  .hero-tag { font-size: 11px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--jpmc-gold); font-weight: 600; margin-bottom: 16px; }
+  .hero h1 { font-size: 42px; font-weight: 300; line-height: 1.2; color: #fff; margin-bottom: 20px; letter-spacing: -0.5px; }
+  .hero h1 strong { font-weight: 700; }
+  .hero p { color: var(--jpmc-text-secondary); font-size: 16px; line-height: 1.7; margin-bottom: 32px; max-width: 480px; }
+  .hero-ctas { display: flex; gap: 12px; }
+  .cta-primary { background: var(--jpmc-blue); color: #fff; padding: 12px 28px; border-radius: 4px; font-size: 14px; font-weight: 600; text-decoration: none; transition: background 0.15s; }
+  .cta-primary:hover { background: var(--jpmc-blue-light); }
+  .cta-secondary { background: transparent; color: rgba(255,255,255,0.7); padding: 12px 28px; border-radius: 4px; font-size: 14px; border: 1px solid rgba(255,255,255,0.2); text-decoration: none; transition: all 0.15s; }
+  .cta-secondary:hover { color: #fff; border-color: rgba(255,255,255,0.4); }
+
+  /* MARKET DATA WIDGET */
+  .market-widget { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; border-radius: 8px; overflow: hidden; border: 1px solid var(--jpmc-border); }
+  .market-card { background: rgba(255,255,255,0.03); padding: 20px 20px; border: 1px solid var(--jpmc-border); }
+  .mc-label { font-size: 11px; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; }
+  .mc-value { font-size: 24px; font-weight: 300; color: #fff; margin-bottom: 4px; font-variant-numeric: tabular-nums; }
+  .mc-change { font-size: 12px; display: flex; align-items: center; gap: 4px; }
+  .mc-change.up { color: #2ecc71; }
+  .mc-change.down { color: #e74c3c; }
+  .mc-change.neutral { color: rgba(255,255,255,0.4); }
+
+  /* SECTION */
+  section { max-width: 1400px; margin: 0 auto; padding: 48px 32px; }
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; }
+  .section-header h2 { font-size: 20px; font-weight: 500; color: #fff; }
+  .section-header a { font-size: 13px; color: var(--jpmc-blue-light); text-decoration: none; }
+
+  /* FEATURE CARDS */
+  .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; }
+  .feature-card {
+    background: rgba(255,255,255,0.03); border: 1px solid var(--jpmc-border);
+    padding: 28px; transition: all 0.2s; cursor: pointer;
+  }
+  .feature-card:hover { background: rgba(255,255,255,0.055); border-color: rgba(0,96,169,0.4); }
+  .feature-icon { font-size: 22px; margin-bottom: 14px; }
+  .feature-card h3 { font-size: 15px; font-weight: 600; color: #fff; margin-bottom: 8px; }
+  .feature-card p { font-size: 13px; color: var(--jpmc-text-secondary); line-height: 1.6; }
+  .feature-arrow { margin-top: 16px; color: var(--jpmc-blue-light); font-size: 12px; }
+
+  /* RESEARCH CARDS */
+  .research-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .research-card { background: rgba(255,255,255,0.03); border: 1px solid var(--jpmc-border); padding: 24px; border-radius: 2px; }
+  .research-tag { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--jpmc-gold); margin-bottom: 10px; }
+  .research-card h3 { font-size: 15px; font-weight: 500; color: #fff; line-height: 1.4; margin-bottom: 10px; }
+  .research-meta { font-size: 11px; color: rgba(255,255,255,0.35); }
+
+  /* FOOTER */
+  footer { background: #000; border-top: 1px solid var(--jpmc-border); padding: 32px; margin-top: 32px; }
+  .footer-inner { max-width: 1400px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+  .footer-logo { font-size: 13px; color: rgba(255,255,255,0.3); }
+  .footer-links { display: flex; gap: 24px; }
+  .footer-links a { font-size: 11px; color: rgba(255,255,255,0.3); text-decoration: none; }
+  .footer-links a:hover { color: rgba(255,255,255,0.6); }
+
+  /* MODAL */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+  .modal-overlay.open { display: flex; }
+  .modal { background: #111827; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 40px; max-width: 480px; width: 100%; margin: 20px; }
+  .modal-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; }
+  .modal-logo-mark { width: 30px; height: 30px; background: var(--jpmc-blue); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: #fff; clip-path: polygon(0 0, 85% 0, 100% 15%, 100% 100%, 15% 100%, 0 85%); }
+  .modal-logo span { font-size: 13px; font-weight: 600; color: #fff; }
+  .modal h2 { font-size: 20px; font-weight: 600; color: #fff; margin-bottom: 10px; }
+  .modal-subtitle { font-size: 14px; color: rgba(255,255,255,0.55); margin-bottom: 28px; line-height: 1.5; }
+  .identity-cards { display: flex; align-items: center; gap: 16px; margin-bottom: 28px; }
+  .id-card { flex: 1; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 16px; text-align: center; }
+  .id-card .id-system { font-size: 11px; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .id-card .id-user { font-size: 14px; font-weight: 600; color: #fff; }
+  .id-card .id-idp { font-size: 11px; color: var(--jpmc-gold); margin-top: 4px; }
+  .link-arrow { font-size: 20px; color: rgba(255,255,255,0.3); flex-shrink: 0; }
+  .modal-warning { background: rgba(200,169,81,0.1); border: 1px solid rgba(200,169,81,0.25); border-radius: 4px; padding: 12px 14px; font-size: 12px; color: rgba(200,169,81,0.9); margin-bottom: 24px; line-height: 1.5; }
+  .modal-actions { display: flex; gap: 10px; }
+  .modal-actions .btn-primary { flex: 1; padding: 11px; font-size: 14px; font-weight: 600; border-radius: 4px; cursor: pointer; background: var(--jpmc-blue); color: #fff; border: none; transition: background 0.15s; }
+  .modal-actions .btn-primary:hover { background: var(--jpmc-blue-light); }
+  .modal-actions .btn-cancel { padding: 11px 20px; font-size: 14px; background: transparent; color: rgba(255,255,255,0.5); border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; cursor: pointer; transition: all 0.15s; }
+  .modal-actions .btn-cancel:hover { color: rgba(255,255,255,0.8); border-color: rgba(255,255,255,0.3); }
+
+  .modal-success { text-align: center; }
+  .modal-success .success-icon { font-size: 48px; margin-bottom: 16px; }
+  .modal-success h2 { font-size: 20px; font-weight: 600; color: #fff; margin-bottom: 10px; }
+  .modal-success p { font-size: 14px; color: rgba(255,255,255,0.55); margin-bottom: 24px; line-height: 1.5; }
+  .btn-goto { display: inline-block; background: var(--jpmc-blue); color: #fff; padding: 10px 24px; border-radius: 4px; font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer; border: none; transition: background 0.15s; }
+  .btn-goto:hover { background: var(--jpmc-blue-light); }
+</style>
+</head>
+<body>
+
+<!-- TICKER -->
+<div class="ticker-bar">
+  <div class="ticker-inner">
+    <div class="tick-item"><span class="tick-name">S&P 500</span><span>5,204.34</span><span class="tick-up">▲ +0.48%</span></div>
+    <div class="tick-item"><span class="tick-name">DJIA</span><span>38,996.39</span><span class="tick-up">▲ +0.23%</span></div>
+    <div class="tick-item"><span class="tick-name">NASDAQ</span><span>16,248.52</span><span class="tick-up">▲ +0.72%</span></div>
+    <div class="tick-item"><span class="tick-name">10Y UST</span><span>4.312%</span><span class="tick-down">▼ -0.018</span></div>
+    <div class="tick-item"><span class="tick-name">EUR/USD</span><span>1.0842</span><span class="tick-down">▼ -0.12%</span></div>
+    <div class="tick-item"><span class="tick-name">GBP/USD</span><span>1.2654</span><span class="tick-up">▲ +0.08%</span></div>
+    <div class="tick-item"><span class="tick-name">WTI Crude</span><span>82.14</span><span class="tick-down">▼ -0.34%</span></div>
+    <div class="tick-item"><span class="tick-name">Gold</span><span>2,318.40</span><span class="tick-up">▲ +0.56%</span></div>
+    <div class="tick-item"><span class="tick-name">VIX</span><span>15.23</span><span class="tick-neutral">— +0.02</span></div>
+    <!-- duplicate for seamless loop -->
+    <div class="tick-item"><span class="tick-name">S&P 500</span><span>5,204.34</span><span class="tick-up">▲ +0.48%</span></div>
+    <div class="tick-item"><span class="tick-name">DJIA</span><span>38,996.39</span><span class="tick-up">▲ +0.23%</span></div>
+    <div class="tick-item"><span class="tick-name">NASDAQ</span><span>16,248.52</span><span class="tick-up">▲ +0.72%</span></div>
+    <div class="tick-item"><span class="tick-name">10Y UST</span><span>4.312%</span><span class="tick-down">▼ -0.018</span></div>
+    <div class="tick-item"><span class="tick-name">EUR/USD</span><span>1.0842</span><span class="tick-down">▼ -0.12%</span></div>
+    <div class="tick-item"><span class="tick-name">GBP/USD</span><span>1.2654</span><span class="tick-up">▲ +0.08%</span></div>
+    <div class="tick-item"><span class="tick-name">WTI Crude</span><span>82.14</span><span class="tick-down">▼ -0.34%</span></div>
+    <div class="tick-item"><span class="tick-name">Gold</span><span>2,318.40</span><span class="tick-up">▲ +0.56%</span></div>
+    <div class="tick-item"><span class="tick-name">VIX</span><span>15.23</span><span class="tick-neutral">— +0.02</span></div>
+  </div>
+</div>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-inner">
+    <a class="logo" href="#">
+      <div class="logo-mark">JPM</div>
+      <div class="logo-text">
+        <span>J.P. Morgan</span>
+        <span>Markets</span>
+      </div>
+    </a>
+    <div class="nav-links">
+      <a href="#" class="active">Overview</a>
+      <a href="#">Research</a>
+      <a href="#">Data & Analytics</a>
+      <a href="#">Trading</a>
+      <a href="#">Fixed Income</a>
+      <a href="#">Equities</a>
+      <div class="divider"></div>
+      <a href="#">Tools</a>
+    </div>
+    <div class="nav-right">
+      <button class="nav-btn btn-ghost">Log In</button>
+      <button class="nav-btn btn-primary">Request Access</button>
+    </div>
+  </div>
+</nav>
+
+<!-- IDENTITY LINK BANNER -->
+<div class="link-banner" id="linkBanner">
+  <div class="link-banner-content">
+    <span class="link-badge">New</span>
+    <p>We noticed you also use <strong>J.P. Morgan Access</strong> from this browser. Link your accounts to switch between platforms without signing in again.</p>
+  </div>
+  <div class="link-banner-actions">
+    <button class="btn-link-connect" onclick="openLinkModal()">Link Accounts</button>
+    <button class="btn-link-dismiss" onclick="dismissBanner()" title="Dismiss">×</button>
+  </div>
+</div>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-inner">
+    <div>
+      <div class="hero-tag">Institutional Markets Platform</div>
+      <h1>Insight-driven<br><strong>markets intelligence</strong><br>at your fingertips</h1>
+      <p>Access J.P. Morgan's full suite of research, data, analytics, and trading capabilities — all in one unified platform built for institutional investors.</p>
+      <div class="hero-ctas">
+        <a href="#" class="cta-primary">Explore Platform</a>
+        <a href="#" class="cta-secondary">View Research</a>
+      </div>
+    </div>
+    <div class="market-widget">
+      <div class="market-card">
+        <div class="mc-label">S&P 500</div>
+        <div class="mc-value">5,204.34</div>
+        <div class="mc-change up">▲ +24.81 (+0.48%)</div>
+      </div>
+      <div class="market-card">
+        <div class="mc-label">10Y Treasury</div>
+        <div class="mc-value">4.312%</div>
+        <div class="mc-change down">▼ -1.8bps</div>
+      </div>
+      <div class="market-card">
+        <div class="mc-label">EUR / USD</div>
+        <div class="mc-value">1.0842</div>
+        <div class="mc-change down">▼ -0.12%</div>
+      </div>
+      <div class="market-card">
+        <div class="mc-label">WTI Crude</div>
+        <div class="mc-value">$82.14</div>
+        <div class="mc-change down">▼ -0.34%</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CAPABILITIES -->
+<section>
+  <div class="section-header">
+    <h2>Platform Capabilities</h2>
+    <a href="#">View all →</a>
+  </div>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="feature-icon">📊</div>
+      <h3>Research & Insights</h3>
+      <p>Access J.P. Morgan's award-winning research across asset classes, sectors, and geographies from our global analyst network.</p>
+      <div class="feature-arrow">Explore research →</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">⚡</div>
+      <h3>Electronic Trading</h3>
+      <p>Execute across fixed income, equities, FX, and derivatives with J.P. Morgan's best-in-class electronic trading infrastructure.</p>
+      <div class="feature-arrow">Access trading →</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔬</div>
+      <h3>Data & Analytics</h3>
+      <p>Proprietary datasets, alternative data, quantitative models, and portfolio analytics to drive investment decisions.</p>
+      <div class="feature-arrow">View data →</div>
+    </div>
+  </div>
+</section>
+
+<!-- RESEARCH -->
+<section style="padding-top: 0;">
+  <div class="section-header">
+    <h2>Latest Research</h2>
+    <a href="#">All research →</a>
+  </div>
+  <div class="research-grid">
+    <div class="research-card">
+      <div class="research-tag">Macro</div>
+      <h3>Global Economic Outlook: Navigating Divergent Growth Paths in 2024</h3>
+      <div class="research-meta">Global Research · 2 hours ago</div>
+    </div>
+    <div class="research-card">
+      <div class="research-tag">Fixed Income</div>
+      <h3>US Rates Strategy: Fed Policy Inflection and Duration Positioning</h3>
+      <div class="research-meta">Rates Strategy · 4 hours ago</div>
+    </div>
+    <div class="research-card">
+      <div class="research-tag">Equities</div>
+      <h3>Sector Rotation Signals: Technology Valuations and AI Investment Cycle</h3>
+      <div class="research-meta">Equity Research · Yesterday</div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-logo">© 2024 JPMorgan Chase &amp; Co. All rights reserved.</div>
+    <div class="footer-links">
+      <a href="#">Privacy Policy</a>
+      <a href="#">Terms of Use</a>
+      <a href="#">Regulatory Disclosures</a>
+      <a href="#">Accessibility</a>
+      <a href="#">Contact</a>
+    </div>
+  </div>
+</footer>
+
+<!-- LINK MODAL -->
+<div class="modal-overlay" id="linkModal">
+  <div class="modal" id="modalContent">
+    <div class="modal-logo">
+      <div class="modal-logo-mark">JPM</div>
+      <span>J.P. Morgan Identity Linking</span>
+    </div>
+    <h2>Link your accounts</h2>
+    <p class="modal-subtitle">Connect your J.P. Morgan Markets and J.P. Morgan Access accounts to move seamlessly between platforms without signing in again.</p>
+
+    <div class="identity-cards">
+      <div class="id-card">
+        <div class="id-system">Markets</div>
+        <div class="id-user">j.hamilton@firm.com</div>
+        <div class="id-idp">via Markets IDP</div>
+      </div>
+      <div class="link-arrow">⇄</div>
+      <div class="id-card">
+        <div class="id-system">Access</div>
+        <div class="id-user">jhamilton@access</div>
+        <div class="id-idp">via Access IDP</div>
+      </div>
+    </div>
+
+    <div class="modal-warning">
+      You will be asked to authenticate with J.P. Morgan Access to confirm you own that account. This link can be revoked at any time from your account settings.
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" onclick="showSuccess()">Link Accounts</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  function openLinkModal() {
+    document.getElementById('linkModal').classList.add('open');
+    document.getElementById('modalContent').innerHTML = `
+      <div class="modal-logo">
+        <div class="modal-logo-mark">JPM</div>
+        <span>J.P. Morgan Identity Linking</span>
+      </div>
+      <h2>Link your accounts</h2>
+      <p class="modal-subtitle">Connect your J.P. Morgan Markets and J.P. Morgan Access accounts to move seamlessly between platforms without signing in again.</p>
+      <div class="identity-cards">
+        <div class="id-card">
+          <div class="id-system">Markets</div>
+          <div class="id-user">j.hamilton@firm.com</div>
+          <div class="id-idp">via Markets IDP</div>
+        </div>
+        <div class="link-arrow">⇄</div>
+        <div class="id-card">
+          <div class="id-system">Access</div>
+          <div class="id-user">jhamilton@access</div>
+          <div class="id-idp">via Access IDP</div>
+        </div>
+      </div>
+      <div class="modal-warning">
+        You will be asked to authenticate with J.P. Morgan Access to confirm you own that account. This link can be revoked at any time from your account settings.
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+        <button class="btn-primary" onclick="showSuccess()">Link Accounts</button>
+      </div>`;
+  }
+
+  function closeModal() {
+    document.getElementById('linkModal').classList.remove('open');
+  }
+
+  function dismissBanner() {
+    document.getElementById('linkBanner').style.display = 'none';
+  }
+
+  function showSuccess() {
+    document.getElementById('modalContent').innerHTML = `
+      <div class="modal-success">
+        <div class="success-icon">✅</div>
+        <h2>Accounts linked</h2>
+        <p>Your J.P. Morgan Markets and J.P. Morgan Access accounts are now linked. You can switch between platforms without signing in again.</p>
+        <button class="btn-goto" onclick="window.open('access.html','_blank'); closeModal();">Open J.P. Morgan Access →</button>
+        <br><br>
+        <button class="btn-cancel" style="background:transparent;border:none;color:rgba(255,255,255,0.4);font-size:13px;cursor:pointer;" onclick="closeModal()">Close</button>
+      </div>`;
+    document.getElementById('linkBanner').innerHTML = `
+      <div class="link-banner-content">
+        <span class="link-badge" style="background:#2ecc71">Linked</span>
+        <p>Your accounts are linked. <strong>Switch to J.P. Morgan Access</strong> without signing in.</p>
+      </div>
+      <div class="link-banner-actions">
+        <button class="btn-link-connect" onclick="window.open('access.html','_blank')">Open Access →</button>
+        <button class="btn-link-dismiss" onclick="dismissBanner()" title="Dismiss">×</button>
+      </div>`;
+  }
+
+  document.getElementById('linkModal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,1 @@
+document.addEventListener("DOMContentLoaded",function(){var c=window.location.hostname.split(".").slice(-2).join(".");document.querySelectorAll(".cmp-pdfviewer").forEach(function(a){var b=a.getAttribute("data-"+c);b&&a.setAttribute("data-cmp-client-id",b)})});

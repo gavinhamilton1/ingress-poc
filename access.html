@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>J.P. Morgan Access</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --jpmc-blue: #003087;
+    --jpmc-blue-light: #0060a9;
+    --jpmc-blue-mid: #0051a5;
+    --bg: #f4f6f9;
+    --card-bg: #ffffff;
+    --text: #1a1a2e;
+    --text-secondary: #5a6478;
+    --border: #dde3ed;
+    --gold: #c8a951;
+  }
+  body { font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* NAV */
+  nav {
+    background: var(--jpmc-blue);
+    height: 56px;
+    display: flex; align-items: center;
+    position: sticky; top: 0; z-index: 1000;
+  }
+  .nav-inner {
+    max-width: 1400px; width: 100%; margin: 0 auto;
+    padding: 0 32px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .logo { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+  .logo-mark {
+    width: 32px; height: 32px; background: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800; color: var(--jpmc-blue);
+    clip-path: polygon(0 0, 85% 0, 100% 15%, 100% 100%, 15% 100%, 0 85%);
+  }
+  .logo-text { display: flex; flex-direction: column; line-height: 1.15; }
+  .logo-text span:first-child { font-size: 9px; color: rgba(255,255,255,0.6); letter-spacing: 2px; text-transform: uppercase; }
+  .logo-text span:last-child { font-size: 14px; font-weight: 600; color: #fff; }
+
+  .nav-links { display: flex; gap: 2px; }
+  .nav-links a { color: rgba(255,255,255,0.75); text-decoration: none; font-size: 13px; padding: 8px 14px; border-radius: 3px; transition: all 0.15s; }
+  .nav-links a:hover, .nav-links a.active { color: #fff; background: rgba(255,255,255,0.12); }
+
+  .nav-right { display: flex; align-items: center; gap: 10px; }
+  .nav-user { display: flex; align-items: center; gap: 8px; color: rgba(255,255,255,0.8); font-size: 13px; }
+  .nav-avatar { width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; }
+  .nav-logout { color: rgba(255,255,255,0.6); font-size: 12px; text-decoration: none; border: 1px solid rgba(255,255,255,0.25); padding: 5px 12px; border-radius: 3px; transition: all 0.15s; }
+  .nav-logout:hover { color: #fff; border-color: rgba(255,255,255,0.5); }
+
+  /* IDENTITY LINK BANNER */
+  .link-banner {
+    background: linear-gradient(135deg, #e8f0fb 0%, #ddeaf9 100%);
+    border-bottom: 1px solid #b8d0ef;
+    padding: 10px 32px;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 13px;
+  }
+  .link-banner-content { display: flex; align-items: center; gap: 12px; }
+  .link-badge { background: var(--jpmc-blue); color: #fff; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; letter-spacing: 0.8px; text-transform: uppercase; }
+  .link-banner p { color: #2a3a5c; }
+  .link-banner strong { color: var(--jpmc-blue); }
+  .link-banner-actions { display: flex; align-items: center; gap: 8px; }
+  .btn-link-connect { background: var(--jpmc-blue); color: #fff; border: none; padding: 6px 16px; border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.15s; white-space: nowrap; }
+  .btn-link-connect:hover { background: var(--jpmc-blue-light); }
+  .btn-link-dismiss { background: transparent; color: #8090a8; border: none; font-size: 18px; cursor: pointer; line-height: 1; padding: 2px 6px; transition: color 0.15s; }
+  .btn-link-dismiss:hover { color: #2a3a5c; }
+
+  /* MAIN LAYOUT */
+  .page { max-width: 1400px; margin: 0 auto; padding: 32px; display: grid; grid-template-columns: 240px 1fr; gap: 24px; }
+
+  /* SIDEBAR */
+  .sidebar {}
+  .sidebar-section { margin-bottom: 24px; }
+  .sidebar-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-secondary); font-weight: 600; margin-bottom: 8px; padding: 0 12px; }
+  .sidebar-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 5px; text-decoration: none; color: var(--text-secondary); font-size: 13px; transition: all 0.15s; cursor: pointer; }
+  .sidebar-item:hover { background: #e8edf5; color: var(--text); }
+  .sidebar-item.active { background: #dce8f7; color: var(--jpmc-blue); font-weight: 500; }
+  .sidebar-item .si-icon { font-size: 15px; width: 20px; text-align: center; }
+  .sidebar-badge { margin-left: auto; background: var(--jpmc-blue); color: #fff; font-size: 10px; padding: 1px 7px; border-radius: 10px; font-weight: 600; }
+
+  /* CONTENT */
+  .content {}
+  .page-header { margin-bottom: 24px; }
+  .page-header h1 { font-size: 22px; font-weight: 600; color: var(--text); }
+  .page-header p { font-size: 14px; color: var(--text-secondary); margin-top: 4px; }
+
+  /* SUMMARY CARDS */
+  .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+  .summary-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 6px; padding: 20px; }
+  .sc-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 500; }
+  .sc-value { font-size: 24px; font-weight: 600; color: var(--text); margin-bottom: 4px; font-variant-numeric: tabular-nums; }
+  .sc-sub { font-size: 12px; display: flex; align-items: center; gap: 4px; }
+  .sc-up { color: #1a9e5c; }
+  .sc-down { color: #c0392b; }
+  .sc-neutral { color: var(--text-secondary); }
+
+  /* TABLE CARD */
+  .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 20px; overflow: hidden; }
+  .card-header { padding: 18px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .card-header h2 { font-size: 15px; font-weight: 600; color: var(--text); }
+  .card-header .card-actions { display: flex; gap: 8px; }
+  .btn-sm { padding: 6px 14px; font-size: 12px; font-weight: 500; border-radius: 4px; cursor: pointer; border: none; }
+  .btn-sm-primary { background: var(--jpmc-blue); color: #fff; transition: background 0.15s; }
+  .btn-sm-primary:hover { background: var(--jpmc-blue-light); }
+  .btn-sm-ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); transition: all 0.15s; }
+  .btn-sm-ghost:hover { color: var(--text); border-color: #aab; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th { padding: 10px 20px; text-align: left; font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.8px; background: #f8fafc; border-bottom: 1px solid var(--border); }
+  td { padding: 13px 20px; font-size: 13px; color: var(--text); border-bottom: 1px solid #f0f3f8; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #f8fafc; }
+
+  .status-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 20px; }
+  .status-completed { background: #e6f7ef; color: #1a9e5c; }
+  .status-pending { background: #fff8e6; color: #b7860a; }
+  .status-processing { background: #e8f0fb; color: var(--jpmc-blue); }
+
+  .amount-debit { color: #c0392b; font-weight: 500; }
+  .amount-credit { color: #1a9e5c; font-weight: 500; }
+
+  /* QUICK ACTIONS */
+  .actions-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .action-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 6px; padding: 20px; cursor: pointer; transition: all 0.15s; text-align: center; }
+  .action-card:hover { border-color: var(--jpmc-blue-light); background: #f0f6ff; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,48,135,0.08); }
+  .action-icon { font-size: 24px; margin-bottom: 10px; }
+  .action-card h3 { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .action-card p { font-size: 12px; color: var(--text-secondary); }
+
+  /* MODAL */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(3px); }
+  .modal-overlay.open { display: flex; }
+  .modal { background: #fff; border-radius: 8px; padding: 40px; max-width: 480px; width: 100%; margin: 20px; box-shadow: 0 20px 60px rgba(0,48,135,0.15); }
+  .modal-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; }
+  .modal-logo-mark { width: 30px; height: 30px; background: var(--jpmc-blue); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: #fff; clip-path: polygon(0 0, 85% 0, 100% 15%, 100% 100%, 15% 100%, 0 85%); }
+  .modal-logo span { font-size: 13px; font-weight: 600; color: var(--jpmc-blue); }
+  .modal h2 { font-size: 20px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+  .modal-subtitle { font-size: 14px; color: var(--text-secondary); margin-bottom: 28px; line-height: 1.5; }
+
+  .identity-cards { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
+  .id-card { flex: 1; background: #f4f6f9; border: 1px solid var(--border); border-radius: 6px; padding: 16px; text-align: center; }
+  .id-card .id-system { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; font-weight: 600; }
+  .id-card .id-user { font-size: 13px; font-weight: 600; color: var(--text); }
+  .id-card .id-idp { font-size: 11px; color: var(--jpmc-blue); margin-top: 4px; }
+  .link-arrow { font-size: 20px; color: var(--border); flex-shrink: 0; }
+
+  .modal-warning { background: #fef8ec; border: 1px solid #f0d88a; border-radius: 4px; padding: 12px 14px; font-size: 12px; color: #7a6010; margin-bottom: 24px; line-height: 1.5; }
+  .modal-actions { display: flex; gap: 10px; }
+  .modal-btn-primary { flex: 1; padding: 11px; font-size: 14px; font-weight: 600; border-radius: 4px; cursor: pointer; background: var(--jpmc-blue); color: #fff; border: none; transition: background 0.15s; }
+  .modal-btn-primary:hover { background: var(--jpmc-blue-light); }
+  .modal-btn-cancel { padding: 11px 20px; font-size: 14px; background: transparent; color: var(--text-secondary); border: 1px solid var(--border); border-radius: 4px; cursor: pointer; transition: all 0.15s; }
+  .modal-btn-cancel:hover { color: var(--text); border-color: #aab; }
+
+  .success-icon { font-size: 48px; text-align: center; margin-bottom: 16px; }
+  .modal-success h2 { text-align: center; }
+  .modal-success .modal-subtitle { text-align: center; }
+  .modal-success .modal-actions { justify-content: center; }
+  .btn-goto { background: var(--jpmc-blue); color: #fff; padding: 10px 24px; border-radius: 4px; font-size: 14px; font-weight: 600; border: none; cursor: pointer; transition: background 0.15s; }
+  .btn-goto:hover { background: var(--jpmc-blue-light); }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-inner">
+    <a class="logo" href="#">
+      <div class="logo-mark">JPM</div>
+      <div class="logo-text">
+        <span>J.P. Morgan</span>
+        <span>Access</span>
+      </div>
+    </a>
+    <div class="nav-links">
+      <a href="#" class="active">Dashboard</a>
+      <a href="#">Payments</a>
+      <a href="#">Accounts</a>
+      <a href="#">Liquidity</a>
+      <a href="#">Trade Finance</a>
+      <a href="#">Reports</a>
+    </div>
+    <div class="nav-right">
+      <div class="nav-user">
+        <div class="nav-avatar">JH</div>
+        <span>J. Hamilton</span>
+      </div>
+      <a href="#" class="nav-logout">Sign Out</a>
+    </div>
+  </div>
+</nav>
+
+<!-- IDENTITY LINK BANNER -->
+<div class="link-banner" id="linkBanner">
+  <div class="link-banner-content">
+    <span class="link-badge">New</span>
+    <p>We noticed you also use <strong>J.P. Morgan Markets</strong> from this browser. Link your accounts to switch between platforms without signing in again.</p>
+  </div>
+  <div class="link-banner-actions">
+    <button class="btn-link-connect" onclick="openLinkModal()">Link Accounts</button>
+    <button class="btn-link-dismiss" onclick="dismissBanner()" title="Dismiss">×</button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="page">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Overview</div>
+      <div class="sidebar-item active"><span class="si-icon">🏠</span> Dashboard</div>
+      <div class="sidebar-item"><span class="si-icon">📋</span> Activity</div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Treasury</div>
+      <div class="sidebar-item"><span class="si-icon">💳</span> Accounts</div>
+      <div class="sidebar-item"><span class="si-icon">💸</span> Payments <span class="sidebar-badge">3</span></div>
+      <div class="sidebar-item"><span class="si-icon">🔄</span> Transfers</div>
+      <div class="sidebar-item"><span class="si-icon">💧</span> Liquidity</div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Finance</div>
+      <div class="sidebar-item"><span class="si-icon">📦</span> Trade Finance</div>
+      <div class="sidebar-item"><span class="si-icon">📈</span> FX</div>
+      <div class="sidebar-item"><span class="si-icon">📄</span> Reports</div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Settings</div>
+      <div class="sidebar-item"><span class="si-icon">👤</span> Profile</div>
+      <div class="sidebar-item"><span class="si-icon">🔗</span> Linked Accounts</div>
+      <div class="sidebar-item"><span class="si-icon">🔒</span> Security</div>
+    </div>
+  </div>
+
+  <!-- CONTENT -->
+  <div class="content">
+    <div class="page-header">
+      <h1>Good morning, James</h1>
+      <p>Thursday, 3 April 2026 · All times in UTC</p>
+    </div>
+
+    <!-- SUMMARY -->
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="sc-label">Total Balances</div>
+        <div class="sc-value">$284.6M</div>
+        <div class="sc-sub sc-up">▲ +$2.1M today</div>
+      </div>
+      <div class="summary-card">
+        <div class="sc-label">Pending Payments</div>
+        <div class="sc-value">3</div>
+        <div class="sc-sub sc-neutral">Require approval</div>
+      </div>
+      <div class="summary-card">
+        <div class="sc-label">Today's Outflows</div>
+        <div class="sc-value">$18.4M</div>
+        <div class="sc-sub sc-down">▼ vs $24.1M yesterday</div>
+      </div>
+      <div class="summary-card">
+        <div class="sc-label">Today's Inflows</div>
+        <div class="sc-value">$20.5M</div>
+        <div class="sc-sub sc-up">▲ vs $16.8M yesterday</div>
+      </div>
+    </div>
+
+    <!-- QUICK ACTIONS -->
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header"><h2>Quick Actions</h2></div>
+      <div style="padding:20px;">
+        <div class="actions-grid">
+          <div class="action-card">
+            <div class="action-icon">💸</div>
+            <h3>New Payment</h3>
+            <p>Initiate a domestic or international payment</p>
+          </div>
+          <div class="action-card">
+            <div class="action-icon">🔄</div>
+            <h3>Transfer Funds</h3>
+            <p>Move funds between your accounts</p>
+          </div>
+          <div class="action-card">
+            <div class="action-icon">📄</div>
+            <h3>Download Statement</h3>
+            <p>Export account statements</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RECENT TRANSACTIONS -->
+    <div class="card">
+      <div class="card-header">
+        <h2>Recent Transactions</h2>
+        <div class="card-actions">
+          <button class="btn-sm btn-sm-ghost">Filter</button>
+          <button class="btn-sm btn-sm-ghost">Export</button>
+          <button class="btn-sm btn-sm-primary">New Payment</button>
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Reference</th>
+            <th>Counterparty</th>
+            <th>Type</th>
+            <th>Amount</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>03 Apr 2026</td>
+            <td>TXN-20240403-001</td>
+            <td>Goldman Sachs London</td>
+            <td>FX Settlement</td>
+            <td class="amount-debit">−$4,250,000.00</td>
+            <td><span class="status-badge status-completed">● Completed</span></td>
+          </tr>
+          <tr>
+            <td>03 Apr 2026</td>
+            <td>TXN-20240403-002</td>
+            <td>BlackRock Inc.</td>
+            <td>Wire Transfer</td>
+            <td class="amount-credit">+$8,100,000.00</td>
+            <td><span class="status-badge status-completed">● Completed</span></td>
+          </tr>
+          <tr>
+            <td>03 Apr 2026</td>
+            <td>TXN-20240403-003</td>
+            <td>Deutsche Bank AG</td>
+            <td>SWIFT Payment</td>
+            <td class="amount-debit">−$1,875,000.00</td>
+            <td><span class="status-badge status-pending">● Pending</span></td>
+          </tr>
+          <tr>
+            <td>02 Apr 2026</td>
+            <td>TXN-20240402-018</td>
+            <td>Vanguard Group</td>
+            <td>Securities Settlement</td>
+            <td class="amount-credit">+$12,400,000.00</td>
+            <td><span class="status-badge status-completed">● Completed</span></td>
+          </tr>
+          <tr>
+            <td>02 Apr 2026</td>
+            <td>TXN-20240402-019</td>
+            <td>Barclays Capital</td>
+            <td>Repo</td>
+            <td class="amount-debit">−$2,200,000.00</td>
+            <td><span class="status-badge status-processing">● Processing</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+<!-- LINK MODAL -->
+<div class="modal-overlay" id="linkModal">
+  <div class="modal" id="modalContent">
+    <div class="modal-logo">
+      <div class="modal-logo-mark">JPM</div>
+      <span>J.P. Morgan Identity Linking</span>
+    </div>
+    <h2>Link your accounts</h2>
+    <p class="modal-subtitle">Connect your J.P. Morgan Access and J.P. Morgan Markets accounts to move seamlessly between platforms without signing in again.</p>
+    <div class="identity-cards">
+      <div class="id-card">
+        <div class="id-system">Access</div>
+        <div class="id-user">jhamilton@access</div>
+        <div class="id-idp">via Access IDP</div>
+      </div>
+      <div class="link-arrow">⇄</div>
+      <div class="id-card">
+        <div class="id-system">Markets</div>
+        <div class="id-user">j.hamilton@firm.com</div>
+        <div class="id-idp">via Markets IDP</div>
+      </div>
+    </div>
+    <div class="modal-warning">
+      You will be asked to authenticate with J.P. Morgan Markets to confirm you own that account. This link can be revoked at any time from your account settings.
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="modal-btn-primary" onclick="showSuccess()">Link Accounts</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  function openLinkModal() {
+    document.getElementById('linkModal').classList.add('open');
+  }
+  function closeModal() {
+    document.getElementById('linkModal').classList.remove('open');
+  }
+  function dismissBanner() {
+    document.getElementById('linkBanner').style.display = 'none';
+  }
+  function showSuccess() {
+    document.getElementById('modalContent').innerHTML = `
+      <div class="modal-success">
+        <div class="success-icon">✅</div>
+        <h2>Accounts linked</h2>
+        <p class="modal-subtitle">Your J.P. Morgan Access and J.P. Morgan Markets accounts are now linked. You can switch between platforms without signing in again.</p>
+        <div class="modal-actions">
+          <button class="btn-goto" onclick="window.open('markets.html','_blank'); closeModal();">Open J.P. Morgan Markets →</button>
+        </div>
+        <br>
+        <div style="text-align:center;">
+          <button style="background:transparent;border:none;color:#8090a8;font-size:13px;cursor:pointer;" onclick="closeModal()">Close</button>
+        </div>
+      </div>`;
+    document.getElementById('linkBanner').innerHTML = `
+      <div class="link-banner-content">
+        <span class="link-badge" style="background:#1a9e5c">Linked</span>
+        <p>Your accounts are linked. <strong>Switch to J.P. Morgan Markets</strong> without signing in.</p>
+      </div>
+      <div class="link-banner-actions">
+        <button class="btn-link-connect" onclick="window.open('markets.html','_blank')">Open Markets →</button>
+        <button class="btn-link-dismiss" onclick="dismissBanner()" title="Dismiss">×</button>
+      </div>`;
+  }
+  document.getElementById('linkModal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+  });
+</script>
+</body>
+</html>

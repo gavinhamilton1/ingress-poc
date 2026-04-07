@@ -1,0 +1,22 @@
+@font-face {
+    font-family: Amplitude Regular;
+    src:
+            local('Amplitude Regular'),
+            url(./files/Amplitude-Regular.ttf) format('truetype'),
+            local('Amplitude Regular'),
+            url(./files/Amplitude-Regular.otf) format('opentype');
+}
+@font-face {
+    font-family: Amplitude Light;
+    src:
+            local('Amplitude Light'),
+            local('Amplitude-Light'),
+            url(./files/amplitude-light.eot) format('embedded-opentype'),
+            url(./files/amplitude-light.otf) format('opentype');
+}
+@font-face {
+    font-family: Celeste OT;
+    src:
+            local('CelesteOT'),
+            url(./files/CelesteOT.ttf) format('truetype');
+}
