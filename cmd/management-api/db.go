@@ -47,6 +47,31 @@ func initDB() *sqlx.DB {
 			sql: `ALTER TABLE fleets ADD COLUMN IF NOT EXISTS k8s_name TEXT DEFAULT '';
 UPDATE fleets SET k8s_name = id WHERE k8s_name = '' OR k8s_name IS NULL;`,
 		},
+		{
+			name: "004_route_payload_policy_ref",
+			sql:  `ALTER TABLE routes ADD COLUMN IF NOT EXISTS payload_policy_ref TEXT DEFAULT '';`,
+		},
+		{
+			name: "005_route_payload_policy_rego",
+			sql: `ALTER TABLE routes ADD COLUMN IF NOT EXISTS payload_policy_rego TEXT DEFAULT '';
+-- Rego source for payload_policy_ref, evaluated in-process by auth-service
+-- (via the OPA Go SDK) rather than pushed to a separate OPA service — see
+-- checkPayloadOPA in cmd/auth-service/payload_policy.go.`,
+		},
+		{
+			name: "006_global_payload_policy",
+			sql: `CREATE TABLE IF NOT EXISTS global_payload_policy (
+	id TEXT PRIMARY KEY DEFAULT 'global',
+	rego_source TEXT NOT NULL,
+	updated_at DOUBLE PRECISION NOT NULL
+);
+-- Single-row table: one platform-wide policy (package
+-- ingress.policy.payload.global), evaluated by auth-service for every
+-- route with a request body — before, and independent of, any
+-- route-specific payload_policy_ref. This is the lever for "patch every
+-- route against a new attack pattern in one place" rather than having to
+-- regenerate every route's own policy.`,
+		},
 	}
 	for _, m := range inlineMigrations {
 		if _, err := db.Exec(m.sql); err != nil {

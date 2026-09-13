@@ -294,6 +294,47 @@ WARNING: Do NOT use this for lambda/serverless/function routes. If you need to d
 		},
 	},
 	{
+		Name: "attach_payload_policy",
+		Description: `Attach a generated OPA Rego payload-validation policy to an existing route.
+
+Used by the repo-onboarding agent flow: after scanning a target repo's request schema and generating a Rego policy, call this to compile-check it and record it on the route. Once attached, the gateway's ext_authz filter (auth-service, evaluating the Rego in-process — no separate OPA network hop) checks this policy against every request body sent to the route — before it reaches the backend — and rejects non-conforming requests with 403. It runs AFTER the platform-wide global policy (see get_global_policy/update_global_policy), which every route gets checked against regardless of whether it has one of these attached.
+
+The rego_source MUST declare 'package ingress.policy.payload.<policy_id>' (using the same policy_id you pass, or the auto-generated one if you omit it) and set a boolean 'allow' plus an array 'deny_reason' — evaluated as data.ingress.policy.payload.<policy_id>.allow / .deny_reason. Input available to the policy is {input.method, input.path, input.body}.
+
+If the Rego fails to compile, this returns the error directly so you can fix and retry — nothing is attached until it compiles cleanly.`,
+		InputSchema: Schema{
+			Type: "object",
+			Properties: map[string]SchemaProp{
+				"route_id":    {Type: "string", Description: "Route ID (UUID) to attach the policy to"},
+				"policy_id":   {Type: "string", Description: "Slug for the policy, ^[a-z][a-z0-9_-]{1,63}$ (default: route_<id-without-dashes>). Becomes the OPA package suffix and GitOps filename."},
+				"rego_source": {Type: "string", Description: "Full Rego source implementing the payload validation policy"},
+			},
+			Required: []string{"route_id", "rego_source"},
+		},
+	},
+	{
+		Name:        "get_global_policy",
+		Description: "Get the current platform-wide payload-validation policy (package ingress.policy.payload.global) — the baseline check (generic injection-pattern detection today) applied to every route with a request body, regardless of whether that route has its own route-specific policy attached.",
+		InputSchema: Schema{Type: "object", Properties: map[string]SchemaProp{}},
+	},
+	{
+		Name: "update_global_policy",
+		Description: `Replace the platform-wide payload-validation policy that runs against every route.
+
+This is the mechanism for responding to a newly discovered attack pattern (e.g. a new SQL injection or XSS technique) across the entire platform in one change — no need to regenerate or reattach every individual route's own policy. auth-service picks up the update automatically within ~10s (its poll interval), no restart required.
+
+The rego_source MUST declare 'package ingress.policy.payload.global' and set a boolean 'allow' plus an array 'deny_reason', evaluated as data.ingress.policy.payload.global.allow / .deny_reason. Input available is {input.method, input.path, input.body}. Unlike route-specific policies, this one has no knowledge of any particular route's schema — keep it to generic checks that make sense for every route (injection patterns, not required-field lists).
+
+If the Rego fails to compile, this returns the error directly so you can fix and retry — the previous version stays in effect until this succeeds. Call get_global_policy first if you want to amend the existing policy rather than replace it outright.`,
+		InputSchema: Schema{
+			Type: "object",
+			Properties: map[string]SchemaProp{
+				"rego_source": {Type: "string", Description: "Full Rego source implementing the platform-wide payload validation policy"},
+			},
+			Required: []string{"rego_source"},
+		},
+	},
+	{
 		Name:        "get_platform_status",
 		Description: "Get a summary of platform health: fleet statuses, node counts, drift indicators, and recent activity. Good starting point for diagnosing issues.",
 		InputSchema: Schema{Type: "object", Properties: map[string]SchemaProp{}},
@@ -641,6 +682,40 @@ func handleTool(name string, args map[string]any) ToolResult {
 			return toolError("route_id is required")
 		}
 		data, code, err := apiDelete("/routes/" + id)
+		if err != nil {
+			return toolError(err.Error())
+		}
+		return toolOK(data, code)
+
+	case "attach_payload_policy":
+		routeID := strArg(args, "route_id")
+		regoSource := strArg(args, "rego_source")
+		if routeID == "" || regoSource == "" {
+			return toolError("route_id and rego_source are required")
+		}
+		body := map[string]any{"rego_source": regoSource}
+		if pid := strArg(args, "policy_id"); pid != "" {
+			body["policy_id"] = pid
+		}
+		data, code, err := apiPost("/routes/"+routeID+"/policy", body)
+		if err != nil {
+			return toolError(err.Error())
+		}
+		return toolOK(data, code)
+
+	case "get_global_policy":
+		data, code, err := apiGet("/policies/global")
+		if err != nil {
+			return toolError(err.Error())
+		}
+		return toolOK(data, code)
+
+	case "update_global_policy":
+		regoSource := strArg(args, "rego_source")
+		if regoSource == "" {
+			return toolError("rego_source is required")
+		}
+		data, code, err := apiPut("/policies/global", map[string]any{"rego_source": regoSource})
 		if err != nil {
 			return toolError(err.Error())
 		}

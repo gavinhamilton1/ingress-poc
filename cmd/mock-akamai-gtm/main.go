@@ -149,8 +149,18 @@ func main() {
 			"X-Akamai-Gtm-Reason":      "load-balance",
 		}
 
-		// Preserve original Host for subdomain-based routing downstream
-		originalHost := req.Host
+		// Preserve original Host for subdomain-based routing downstream.
+		// Prefer an incoming X-Forwarded-Host over req.Host — when the
+		// multi-CDN traffic manager sits in front of this service, req.Host
+		// is rewritten to this service's own address (e.g.
+		// "mock-akamai-gtm:8010") and the real original host arrives as
+		// X-Forwarded-Host instead. Falling back to req.Host still handles
+		// being hit directly (e.g. local testing against this service on
+		// its own port).
+		originalHost := req.Header.Get("X-Forwarded-Host")
+		if originalHost == "" {
+			originalHost = req.Host
+		}
 		if originalHost != "" {
 			extra["X-Forwarded-Host"] = originalHost
 		}

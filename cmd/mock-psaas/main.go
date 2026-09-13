@@ -49,7 +49,21 @@ var (
 	// Fleet node routing cache: hostname -> fleet gateway URLs
 	fleetRouteMu    sync.RWMutex
 	fleetRouteCache = map[string]fleetGateways{}
+
+	// Direct-route gateway cache: routes not tied to any fleet (i.e.
+	// created directly via create_route — everything the repo-onboarding
+	// agent registers) carry their own authoritative gateway_type. Without
+	// this, resolveGateway's only fallback is a path-prefix guess
+	// ("/api/*" -> Kong) that ignores what the route actually asked for —
+	// wrong for any conventional REST API path registered for Envoy.
+	routeGatewayMu    sync.RWMutex
+	routeGatewayCache = map[string][]routeGateway{} // hostname -> entries, longest path prefix wins
 )
+
+type routeGateway struct {
+	path        string
+	gatewayType string
+}
 
 func init() {
 	port = os.Getenv("PORT")
@@ -162,8 +176,65 @@ func pollFleetNodes() {
 	}
 }
 
-// resolveGateway looks up fleet-specific gateway for a hostname, falling back to shared
-func resolveGateway(hostname string, isAPI bool) string {
+// pollDirectRoutes periodically fetches all active routes from the
+// management API and indexes them by hostname for resolveGateway's
+// route-specific fallback (see routeGatewayCache above).
+func pollDirectRoutes() {
+	client := &http.Client{Timeout: 5 * time.Second}
+	time.Sleep(3 * time.Second) // wait for mgmt API
+
+	for {
+		func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			req, err := http.NewRequestWithContext(ctx, "GET", managementAPIURL+"/routes?status=active", nil)
+			if err != nil {
+				return
+			}
+			resp, err := client.Do(req)
+			if err != nil {
+				return
+			}
+			defer resp.Body.Close()
+			body, _ := io.ReadAll(resp.Body)
+
+			var routes []struct {
+				Hostname    string `json:"hostname"`
+				Path        string `json:"path"`
+				GatewayType string `json:"gateway_type"`
+			}
+			if err := json.Unmarshal(body, &routes); err != nil {
+				return
+			}
+
+			newCache := map[string][]routeGateway{}
+			for _, rt := range routes {
+				if rt.Hostname == "" || rt.Hostname == "*" || rt.GatewayType == "" {
+					continue
+				}
+				newCache[rt.Hostname] = append(newCache[rt.Hostname], routeGateway{
+					path:        strings.TrimPrefix(rt.Path, "/"),
+					gatewayType: rt.GatewayType,
+				})
+			}
+
+			routeGatewayMu.Lock()
+			routeGatewayCache = newCache
+			routeGatewayMu.Unlock()
+		}()
+		time.Sleep(5 * time.Second)
+	}
+}
+
+// resolveGateway looks up the target gateway for hostname+path, in order:
+//  1. A fleet-specific node (existing fleet-based routing).
+//  2. The gateway_type actually configured on a matching route (longest
+//     path-prefix match) — authoritative for routes not tied to any fleet,
+//     e.g. everything created directly via create_route.
+//  3. A path-prefix guess ("/api/*" -> Kong) as the last resort, for
+//     traffic that matches neither of the above.
+func resolveGateway(hostname, path string, isAPI bool) string {
 	fleetRouteMu.RLock()
 	gw, found := fleetRouteCache[hostname]
 	fleetRouteMu.RUnlock()
@@ -177,11 +248,42 @@ func resolveGateway(hostname string, isAPI bool) string {
 		}
 	}
 
-	// Fallback to shared gateway
+	if gwType, ok := lookupRouteGatewayType(hostname, path); ok {
+		if gwType == "kong" {
+			return gatewayKongURL
+		}
+		return gatewayEnvoyURL
+	}
+
+	// Fallback to shared gateway, guessed from the path
 	if isAPI {
 		return gatewayKongURL
 	}
 	return gatewayEnvoyURL
+}
+
+// lookupRouteGatewayType finds the gateway_type of the best-matching
+// (longest path prefix) route cached for hostname.
+func lookupRouteGatewayType(hostname, path string) (string, bool) {
+	routeGatewayMu.RLock()
+	defer routeGatewayMu.RUnlock()
+
+	entries, ok := routeGatewayCache[hostname]
+	if !ok {
+		return "", false
+	}
+	bestLen := -1
+	best := ""
+	for _, e := range entries {
+		if !strings.HasPrefix(path, e.path) {
+			continue
+		}
+		if len(e.path) > bestLen {
+			bestLen = len(e.path)
+			best = e.gatewayType
+		}
+	}
+	return best, bestLen >= 0
 }
 
 func main() {
@@ -190,6 +292,7 @@ func main() {
 
 	// Start fleet node discovery
 	go pollFleetNodes()
+	go pollDirectRoutes()
 
 	r := chi.NewRouter()
 	r.Use(middleware.CORS())
@@ -241,7 +344,7 @@ func main() {
 		// Route: /api/* -> Kong node, everything else -> Envoy node
 		// Uses fleet-specific nodes when available, falls back to shared gateway
 		isAPI := path == "api" || strings.HasPrefix(path, "api/")
-		targetURL := resolveGateway(hostname, isAPI)
+		targetURL := resolveGateway(hostname, path, isAPI)
 
 		span.SetAttributes(
 			attribute.String("psaas.target_gateway", targetURL),

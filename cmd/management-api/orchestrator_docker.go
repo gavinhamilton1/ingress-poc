@@ -102,3 +102,10 @@ func (d *DockerOrchestrator) DeleteRouteCRD(routeID string) error {
 func (d *DockerOrchestrator) UpdateFleetManifest(fleet Fleet) error {
 	return nil
 }
+
+// WritePayloadPolicy is a no-op in Docker mode (no GitOps repo). The policy
+// is still pushed live to OPA's HTTP API by the caller regardless of
+// orchestrator mode — this only handles GitOps durability.
+func (d *DockerOrchestrator) WritePayloadPolicy(policyID, regoSource string) error {
+	return nil
+}

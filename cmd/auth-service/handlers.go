@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"strings"
@@ -634,14 +636,28 @@ func handleExtAuthz(store *Store, tracer trace.Tracer) http.HandlerFunc {
 // Unlike handleExtAuthz (which speaks a custom JSON protocol), this handler
 // follows the Envoy HTTP ext-authz contract:
 //   - HTTP 200  → allow; any x-auth-* response headers are forwarded to the upstream
-//   - HTTP 401  → deny; Envoy returns 401 to the client
+//   - HTTP 401  → deny (auth failure); Envoy returns 401 to the client
+//   - HTTP 403  → deny (payload validation failure); Envoy returns 403 to the client
 //
-// Unauthenticated requests (no Bearer / cookie) are passed through with 200 so
-// that HTML pages that embed their own login form can still be served.
+// Unauthenticated requests (no Bearer / cookie) are passed through so that
+// HTML pages that embed their own login form can still be served — but they
+// still go through payload validation below, since a route may accept
+// unauthenticated traffic (e.g. a public registration endpoint) and still
+// want its request body checked before it reaches the workload.
 func handleExtAuthzHTTP(store *Store, tracer trace.Tracer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, span := tracer.Start(r.Context(), "ext_authz.http.validate")
+		ctx, span := tracer.Start(r.Context(), "ext_authz.http.validate")
 		defer span.End()
+
+		// Recover the client's original request path — Envoy's ext_authz
+		// path_prefix ("/gateway/ext-authz-http") is prepended onto it, e.g.
+		// a client request for /api/v1/users/register arrives here as
+		// /gateway/ext-authz-http/api/v1/users/register.
+		origPath := strings.TrimPrefix(r.URL.Path, "/gateway/ext-authz-http")
+		if origPath == "" {
+			origPath = "/"
+		}
+		origHost := r.Host
 
 		// Envoy forwards the original request headers to the auth service.
 		authHeader := r.Header.Get("Authorization")
@@ -660,10 +676,11 @@ func handleExtAuthzHTTP(store *Store, tracer trace.Tracer) http.HandlerFunc {
 			}
 		}
 
-		// No credentials at all — allow unauthenticated so HTML login pages can load.
+		// No credentials at all — allow unauthenticated so HTML login pages can
+		// load, but still run payload validation for the matched route.
 		if !strings.HasPrefix(authHeader, "Bearer ") {
 			span.SetAttributes(attribute.String("auth.result", "PASS_UNAUTHENTICATED"))
-			w.WriteHeader(http.StatusOK)
+			finishExtAuthz(ctx, w, r, tracer, origHost, origPath)
 			return
 		}
 
@@ -721,8 +738,71 @@ func handleExtAuthzHTTP(store *Store, tracer trace.Tracer) http.HandlerFunc {
 		w.Header().Set("x-auth-client-id", claimString(claims, "client_id"))
 
 		span.SetAttributes(attribute.String("auth.result", "PASS"))
-		w.WriteHeader(http.StatusOK)
+		finishExtAuthz(ctx, w, r, tracer, origHost, origPath)
 	}
+}
+
+// finishExtAuthz runs request-payload validation and writes the final
+// ext_authz response. Called only once authentication has already been
+// decided (verified or deliberately bypassed for unauthenticated routes);
+// it never itself makes an authentication decision.
+//
+// Two tiers of policy run here, in order:
+//  1. The global policy (package ingress.policy.payload.global) — the
+//     platform-wide baseline (generic injection-pattern checks today),
+//     evaluated for every route with a request body regardless of whether
+//     that route has its own policy. This is the single lever for patching
+//     every route at once against a newly discovered attack pattern,
+//     without touching any route's own configuration.
+//  2. The route-specific policy (if the matched route has a
+//     payload_policy_ref attached), which only runs after the global one
+//     passes — the repo-onboarding agent generates these to check a
+//     specific route's own required fields and formats.
+//
+// A route with neither in play (no global policy cached yet, unlikely once
+// past startup, and no route-specific policy) skips straight to 200 with no
+// body read or OPA call at all.
+func finishExtAuthz(ctx context.Context, w http.ResponseWriter, r *http.Request, tracer trace.Tracer, hostname, path string) {
+	policyID, regoSource := lookupPayloadPolicy(hostname, path)
+	globalSource := currentGlobalPolicySource()
+
+	if policyID == "" && globalSource == "" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20)) // 1MB cap, matches Envoy's buffer ceiling with headroom
+
+	if globalSource != "" {
+		if !writePayloadDenyIfBlocked(w, checkPayloadOPA(ctx, tracer, "global", globalSource, r.Method, path, body)) {
+			return
+		}
+	}
+	if policyID != "" {
+		if !writePayloadDenyIfBlocked(w, checkPayloadOPA(ctx, tracer, policyID, regoSource, r.Method, path, body)) {
+			return
+		}
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+// writePayloadDenyIfBlocked writes a 403 and returns false if result denies
+// the request; otherwise it writes nothing and returns true so the caller
+// can proceed to the next check (or finish with 200).
+func writePayloadDenyIfBlocked(w http.ResponseWriter, result payloadCheckResult) bool {
+	if result.Allow {
+		return true
+	}
+	reason := result.DenyReason
+	if len(reason) == 0 {
+		reason = []string{"payload validation failed"}
+	}
+	writeJSON(w, http.StatusForbidden, map[string]interface{}{
+		"error":  "Payload validation failed",
+		"reason": reason,
+	})
+	return false
 }
 
 func handleDemoUsers(store *Store) http.HandlerFunc {

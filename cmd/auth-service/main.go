@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -86,6 +87,16 @@ func main() {
 	// Demo / health
 	r.Get("/demo/users", handleDemoUsers(store))
 	r.Get("/health", handleHealth())
+
+	// Poll the management API for routes carrying a payload_policy_ref so the
+	// ext_authz handler can decide, with no per-request lookup latency,
+	// whether a given route needs an OPA payload-validation call at all.
+	managementAPIURL := os.Getenv("MANAGEMENT_API_URL")
+	if managementAPIURL == "" {
+		managementAPIURL = "http://management-api:8003"
+	}
+	startRouteCacheRefresher(managementAPIURL, 10*time.Second)
+	startGlobalPolicyRefresher(managementAPIURL, 10*time.Second)
 
 	log.Printf("auth-service starting on :%s", port)
 	if err := http.ListenAndServe(":"+port, r); err != nil {

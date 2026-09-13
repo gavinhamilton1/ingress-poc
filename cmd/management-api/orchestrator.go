@@ -56,6 +56,13 @@ type Orchestrator interface {
 	// UpdateFleetManifest rewrites the Fleet CRD manifest in the GitOps repo.
 	// Used when fleet metadata changes (not scaling). In Docker mode this is a no-op.
 	UpdateFleetManifest(fleet Fleet) error
+
+	// WritePayloadPolicy commits a generated OPA Rego policy file
+	// (opa-policies/<policyID>.rego) to the GitOps repo for durability/audit.
+	// This is separate from — and secondary to — the live activation, which
+	// pushes the same policy straight to OPA's HTTP API so it takes effect
+	// immediately. In Docker mode this is a no-op.
+	WritePayloadPolicy(policyID, regoSource string) error
 }
 
 // NewOrchestrator creates an Orchestrator based on the given mode.

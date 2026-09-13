@@ -32,6 +32,8 @@ spec:
               value: http://jaeger:4318
             - name: DATABASE_URL
               value: postgres://ingress:ingress_poc@postgres:5432/ingress_registry?sslmode=disable
+            - name: MANAGEMENT_API_URL
+              value: http://management-api:8003
           resources:
             limits:
               memory: 256Mi

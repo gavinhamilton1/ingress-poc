@@ -29,6 +29,8 @@ type Route struct {
 	GitCommitSHA      string          `db:"git_commit_sha" json:"git_commit_sha,omitempty"`
 	GitManifestPath   string          `db:"git_manifest_path" json:"git_manifest_path,omitempty"`
 	SyncStatus        string          `db:"sync_status" json:"sync_status,omitempty"`
+	PayloadPolicyRef  string          `db:"payload_policy_ref" json:"payload_policy_ref,omitempty"`
+	PayloadPolicyRego string          `db:"payload_policy_rego" json:"payload_policy_rego,omitempty"`
 	CreatedAt         float64         `db:"created_at" json:"created_at"`
 	UpdatedAt         float64         `db:"updated_at" json:"updated_at"`
 }

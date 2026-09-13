@@ -8,12 +8,14 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/open-policy-agent/opa/rego"
 
 	appMiddleware "github.com/jpmc/ingress-poc/pkg/middleware"
 	appOtel "github.com/jpmc/ingress-poc/pkg/otel"
@@ -44,6 +46,7 @@ func main() {
 
 	db = initDB()
 	seedDefaults(db)
+	seedGlobalPayloadPolicy(db)
 
 	orchMode := getEnvOr("ORCHESTRATION_MODE", "docker")
 	var err error
@@ -86,6 +89,9 @@ func main() {
 	r.Post("/routes", createRoute)
 	r.Put("/routes/{id}", updateRoute)
 	r.Put("/routes/{id}/status", updateRouteStatus)
+	r.Post("/routes/{id}/policy", attachPayloadPolicy)
+	r.Get("/policies/global", getGlobalPolicy)
+	r.Put("/policies/global", updateGlobalPolicy)
 	r.Delete("/routes/{id}", deleteRoute)
 
 	// Audit
@@ -97,6 +103,7 @@ func main() {
 	// Actuals & Drift
 	r.Get("/actuals", listActuals)
 	r.Get("/drift", listDrift)
+	r.Get("/cdn-status", getCDNStatus)
 
 	// Fleets
 	r.Get("/fleets", listFleets)
@@ -315,8 +322,8 @@ func createRoute(w http.ResponseWriter, r *http.Request) {
 	db.MustExec(`INSERT INTO routes (id, path, hostname, backend_url, audience, allowed_roles, methods,
 		status, team, created_by, gateway_type, health_path, authn_mechanism, auth_issuer, authz_scopes,
 		tls_required, notes, target_nodes, function_code, function_language, lambda_container_id, lambda_port,
-		created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
+		payload_policy_ref, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)`,
 		id,
 		strOr(body["path"], ""),
 		strOr(body["hostname"], "*"),
@@ -338,6 +345,7 @@ func createRoute(w http.ResponseWriter, r *http.Request) {
 		functionLanguage,
 		lambdaContainerIDVal,
 		lambdaPortVal,
+		strOr(body["payload_policy_ref"], ""),
 		now, now,
 	)
 
@@ -381,6 +389,7 @@ func updateRoute(w http.ResponseWriter, r *http.Request) {
 		"gateway_type": "gateway_type", "notes": "notes",
 		"health_path": "health_path", "authn_mechanism": "authn_mechanism", "auth_issuer": "auth_issuer",
 		"function_code": "function_code", "function_language": "function_language",
+		"payload_policy_ref": "payload_policy_ref",
 	}
 	for jsonKey, col := range fieldMap {
 		if v, ok := body[jsonKey]; ok {
@@ -543,6 +552,103 @@ func listAuditLog(w http.ResponseWriter, r *http.Request) {
 		logs = []AuditLog{}
 	}
 	writeJSON(w, 200, logs)
+}
+
+// --- Payload Policy (repo-onboarding agent) ---
+
+// policyIDPattern restricts generated policy IDs to a safe slug — this
+// becomes both an OPA package path segment and a GitOps filename, so it must
+// not contain path separators, dots, or anything else that could traverse
+// out of opa-policies/ or collide with OPA's own package-naming rules.
+var policyIDPattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{1,63}$`)
+
+// attachPayloadPolicy accepts a generated OPA Rego policy for one route (the
+// artifact the repo-onboarding agent produces from a scanned request schema),
+// pushes it live to OPA, persists it to the GitOps repo for durability/audit,
+// and records the reference on the route so the gateway's ext_authz filter
+// starts enforcing it.
+//
+// The OPA push happens first and is the source of truth for whether the
+// policy is valid Rego — if OPA rejects it (compile error), that error is
+// returned as-is so the calling agent can see exactly what to fix and retry.
+// Nothing else (DB, GitOps, Route CRD) is touched unless OPA accepts it.
+func attachPayloadPolicy(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var route Route
+	if err := db.Get(&route, "SELECT * FROM routes WHERE id=$1", id); err != nil {
+		writeJSON(w, 404, map[string]string{"detail": "Route not found"})
+		return
+	}
+
+	var body struct {
+		PolicyID   string `json:"policy_id"`
+		RegoSource string `json:"rego_source"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, 400, map[string]string{"detail": "invalid JSON body"})
+		return
+	}
+	if body.RegoSource == "" {
+		writeJSON(w, 400, map[string]string{"detail": "rego_source is required"})
+		return
+	}
+	policyID := body.PolicyID
+	if policyID == "" {
+		policyID = "route_" + strings.ReplaceAll(id, "-", "")
+	}
+	if !policyIDPattern.MatchString(policyID) {
+		writeJSON(w, 400, map[string]string{"detail": "policy_id must match ^[a-z][a-z0-9_-]{1,63}$"})
+		return
+	}
+	expectedPkg := "package ingress.policy.payload." + policyID
+	if !strings.Contains(body.RegoSource, expectedPkg) {
+		writeJSON(w, 400, map[string]string{"detail": fmt.Sprintf("rego_source must declare %q so it's reachable at the path the gateway queries", expectedPkg)})
+		return
+	}
+
+	// Compile-check in-process via the OPA Go SDK — this is a real OPA
+	// compiler, exercising the exact same parser/compiler auth-service will
+	// later use to evaluate this policy at request time. No running OPA
+	// server involved: auth-service evaluates payload policies in-process
+	// (see cmd/auth-service/payload_policy.go) rather than over the network,
+	// so there is no live service to push this to in the first place.
+	if _, err := rego.New(
+		rego.Query("data.ingress.policy.payload."+policyID),
+		rego.Module(policyID+".rego", body.RegoSource),
+	).PrepareForEval(r.Context()); err != nil {
+		writeJSON(w, 400, map[string]interface{}{
+			"detail":    "Rego failed to compile (see opa_error)",
+			"opa_error": err.Error(),
+		})
+		return
+	}
+
+	// Best-effort GitOps persistence — for durability/audit, independent of
+	// the DB write below which is what auth-service actually reads from.
+	if err := orch.WritePayloadPolicy(policyID, body.RegoSource); err != nil {
+		log.Printf("Warning: failed to write payload policy %s to GitOps repo: %v", policyID, err)
+	}
+
+	db.MustExec("UPDATE routes SET payload_policy_ref=$1, payload_policy_rego=$2, updated_at=$3 WHERE id=$4",
+		policyID, body.RegoSource, float64(time.Now().Unix()), id)
+
+	var updated Route
+	db.Get(&updated, "SELECT * FROM routes WHERE id=$1", id)
+
+	if err := orch.WriteRouteCRD(updated, updated.Hostname); err != nil {
+		log.Printf("Warning: failed to update route CRD for %s after policy attach: %v", id, err)
+	}
+
+	addAudit(id, "ATTACH_POLICY", strOr(getActorFromRequest(r), "system"),
+		fmt.Sprintf("Attached payload validation policy %s to route %s", policyID, updated.Path))
+
+	writeJSON(w, 200, updated)
+}
+
+// getActorFromRequest reads an optional actor query param, falling back to
+// empty (strOr in the caller supplies "system").
+func getActorFromRequest(r *http.Request) string {
+	return r.URL.Query().Get("actor")
 }
 
 // --- Policy Validate ---
@@ -903,7 +1009,12 @@ func deployToFleet(w http.ResponseWriter, r *http.Request) {
 
 	now := float64(time.Now().Unix())
 	gwType := strOr(body["gateway_type"], "envoy")
-	backend := strOr(body["backend"], "http://svc-web:8004")
+	// Both the deploy_fleet MCP tool and the console's own "add route to
+	// fleet" form send this as "backend_url" (matching create_route's own
+	// parameter name) — this previously read "backend", a key nothing
+	// actually sends, so any real backend URL was silently discarded in
+	// favor of the http://svc-web:8004 default.
+	backend := strOr(body["backend_url"], "http://svc-web:8004")
 	contextPath := strOr(body["context_path"], "/")
 
 	// Duplicate check: prevent same hostname+path+gateway_type
@@ -2114,9 +2225,28 @@ func computeFleetStatus() {
 					}
 				}
 
-				// Fleet-level status is managed exclusively by the K8s reconciler
-				// (reconciler.go). computeFleetStatus only updates fleet_instances
-				// health data — do not write fleet status here to avoid conflicts.
+				// Fleet-level status: in K8s mode this is owned by the reconciler
+				// (reconciler.go), which polls actual pod state — a more accurate
+				// signal for that orchestrator than instance health reports. But
+				// startReconciler is only ever started for a *K8sOrchestrator (see
+				// main()) — in Docker Compose mode it never runs, so without this,
+				// fleet.status can only ever be downgraded to "not_deployed" above
+				// and never promoted back to "healthy", leaving every Docker-mode
+				// fleet stuck at its seeded status forever regardless of what's
+				// actually running. Take ownership of the upward transition here
+				// whenever we're not in K8s mode.
+				if _, isK8s := orch.(*K8sOrchestrator); !isK8s {
+					newStatus := "healthy"
+					for _, s := range statuses {
+						if s == "offline" || s == "warning" {
+							newStatus = "degraded"
+							break
+						}
+					}
+					if fleet.Status != newStatus {
+						db.MustExec("UPDATE fleets SET status=$1, updated_at=$2 WHERE id=$3", newStatus, now, fleet.ID)
+					}
+				}
 			}
 		}()
 

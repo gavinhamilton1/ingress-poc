@@ -108,6 +108,9 @@ All endpoints except `/health` will then require `Authorization: Bearer <key>`.
 | `update_route` | Update backend URL, auth, status, or rate limits |
 | `delete_route` | Remove a route from the gateway and GitOps manifests |
 | `validate_route_policy` | Check a proposed route against CIB ingress policy before creating |
+| `attach_payload_policy` | Attach a generated OPA Rego payload-validation policy to one route — compiled in-process (no separate OPA network call) and enforced by the gateway within ~10s, no restart needed. Runs *after* the global policy below. See the `onboard-repo` skill (`.claude/skills/onboard-repo/`) for the full agentic flow that generates both the route and this policy from a target repo's source code. |
+| `get_global_policy` | Get the platform-wide payload policy — generic injection-pattern checks applied to *every* route with a request body, whether or not it has its own `attach_payload_policy` policy. |
+| `update_global_policy` | Replace the platform-wide policy — the single lever for blocking a newly discovered attack pattern across every route at once, without touching any route's own configuration. |
 
 ### Platform Status & Observability
 
@@ -181,6 +184,14 @@ Set `MANAGEMENT_API_URL=http://management-api:8003` — no port-forward needed.
 |---|---|---|
 | `MANAGEMENT_API_URL` | `http://management-api:8003` | Base URL of the Management API |
 | `MANAGEMENT_API_KEY` | _(empty)_ | Bearer token for API auth (optional) |
+
+`attach_payload_policy` and `update_global_policy` call through to management-api's
+`POST /routes/{id}/policy` and `PUT /policies/global` respectively — both compile
+the Rego in-process via the OPA Go SDK, no `OPA_URL` or running OPA server needed
+for this path. `auth-service` similarly evaluates payload policies in-process
+(polling management-api for updates every ~10s) rather than calling a separate
+OPA service. The standalone `opa` container still exists for an unrelated
+role-based authorization check used elsewhere in the platform.
 
 ---
 

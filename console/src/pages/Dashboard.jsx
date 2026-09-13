@@ -33,8 +33,8 @@ function FlowPulse({ delay = 0, color = 'bg-blue-400', height = 24, speed = 1.8,
 }
 
 /* ───────────── Infrastructure node ───────────── */
-function InfraNode({ icon: Icon, label, desc, color, delay = 0, passive, alt, health, small }) {
-  const opacity = passive ? 'opacity-50' : alt ? 'opacity-70' : 'opacity-100'
+function InfraNode({ icon: Icon, label, desc, color, delay = 0, alt, health, small }) {
+  const opacity = alt ? 'opacity-70' : 'opacity-100'
   const size = small ? 'w-10 h-10' : 'w-12 h-12'
   const iconSize = small ? 16 : 20
   const healthGlow = health === 'healthy'
@@ -151,6 +151,16 @@ export default function Dashboard() {
     },
     refetchInterval: 10000,
   })
+  // True live state of the multi-CDN simulation (traffic manager + both
+  // CDNs' LB and edge layers) — backs the Infrastructure Overview topology
+  // below. Polled at 5s to match the traffic manager's own health-check
+  // interval, so an outage shows up here about as fast as it actually
+  // affects routing.
+  const { data: cdnStatus } = useQuery({
+    queryKey: ['cdn-status'],
+    queryFn: () => fetch(`${API_URL}/cdn-status`).then(r => r.json()).catch(() => null),
+    refetchInterval: 5000,
+  })
 
   const activeRoutes = routes.filter(r => r.status === 'active').length
   const activeSessions = sessions.filter(s => s.status === 'active').length
@@ -160,6 +170,24 @@ export default function Dashboard() {
 
   // Shared infra hops are always green — only per-fleet last-mile shows fleet health
   const greenPulse = 'bg-emerald-400'
+
+  // Maps a live up/down boolean from /cdn-status to InfraNode's health prop.
+  // undefined (not yet loaded) intentionally renders with no ring glow
+  // rather than guessing healthy or offline.
+  const cdnHealth = (up) => (up === undefined ? undefined : up ? 'healthy' : 'offline')
+  const trafficManagerUp = cdnStatus?.traffic_manager?.up
+  const akamaiWeight = cdnStatus?.traffic_manager?.weights?.akamai ?? 50
+  const cfWeight = cdnStatus?.traffic_manager?.weights?.cloudflare ?? 50
+
+  // A provider showing its configured weight while actually down is
+  // misleading — the traffic manager excludes unhealthy providers from
+  // the weighted pick entirely, so a "down" one is really getting 0% of
+  // live traffic regardless of its configured share.
+  function providerWeightLabel(up, weight, activeColorClass) {
+    if (up === false) return { text: 'Offline', className: 'text-red-400' }
+    if (up === undefined) return { text: `${weight}%`, className: 'text-jpmc-muted' }
+    return { text: `Active — ${weight}%`, className: activeColorClass }
+  }
 
   return (
     <div className="space-y-6">
@@ -266,7 +294,6 @@ export default function Dashboard() {
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400" /> Healthy</span>
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" /> Degraded</span>
               <span className="flex items-center gap-1 text-red-400"><span className="w-2 h-2 rounded-full bg-red-400" /> Unhealthy</span>
-              <span className="flex items-center gap-1 text-jpmc-muted"><span className="w-2 h-2 rounded-full bg-orange-400/50" /> Passive</span>
             </div>
           </div>
 
@@ -274,55 +301,55 @@ export default function Dashboard() {
           <div className="flex justify-center">
             <InfraNode icon={Globe} label="Client" desc="End User" color="from-slate-500 to-slate-600" delay={0.3} health="healthy" />
           </div>
-          <FlowPulse delay={0} color={greenPulse} height={28} speed={1.6} />
+          <FlowPulse delay={0} color={greenPulse} height={22} speed={1.6} />
 
-          {/* ── L2: Akamai GTM (active) + Cloudflare LB (passive failover) ── */}
-          <div className="grid grid-cols-5 items-start">
-            {/* Cloudflare LB passive stack */}
-            <div className="col-span-1 flex flex-col items-center">
-              <InfraNode icon={Cloud} label="CF LB" desc="Cloudflare LB" color="from-orange-500/50 to-orange-600/50" delay={0.36} passive />
-              <span className="text-[8px] text-orange-400/50 mt-1 font-medium uppercase tracking-wider">Passive Standby</span>
+          {/* ── Multi-CDN Traffic Manager — the real internet-facing front door;
+               splits traffic across both CDN paths below by weight, live health
+               probed from /cdn-status ── */}
+          <div className="flex justify-center">
+            <InfraNode icon={Layers} label="Traffic Manager" desc="Multi-CDN — weighted split" color="from-violet-500 to-violet-600" delay={0.32} health={cdnHealth(trafficManagerUp)} />
+          </div>
+          <FlowPulse delay={0.15} color={trafficManagerUp === false ? 'bg-red-400' : greenPulse} height={22} speed={1.6} active={trafficManagerUp !== false} />
+
+          {/* ── L2: Akamai GTM + Cloudflare LB — active-active (not failover):
+               both take live traffic concurrently, split by configured weight,
+               each independently health-probed from /cdn-status ── */}
+          <div className="flex items-start justify-center gap-8">
+            <div className="flex flex-col items-center">
+              <InfraNode icon={Globe} label="Akamai GTM" desc="L2 — Global Traffic Mgr" color="from-blue-500 to-blue-600" delay={0.34} health={cdnHealth(cdnStatus?.akamai?.gtm)} />
+              {(() => { const l = providerWeightLabel(cdnStatus?.akamai?.gtm, akamaiWeight, 'text-cyan-400'); return (
+                <span className={`text-[8px] mt-1 font-medium uppercase tracking-wider ${l.className}`}>{l.text}</span>
+              ) })()}
             </div>
-
-            {/* failover label */}
-            <div className="col-span-1 flex items-center justify-center pt-4">
-              <div className="w-full border-t border-dotted border-orange-400/50 relative">
-                <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-[7px] text-orange-300/70 whitespace-nowrap uppercase tracking-wider">failover</span>
-              </div>
+            <div className="flex flex-col items-center pt-3">
+              <span className="text-[8px] text-jpmc-muted uppercase tracking-wider whitespace-nowrap">⇄ active-active</span>
             </div>
-
-            {/* Akamai GTM primary */}
-            <div className="col-span-1 flex flex-col items-center">
-              <InfraNode icon={Globe} label="Akamai GTM" desc="L2 — Global Traffic Mgr" color="from-blue-500 to-blue-600" delay={0.34} health="healthy" />
-              <span className="text-[8px] text-cyan-400 mt-1 font-medium uppercase tracking-wider">Active Primary</span>
+            <div className="flex flex-col items-center">
+              <InfraNode icon={Cloud} label="CF LB" desc="Cloudflare LB" color="from-orange-500 to-orange-600" delay={0.36} health={cdnHealth(cdnStatus?.cloudflare?.lb)} />
+              {(() => { const l = providerWeightLabel(cdnStatus?.cloudflare?.lb, cfWeight, 'text-orange-400'); return (
+                <span className={`text-[8px] mt-1 font-medium uppercase tracking-wider ${l.className}`}>{l.text}</span>
+              ) })()}
             </div>
-
-            <div className="col-span-2" />
           </div>
           <FlowPulse delay={0.3} color={greenPulse} height={24} speed={1.4} />
 
-          {/* ── L3: CDN/WAF — Akamai Edge (active) + Cloudflare (passive failover) ── */}
-          <div className="grid grid-cols-5 items-start">
-            {/* Cloudflare passive stack */}
-            <div className="col-span-1 flex flex-col items-center">
-              <InfraNode icon={Cloud} label="CF Edge" desc="Cloudflare CDN" color="from-orange-500/50 to-orange-600/50" delay={0.4} passive />
-              <span className="text-[8px] text-orange-400/50 mt-1 font-medium uppercase tracking-wider">Passive Standby</span>
+          {/* ── L3: CDN/WAF — Akamai Edge + Cloudflare Edge — same active-active treatment ── */}
+          <div className="flex items-start justify-center gap-8">
+            <div className="flex flex-col items-center">
+              <InfraNode icon={Shield} label="Akamai Edge" desc="L3 — CDN + Kona WAF" color="from-cyan-500 to-cyan-600" delay={0.38} health={cdnHealth(cdnStatus?.akamai?.edge)} />
+              {(() => { const l = providerWeightLabel(cdnStatus?.akamai?.edge, akamaiWeight, 'text-cyan-400'); return (
+                <span className={`text-[8px] mt-1 font-medium uppercase tracking-wider ${l.className}`}>{l.text}</span>
+              ) })()}
             </div>
-
-            {/* failover label */}
-            <div className="col-span-1 flex items-center justify-center pt-4">
-              <div className="w-full border-t border-dotted border-orange-400/50 relative">
-                <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-[7px] text-orange-300/70 whitespace-nowrap uppercase tracking-wider">failover</span>
-              </div>
+            <div className="flex flex-col items-center pt-3">
+              <span className="text-[8px] text-jpmc-muted uppercase tracking-wider whitespace-nowrap">⇄ active-active</span>
             </div>
-
-            {/* Akamai Edge primary */}
-            <div className="col-span-1 flex flex-col items-center">
-              <InfraNode icon={Shield} label="Akamai Edge" desc="L3 — CDN + Kona WAF" color="from-cyan-500 to-cyan-600" delay={0.38} health="healthy" />
-              <span className="text-[8px] text-cyan-400 mt-1 font-medium uppercase tracking-wider">Active Primary</span>
+            <div className="flex flex-col items-center">
+              <InfraNode icon={Cloud} label="CF Edge" desc="Cloudflare CDN" color="from-orange-500 to-orange-600" delay={0.4} health={cdnHealth(cdnStatus?.cloudflare?.edge)} />
+              {(() => { const l = providerWeightLabel(cdnStatus?.cloudflare?.edge, cfWeight, 'text-orange-400'); return (
+                <span className={`text-[8px] mt-1 font-medium uppercase tracking-wider ${l.className}`}>{l.text}</span>
+              ) })()}
             </div>
-
-            <div className="col-span-2" />
           </div>
 
           {/* ── Connector: CDN/WAF → L4 Perimeter ── */}

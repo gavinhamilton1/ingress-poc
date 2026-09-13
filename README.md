@@ -204,7 +204,10 @@ The first run takes 10-15 minutes (image builds). Subsequent runs skip cluster c
 | Jaeger (tracing) | http://localhost:16686 |
 | Envoy Gateway (shared) | http://localhost:8000 |
 | Kong Gateway (shared) | http://localhost:8100 |
-| Mock Akamai GTM (traffic entry) | http://localhost:8010 |
+| Multi-CDN Traffic Manager (traffic entry) | http://localhost:8010 |
+
+Requests entering on 8010 (or 443 for HTTPS) are split across simulated
+Akamai and Cloudflare paths — see "Multi-CDN Simulation" below.
 
 **Shutdown and restart:**
 
@@ -241,13 +244,50 @@ All other fleets appear in the Console with their configuration intact but have 
 **Test the end-to-end traffic path:**
 
 ```bash
-# Request flows: GTM → Edge → PSaaS → fleet-specific Envoy → backend
+# Request flows: Multi-CDN Traffic Manager → (Akamai GTM → Edge) or
+# (Cloudflare LB → Edge), picked per-request → PSaaS → fleet-specific
+# Envoy → backend
 curl -H "Host: access.jpm.com" http://localhost:8010/
 # Should return JSON from svc-web
 
 curl -H "Host: jpmm.jpm.com" http://localhost:8010/events
 # Should return JSON from svc-web (via JPMM fleet gateway)
 ```
+
+### Multi-CDN Simulation (Active-Active)
+
+Port 8010/443 is served by `mock-multi-cdn-traffic-manager`, not directly by
+Akamai's GTM — it simulates a DNS-based multi-CDN traffic manager (the role
+products like NS1 or Cedexis play) sitting in front of two independent CDN
+simulations that both converge on the same downstream (`mock-psaas` →
+gateway → real backends):
+
+```
+                          ┌─→ Mock Akamai GTM    → Mock Akamai Edge    ─┐
+Client → Traffic Manager ─┤   (weighted + health-aware, ~50/50 default) ├→ Mock PSaaS → gateway-envoy/kong → backend
+                          └─→ Mock Cloudflare LB → Mock Cloudflare Edge ┘
+```
+
+This is **active-active**, not failover — both providers take real traffic
+concurrently. The traffic manager health-checks each provider every 5s and
+stops sending traffic to one that's down, without needing the whole
+platform to fail over.
+
+```bash
+# See which provider handled each request (varies per request)
+curl -s -D - -H "Host: jpmm.jpm.com" http://localhost:8010/events -o /dev/null \
+  | grep -i x-multi-cdn-provider-selected
+
+# Check both providers' health as the traffic manager sees them
+curl -s http://localhost:8010/health | python3 -m json.tool
+
+# Simulate an Akamai outage — traffic shifts entirely to Cloudflare within ~5s
+docker stop ingress-poc-mock-akamai-gtm-1
+docker start ingress-poc-mock-akamai-gtm-1   # bring it back
+```
+
+Adjust the split with `AKAMAI_WEIGHT` / `CLOUDFLARE_WEIGHT` environment
+variables on `mock-multi-cdn-traffic-manager` in `docker-compose.yml`.
 
 **Check cluster status:**
 
@@ -696,9 +736,12 @@ Type `yes` when prompted. This deletes **all** AWS resources including EKS clust
 | Watchdog | 8006 | Health monitoring |
 | Jaeger | 16686 | Distributed tracing UI |
 | PostgreSQL | 5432 | Database (local only; RDS on AWS) |
-| Mock Akamai GTM | 8010 | CDN simulation layer 1 |
-| Mock Akamai Edge | 8011 | CDN simulation layer 2 |
-| Mock PSaaS | 8012 | Regional perimeter simulation |
+| Multi-CDN Traffic Manager | 8010 / 443 | Internet-facing front door — weighted, health-aware split across the Akamai and Cloudflare paths below (active-active, not failover) |
+| Mock Akamai GTM | *(internal only)* | CDN simulation layer 1 — Akamai path, reachable at `mock-akamai-gtm:8010` inside the compose network |
+| Mock Akamai Edge | 8011 | CDN simulation layer 2 — Akamai path |
+| Mock Cloudflare LB | 8030 | CDN simulation layer 1 — Cloudflare path |
+| Mock Cloudflare Edge | 8031 | CDN simulation layer 2 — Cloudflare path |
+| Mock PSaaS | 8012 | Regional perimeter simulation — shared downstream for both CDN paths |
 | Argo CD | 30443 | GitOps continuous delivery (kind) |
 
 ## Database Connection

@@ -1089,6 +1089,9 @@ spec:
 	if route.Notes != "" {
 		yaml += fmt.Sprintf("  notes: %q\n", route.Notes)
 	}
+	if route.PayloadPolicyRef != "" {
+		yaml += fmt.Sprintf("  payloadPolicyRef: %q\n", route.PayloadPolicyRef)
+	}
 	if route.FunctionCode != "" {
 		indentedCode := ""
 		for _, line := range strings.Split(route.FunctionCode, "\n") {
@@ -1288,6 +1291,27 @@ func (k *K8sOrchestrator) UpdateFleetManifest(fleet Fleet) error {
 	}
 
 	log.Printf("k8s: updated fleet manifest for %s", fleet.ID)
+	return nil
+}
+
+// WritePayloadPolicy commits a generated OPA Rego policy to the single/local
+// GitOps repo under opa-policies/<policyID>.rego. Unlike routes and fleets,
+// payload policies aren't fleet-scoped — OPA is one shared service — so this
+// always uses k.repo (the local repo that's initialized regardless of
+// per-fleet-repo mode; the same one lambda manifests use) rather than
+// k.fleetRepos.
+func (k *K8sOrchestrator) WritePayloadPolicy(policyID, regoSource string) error {
+	if err := k.repo.EnsureDirectory("opa-policies"); err != nil {
+		return fmt.Errorf("ensure opa-policies dir: %w", err)
+	}
+	fname := filepath.Join("opa-policies", policyID+".rego")
+	if err := k.repo.WriteManifest(fname, []byte(regoSource)); err != nil {
+		return fmt.Errorf("write payload policy: %w", err)
+	}
+	if err := k.repo.CommitAndPush(fmt.Sprintf("Add payload validation policy %s", policyID)); err != nil {
+		return fmt.Errorf("commit payload policy: %w", err)
+	}
+	log.Printf("k8s: committed payload policy %s to GitOps repo", policyID)
 	return nil
 }
 

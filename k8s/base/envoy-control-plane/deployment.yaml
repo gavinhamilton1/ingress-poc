@@ -27,6 +27,8 @@ spec:
               value: http://management-api:8003
             - name: ENVOY_ADMIN_URL
               value: http://gateway-envoy:9901
+            - name: ORCHESTRATION_MODE
+              value: kubernetes
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: http://jaeger:4318
           resources:

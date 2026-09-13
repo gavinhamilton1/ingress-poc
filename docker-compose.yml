@@ -33,6 +33,7 @@ services:
       PORT: "8001"
       AUTH_SERVICE_URL: "http://localhost:8001"
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
+      MANAGEMENT_API_URL: "http://management-api:8003"
     depends_on: [jaeger]
 
   opa:
@@ -103,13 +104,30 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
     depends_on: [gateway-kong, management-api, jaeger]
 
+  # mock-multi-cdn-traffic-manager is the real internet-facing front door —
+  # it holds the jpm.com TLS cert and owns host ports 8010/443. It picks,
+  # per request, which CDN's own load balancer to forward to (weighted +
+  # health-aware), so mock-akamai-gtm and mock-cf-lb below are internal-only.
+  mock-multi-cdn-traffic-manager:
+    build:
+      context: .
+      dockerfile: mock-multi-cdn-traffic-manager/Dockerfile
+    ports: ["8010:8010", "443:8443"]
+    environment:
+      AKAMAI_GTM_URL: "http://mock-akamai-gtm:8010"
+      CF_LB_URL: "http://mock-cf-lb:8030"
+      AKAMAI_WEIGHT: "50"
+      CLOUDFLARE_WEIGHT: "50"
+      HTTPS_PORT: "8443"
+      SSL_CERTFILE: "/certs/jpm.com.crt"
+      SSL_KEYFILE: "/certs/jpm.com.key"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
+    depends_on: [mock-akamai-gtm, mock-cf-lb, jaeger]
+
   mock-akamai-gtm:
     build:
       context: .
       dockerfile: mock-akamai-gtm/Dockerfile
-    ports: ["8010:8010", "443:8443"]
-    volumes:
-      - ./certs:/certs:ro
     environment:
       FORWARD_TO: "http://mock-akamai-edge:8011"
       HTTPS_PORT: "8443"
@@ -123,6 +141,30 @@ services:
       context: .
       dockerfile: mock-akamai-edge/Dockerfile
     ports: ["8011:8011"]
+    environment:
+      GATEWAY_ENVOY_URL: "http://mock-psaas:8012"
+      GATEWAY_KONG_URL: "http://mock-psaas:8012"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
+    depends_on: [mock-psaas, jaeger]
+
+  # mock-cf-lb / mock-cf-edge mirror the Akamai pair above (Cloudflare Load
+  # Balancer -> Cloudflare Edge WAF/cache) and converge on the same
+  # mock-psaas downstream, so both CDN paths reach the same real platform.
+  mock-cf-lb:
+    build:
+      context: .
+      dockerfile: mock-cf-lb/Dockerfile
+    ports: ["8030:8030"]
+    environment:
+      FORWARD_TO: "http://mock-cf-edge:8031"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
+    depends_on: [mock-cf-edge, jaeger]
+
+  mock-cf-edge:
+    build:
+      context: .
+      dockerfile: mock-cf-edge/Dockerfile
+    ports: ["8031:8031"]
     environment:
       GATEWAY_ENVOY_URL: "http://mock-psaas:8012"
       GATEWAY_KONG_URL: "http://mock-psaas:8012"
