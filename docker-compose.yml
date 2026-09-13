@@ -205,8 +205,10 @@ services:
     depends_on: [jaeger]
 
   console:
-    build: ./console
-    ports: ["3000:80"]
+    build:
+      context: .
+      dockerfile: console/Dockerfile
+    ports: ["3000:80", "3443:8443"]
     depends_on: [management-api, auth-service, mock-akamai-gtm]
 
   watchdog:
