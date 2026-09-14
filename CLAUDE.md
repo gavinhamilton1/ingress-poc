@@ -113,9 +113,9 @@ Known pitfalls already documented in the skill itself — read it before
   literal-prefix match.
 
 **Worked example / demo target**: `demo-user-registration-api`
-(`https://github.com/gavinhamilton1/demo-user-registration-api`), expected to
-sit as a sibling local clone (e.g. `~/dev/jpmc/demo-user-registration-api`,
-**not** inside OneDrive — see above). Run it with
+(`https://github.com/gavinhamilton1/demo-user-registration-api`). Clone it as
+a sibling of this repo if it isn't already there — **not** inside OneDrive
+or any other cloud-synced folder (see above). Run it with
 `.venv/bin/uvicorn app.main:app --port 8123` from its repo root; register its
 routes with `backend_url: http://host.docker.internal:8123` since it runs on
 the host, not in a container.
@@ -146,3 +146,15 @@ policy/Tier 3) — they're meant to read as one system.
 without nginx in front. Note: `console/node_modules/` **is** checked into
 this repo (unusual, but intentional here) — only `console/node_modules/.vite/`
 is gitignored.
+
+## `.claude/` tracking convention
+
+If you add or edit a skill (or `launch.json`), **commit it** —
+`.claude/skills/` and `.claude/launch.json` are meant to travel with the
+repo; that's the only way a skill exists on someone else's clone.
+**Never commit `.claude/settings.local.json`** (it's gitignored on
+purpose) — it's per-user and can carry things like a `disabledMcpjsonServers`
+entry that would silently break a skill's MCP dependency for anyone who
+inherited it. This distinction wasn't obvious and cost a full round-trip to
+discover once already — the skill existed locally for an entire session
+before anyone noticed it had never actually been pushed.

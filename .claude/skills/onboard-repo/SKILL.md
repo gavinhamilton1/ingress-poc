@@ -131,10 +131,10 @@ If the user wants to try this against a concrete, low-stakes example first,
 point them at `https://github.com/gavinhamilton1/demo-user-registration-api`
 — a small standalone, public FastAPI service (Swagger docs at `/docs` once
 running) with exactly the kind of endpoint this skill is built to
-demonstrate (see "Worked example" below). It also exists as a local clone at
-`/Users/gavin/dev/jpmc/demo-user-registration-api`
-if cloning over the network isn't wanted for a given run — both point at the
-same content.
+demonstrate (see "Worked example" below). Check whether it's already cloned
+locally as a sibling of this repo (e.g. `../demo-user-registration-api`)
+before cloning fresh over the network — convenient if it's there, but don't
+assume it is; this varies per machine.
 
 ## Step 1 — Clone and locate route definitions
 
@@ -461,9 +461,9 @@ developer separately so they understand what each one is actually doing.
 
 ## Worked example — demo-user-registration-api
 
-`https://github.com/gavinhamilton1/demo-user-registration-api` (public;
-also cloned locally at
-`/Users/gavin/dev/jpmc/demo-user-registration-api`)
+`https://github.com/gavinhamilton1/demo-user-registration-api` (public; may
+already be cloned locally as a sibling of this repo — check before cloning
+fresh, but don't assume a specific path, it varies per machine)
 is a small, purpose-built FastAPI service for exercising this exact flow —
 use it as a first run before pointing this skill at anything more complex or
 external. It has real Swagger docs (run `.venv/bin/uvicorn app.main:app
