@@ -166,6 +166,12 @@ Add `--build` if you changed any Dockerfiles or Go source.
 | Kong Gateway | http://localhost:8100 |
 | PostgreSQL | localhost:5432 (user: `ingress`, password: `ingress_poc`, db: `ingress_registry`) |
 
+**Optional — browse real hostnames instead of `curl -H "Host: ..."`:** run
+`./scripts/setup-local-network.sh` once per Mac. It routes `*.jpm.com` DNS to
+this stack's `dns` container and trusts the checked-in self-signed cert, so
+`https://demo-user-api.jpm.com` (or any onboarded route's hostname) works
+directly in a browser. See `CLAUDE.md` for details.
+
 ---
 
 #### Option B: Kubernetes with kind (production-like)
