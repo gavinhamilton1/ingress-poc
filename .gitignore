@@ -36,3 +36,11 @@ kubeconfig*
 
 # Vite dev cache (node_modules itself is tracked in this repo)
 console/node_modules/.vite/
+
+# Claude Code: personal/local, never shared — settings.local.json can carry
+# a per-user permission allow-list or MCP toggles that would break things
+# (e.g. disabledMcpjsonServers) if inherited by another machine. Skills,
+# launch.json, and the shared settings.json (if any) ARE meant to be
+# committed — only these are excluded.
+.claude/settings.local.json
+.claude/.claude.bak/
