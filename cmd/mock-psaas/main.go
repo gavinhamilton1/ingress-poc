@@ -262,6 +262,33 @@ func resolveGateway(hostname, path string, isAPI bool) string {
 	return gatewayEnvoyURL
 }
 
+// pathMatchesRoute reports whether requestPath is covered by routePath,
+// segment by segment. A "{param}" segment in routePath (the same syntax
+// FastAPI/Express path params use, and what the onboard-repo skill
+// generates verbatim from source — e.g. "api/v1/users/{user_id}") matches
+// any single non-empty request segment in that position, rather than
+// requiring a literal character match. Plain routePath segments still
+// require an exact match, same as before.
+func pathMatchesRoute(requestPath, routePath string) bool {
+	routeSegs := strings.Split(routePath, "/")
+	reqSegs := strings.Split(requestPath, "/")
+	if len(routeSegs) > len(reqSegs) {
+		return false
+	}
+	for i, rs := range routeSegs {
+		if strings.HasPrefix(rs, "{") && strings.HasSuffix(rs, "}") {
+			if reqSegs[i] == "" {
+				return false
+			}
+			continue
+		}
+		if rs != reqSegs[i] {
+			return false
+		}
+	}
+	return true
+}
+
 // lookupRouteGatewayType finds the gateway_type of the best-matching
 // (longest path prefix) route cached for hostname.
 func lookupRouteGatewayType(hostname, path string) (string, bool) {
@@ -275,7 +302,7 @@ func lookupRouteGatewayType(hostname, path string) (string, bool) {
 	bestLen := -1
 	best := ""
 	for _, e := range entries {
-		if !strings.HasPrefix(path, e.path) {
+		if !pathMatchesRoute(path, e.path) {
 			continue
 		}
 		if len(e.path) > bestLen {

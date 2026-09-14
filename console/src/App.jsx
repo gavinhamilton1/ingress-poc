@@ -17,6 +17,9 @@ import GitOps from './pages/GitOps'
 import Architecture from './pages/Architecture'
 import AuditLog from './pages/AuditLog'
 import Login from './pages/Login'
+import OnboardingFlow from './pages/OnboardingFlow'
+import TrafficFlow from './pages/TrafficFlow'
+import ProtectionArchitecture from './pages/ProtectionArchitecture'
 
 function RequireAuth({ children }) {
   const { session } = useAuth()
@@ -50,6 +53,9 @@ function AnimatedRoutes() {
           <Route path="/raw-data" element={<RequireAuth><RawData /></RequireAuth>} />
           <Route path="/architecture" element={<RequireAuth><Architecture /></RequireAuth>} />
           <Route path="/audit-log" element={<RequireAuth><AuditLog /></RequireAuth>} />
+          <Route path="/onboarding-flow" element={<RequireAuth><OnboardingFlow /></RequireAuth>} />
+          <Route path="/traffic-flow" element={<RequireAuth><TrafficFlow /></RequireAuth>} />
+          <Route path="/protection-architecture" element={<RequireAuth><ProtectionArchitecture /></RequireAuth>} />
         </Routes>
       </motion.div>
     </AnimatePresence>

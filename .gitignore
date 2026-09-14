@@ -33,3 +33,6 @@ Thumbs.db
 # Kind / Kubernetes
 kubeconfig*
 *.kubeconfig
+
+# Vite dev cache (node_modules itself is tracked in this repo)
+console/node_modules/.vite/

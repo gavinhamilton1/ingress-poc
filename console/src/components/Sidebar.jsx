@@ -4,11 +4,15 @@ import { motion } from 'framer-motion'
 import {
   LayoutDashboard, Route, Server, Zap, Key, Activity,
   AlertTriangle, Database, GitBranch, ChevronLeft, ChevronRight, LogOut, LogIn, Network, ClipboardList,
+  Sparkles, Waypoints, ShieldHalf,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/onboarding-flow', label: 'Onboarding Flow', icon: Sparkles },
+  { to: '/traffic-flow', label: 'Traffic Flow', icon: Waypoints },
+  { to: '/protection-architecture', label: 'Protection Architecture', icon: ShieldHalf },
   { to: '/fleets', label: 'Fleets', icon: Server },
   { to: '/routes', label: 'Routes', icon: Route },
   { to: '/request-tester', label: 'Request Tester', icon: Zap },

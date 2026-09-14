@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -191,6 +192,37 @@ func jsonSorted(v interface{}) string {
 // xDS config builders
 // ---------------------------------------------------------------------------
 
+// pathToRouteMatch builds an Envoy route match clause for a Route CRD's
+// path. A path containing a REST-style template segment (e.g.
+// "/api/v1/users/{user_id}", the same syntax FastAPI/Express path params
+// use, and what the onboard-repo skill generates verbatim from source) can
+// never match real traffic under a plain "prefix" match — Envoy compares
+// that literally, so a request to "/api/v1/users/1" never equals a prefix
+// of "/api/v1/users/{user_id}". Detect that shape and emit a safe_regex
+// match instead, with each {param} segment turned into a single-segment
+// wildcard; everything else keeps the existing literal prefix behavior
+// unchanged.
+func pathToRouteMatch(path string) map[string]interface{} {
+	if strings.Contains(path, "{") && strings.Contains(path, "}") {
+		segments := strings.Split(path, "/")
+		for i, seg := range segments {
+			if strings.HasPrefix(seg, "{") && strings.HasSuffix(seg, "}") {
+				segments[i] = "[^/]+"
+			} else {
+				segments[i] = regexp.QuoteMeta(seg)
+			}
+		}
+		regex := "^" + strings.Join(segments, "/") + "$"
+		return map[string]interface{}{
+			"safe_regex": map[string]interface{}{
+				"google_re2": map[string]interface{}{},
+				"regex":      regex,
+			},
+		}
+	}
+	return map[string]interface{}{"prefix": path}
+}
+
 func groupRoutesByHostname(routes []map[string]interface{}) map[string][]map[string]interface{} {
 	groups := map[string][]map[string]interface{}{}
 	for _, route := range routes {
@@ -205,7 +237,7 @@ func groupRoutesByHostname(routes []map[string]interface{}) map[string][]map[str
 		hostSlug := strings.ReplaceAll(strings.ReplaceAll(hostname, ".", "_"), "*", "wildcard")
 		clusterName := "cluster_" + hostSlug + strings.ReplaceAll(path, "/", "_")
 		entry := map[string]interface{}{
-			"match": map[string]interface{}{"prefix": path},
+			"match": pathToRouteMatch(path),
 			"route": map[string]interface{}{
 				"cluster": clusterName,
 				"timeout": "30s",
@@ -213,7 +245,28 @@ func groupRoutesByHostname(routes []map[string]interface{}) map[string][]map[str
 		}
 		groups[hostname] = append(groups[hostname], entry)
 	}
+	// Envoy tries routes within a vhost in list order, first match wins.
+	// A templated path's safe_regex (e.g. "/api/v1/users/{user_id}" ->
+	// "^/api/v1/users/[^/]+$") would also match a more specific literal
+	// sibling like "/api/v1/users/register" — so literal/prefix matches
+	// must be tried first. Stable sort keeps everything else in its
+	// original (created_at) order.
+	for hostname, entries := range groups {
+		sort.SliceStable(entries, func(i, j int) bool {
+			return !hasRegexMatch(entries[i]) && hasRegexMatch(entries[j])
+		})
+		groups[hostname] = entries
+	}
 	return groups
+}
+
+func hasRegexMatch(entry map[string]interface{}) bool {
+	match, ok := entry["match"].(map[string]interface{})
+	if !ok {
+		return false
+	}
+	_, isRegex := match["safe_regex"]
+	return isRegex
 }
 
 func buildVirtualHosts(routes []map[string]interface{}) []map[string]interface{} {
