@@ -113,9 +113,14 @@ export default function Login() {
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ session_jwt: sessionData.session_jwt }),
+          // This is a best-effort call — never let it block the redirect
+          // below. Without a bound, a hung (not just failed) connection to
+          // the gateway domain stalls login indefinitely even though the
+          // catch below looks like it makes this non-fatal.
+          signal: AbortSignal.timeout(3000),
         })
       } catch (_) {
-        // Non-fatal: gateway may not be reachable
+        // Non-fatal: gateway may not be reachable, or the call timed out
       }
 
       navigate(location.state?.from?.pathname || '/')
