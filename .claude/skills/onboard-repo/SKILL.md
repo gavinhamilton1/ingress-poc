@@ -116,9 +116,12 @@ Given the LOB from Inputs, one of three paths:
   Step 5 uses `deploy_fleet`, not `create_route`: `deploy_fleet` resolves
   the hostname from the fleet record itself, so there's no way to typo it.
 - **New fleet** — ask for a fleet `name` and a `subdomain` (the actual
-  `*.jpm.com` value this will live at), then call `create_fleet` with
-  `name`, `subdomain`, `lob`, and `gateway_type` (from Inputs, normally
-  `envoy`). The response nests the new fleet's id at `fleet.id` — note it.
+  `*.jpm.com` value this will live at). **Do not call `create_fleet` yet** —
+  you don't need the fleet to exist to know its subdomain, and creating it
+  here would put a fleet in the Console UI before the developer has
+  approved anything. Note the planned name/subdomain, use the subdomain as
+  the YAML's `hostname`, and hold the `create_fleet` call until Step 5,
+  after the publish gate.
 - **Standalone route, no fleet** — only if the developer explicitly says
   they don't want this tied to a fleet (mirrors the console's own route
   form, which defaults to "No fleet (standalone route)"). Confirm this is
@@ -286,7 +289,12 @@ protection to anyone reading the Route CRD's `payloadPolicyRef` field.
 Always start from `default allow = false` and build up, exactly like the
 template does — never start from `true` and try to subtract bad cases.
 
-## Step 4 — Developer review gate
+## Step 4 — Publish gate (hard stop — nothing is live until the developer says so)
+
+At this point **nothing exists on the platform yet** — no fleet, no routes,
+no policy. All that exists is files in the target repo's working tree. That
+is deliberate: everything that would show up in the Console UI happens in
+Step 5, on the far side of this gate.
 
 Show, for every endpoint:
 
@@ -297,16 +305,47 @@ Show, for every endpoint:
   request missing full_name, email, phone, or date_of_birth; rejects
   malformed email/phone/date formats; rejects any field containing
   SQL/script-injection patterns").
+- If a **new** fleet is to be created, say so explicitly with the name,
+  subdomain, LOB and gateway type you plan to use — it doesn't exist yet
+  either, and creating it is part of publishing.
 
-**Stop here and ask a direct question** — e.g. "Ready to register this
-against the live platform? This will create the route and attach the
-policy so it's visible in the Console UI and testable via the real
-hostname." Do not just display the artifacts and end your turn hoping
-that reads as a stopping point; ask explicitly, so the developer knows a
-reply is expected before anything gets registered. Do not proceed to
-Step 5 on an ambiguous or implied yes — if the developer asks a
-clarifying question or requests a change, make the change and show the
-diff before asking again.
+**Then stop and ask, using the `AskUserQuestion` tool — not a question in
+prose.** A question in prose is too easy for both sides to skim past; a
+tool call forces an actual answer before anything can continue. Offer:
+
+- **Publish to the platform** — create the fleet (if new), register the
+  routes, attach the policy. They become visible in the Console UI and
+  reachable over the real hostname.
+- **Don't publish yet** — keep the generated files, change nothing live.
+
+### What does NOT count as approval
+
+Only an explicit yes to the publish question above is approval. In
+particular, **a request that presupposes the routes are already live is not
+approval to make them live**:
+
+- "can you test this with a valid payload and a malicious payload"
+- "show me it working"
+- "does the SQL injection actually get blocked?"
+- "what happens if I send a bad email?"
+
+Each of these is a request to *demonstrate* something, phrased as though
+publishing had already happened. The reasoning "I can't test it without
+registering it, therefore they must want it registered" is exactly the
+failure this gate exists to prevent — **this has actually happened**: a
+developer asked for a test of a valid and a malicious payload, and the
+whole fleet plus three routes were published and appeared in the Console
+without anyone ever answering a publish question. The correct response to
+any of the above is to ask the publish question *first*, then run the
+tests once the answer is yes.
+
+Likewise not approval: silence, a clarifying question, a request to change
+the YAML or the Rego, or an answer to some *other* question you asked in
+the same turn. If the developer asks for a change, make it, show the diff,
+and ask the publish question again.
+
+If they decline, stop cleanly and say what's left behind: the generated
+files in the target repo, and nothing on the platform.
 
 ## Step 5 — Register (only after approval)
 
@@ -336,7 +375,17 @@ picks up the correction. If you find stale/orphaned routes for this
 hostname+path, call `delete_route` on each, then proceed with the normal
 `deploy_fleet` flow below as if they never existed.
 
-If a fleet was resolved (the normal case), for each approved endpoint:
+If a fleet was resolved (the normal case):
+
+**First, if the developer chose a new fleet, create it now** — call
+`create_fleet` with the `name`, `subdomain`, `lob` and `gateway_type`
+planned back in "Resolving the fleet". The response nests the new fleet's
+id at `fleet.id` — that's the `fleet_id` every `deploy_fleet` call below
+needs. This is deliberately the first live mutation of the whole flow:
+before this call, nothing the developer hasn't approved exists on the
+platform.
+
+Then, for each approved endpoint:
 
 1. Call `deploy_fleet` with the fleet's `id`, `context_path` = the
    endpoint's path, `backend_url`, `gateway_type`, and `methods`. This is
@@ -389,47 +438,91 @@ Tell the developer explicitly:
   or the very first request or two might not see the policy enforced yet
   (fail-open, so it'll just pass through, not error).
 
-## Step 6 — Prove it works via the real domain, not localhost:8000 directly
+## Step 6 — Output three copy-pasteable test commands
+
+Once the routes are published, **always end by printing exactly three curl
+commands** for the body-carrying endpoint, in this order:
+
+1. **Valid payload** — expect `201` (or `200`), body comes back from the
+   backend.
+2. **Malicious injection payload** — expect `403`, caught by the *global*
+   policy, `reason` is the generic injection message.
+3. **Invalid field format** — expect `403`, caught by the *route-specific*
+   policy this skill generated, `reason` names the offending field.
+
+Point out which of the two policy tiers catches #2 versus #3 — that
+contrast is the whole point of showing three commands rather than two.
+
+### Formatting rules for the emitted commands — these matter
+
+- **One line per command. No line breaks inside a command, no `\`
+  continuation markers, no leading `>` or `$` prompt characters.** The
+  developer copies one line, pastes it, and it runs. A command split
+  across lines with backslashes breaks the moment it's pasted into
+  anything that reflows or strips them (chat, a ticket, a doc, some
+  terminals) — and a half-pasted curl that silently hangs on a
+  continuation prompt is a worse demo than no demo.
+- **Never put a literal `'` inside the payload.** The `-d` argument is
+  single-quoted, so an apostrophe inside it terminates the string — the
+  classic `Robert'); DROP TABLE users;--` payload *cannot* be written on
+  one line without `'"'"'` escaping noise that defeats the purpose. Use a
+  quote-free injection payload instead; `Robert; DROP TABLE users--` is
+  caught by the global policy exactly the same way (verified against a
+  live route), and so are `1 UNION SELECT * FROM users` and
+  `<script>alert(1)</script>`. If you want a payload with double quotes,
+  JSON-escape them (`admin\" OR 1=1--`) — that survives single-quoting
+  fine.
+- Substitute the real hostname and path — never leave `<hostname>` or
+  `<path>` placeholders in commands you hand over.
+
+### The three commands (worked example — substitute your own hostname/path)
+
+```bash
+curl -i -X POST https://demo-user-api.jpm.com/api/v1/users/register -H "Content-Type: application/json" -d '{"full_name":"Ada Lovelace","email":"ada@example.com","phone":"+14155552671","date_of_birth":"1990-01-01"}'
+```
+
+```bash
+curl -i -X POST https://demo-user-api.jpm.com/api/v1/users/register -H "Content-Type: application/json" -d '{"full_name":"Robert; DROP TABLE users--","email":"ada@example.com","phone":"+14155552671","date_of_birth":"1990-01-01"}'
+```
+
+```bash
+curl -i -X POST https://demo-user-api.jpm.com/api/v1/users/register -H "Content-Type: application/json" -d '{"full_name":"Ada Lovelace","email":"not-an-email","phone":"+14155552671","date_of_birth":"01/01/1990"}'
+```
+
+Each is a single line. Keep it that way even though it makes the line long.
+
+### Which URL form to emit
 
 Testing directly against `gateway-envoy` (`localhost:8000`) skips the whole
 simulated CDN front door (GTM/Cloudflare LB, edge WAF, PSaaS) — fine for
 narrow debugging, but not what "test it using the jpm.com domain" means.
 The actual front door in this stack is `mock-multi-cdn-traffic-manager` on
 **port 8010 (HTTP) / 443 (HTTPS)**, which then randomly picks the Akamai or
-Cloudflare simulated path before reaching the same gateway.
+Cloudflare simulated path before reaching the same gateway. Run the valid
+command a few times and the `X-Multi-Cdn-Provider-Selected` response header
+alternates — the result is identical either way, both paths converge on the
+same platform.
 
-**Preferred: the actual hostname, no port, no `Host` header.** This repo's
-`dns` container (CoreDNS) plus its host DNS setup makes `*.jpm.com` resolve
-to `127.0.0.1` directly — confirm with `dscacheutil -q host -a name
-<hostname>` (should show `127.0.0.1`; if it doesn't, this dev machine's
-resolver isn't wired up and you should fall back to the `Host`-header form
-below). When it does resolve, this is the truest "real world" demo — the
-same URL a browser would actually hit:
+**Preferred: the real hostname over HTTPS, as above — no port, no `Host`
+header.** This repo's `dns` container (CoreDNS) plus its host DNS setup
+makes `*.jpm.com` resolve to `127.0.0.1` directly. Confirm before emitting
+this form with `dscacheutil -q host -a name <hostname>` (should show
+`127.0.0.1`). This is the truest "real world" demo — the same URL a browser
+would actually hit. It needs no `-k`, provided
+`./scripts/setup-local-network.sh` has been run to trust `certs/jpm.com.crt`
+(check with a single request; add `-k` to all three commands only if the
+cert genuinely isn't trusted, and say why you added it).
 
-```bash
-# Should succeed (201) — passes validation, reaches the backend.
-curl -i -X POST https://<hostname><path> \
-  -H "Content-Type: application/json" \
-  -d '{"full_name":"Ada Lovelace","email":"ada@example.com","phone":"+14155552671","date_of_birth":"1990-01-01"}'
-```
-
-**Fallback: explicit `Host` header**, if DNS isn't set up on the machine
-running this — works everywhere, no setup needed:
+**Fallback: explicit `Host` header against port 8010**, if DNS isn't set up
+on this machine — works everywhere, no setup needed, still one line each:
 
 ```bash
-# Should succeed (200/201) — passes validation, reaches the backend.
-# Run this a few times; which of Akamai/Cloudflare handled it varies
-# (see the X-Multi-Cdn-Provider-Selected response header) but the result
-# is identical either way — both paths converge on the same platform.
-curl -i -X POST http://localhost:8010<path> \
-  -H "Host: <hostname>" -H "Content-Type: application/json" \
-  -d '{"full_name":"Ada Lovelace","email":"ada@example.com","phone":"+14155552671","date_of_birth":"1990-01-01"}'
-
-# Should be rejected with 403 — never reaches the backend
-curl -i -X POST http://localhost:8010<path> \
-  -H "Host: <hostname>" -H "Content-Type: application/json" \
-  -d '{"full_name":"Robert''); DROP TABLE users;--","email":"ada@example.com","phone":"+14155552671","date_of_birth":"1990-01-01"}'
+curl -i -X POST http://localhost:8010/api/v1/users/register -H "Host: demo-user-api.jpm.com" -H "Content-Type: application/json" -d '{"full_name":"Ada Lovelace","email":"ada@example.com","phone":"+14155552671","date_of_birth":"1990-01-01"}'
 ```
+
+Without editing local DNS, adding `--resolve <hostname>:443:127.0.0.1` to
+the preferred form gets the same real-hostname-over-HTTPS effect for one
+command, with no resolver setup at all.
 
 **`/health` is a special case — don't use it for this demo.** Both port
 8010 and port 443 on `mock-multi-cdn-traffic-manager` hardcode their own
@@ -442,22 +535,19 @@ against `gateway-envoy` directly (`http://localhost:8000/health` with the
 body-carrying endpoint (like `/api/v1/users/register` here) for the main
 demo regardless, since that's what actually exercises the payload policy.
 
-Without editing local DNS, `--resolve <hostname>:443:127.0.0.1` gets the
-same real-hostname-over-HTTPS effect as the preferred form above, for one
-command, with no resolver setup at all.
+Command #2 above is caught by the **global** policy (every route gets that
+check, not just this one); command #3 is caught by the route-specific
+policy this skill generated, and its `deny_reason` names the offending
+field. That's why both are in the set — showing only an injection block
+proves nothing about the policy this skill just wrote. A request missing a
+required field entirely is another good route-policy demo: the
+`deny_reason` set returns *every* failure at once, not just the first.
 
 If you want to isolate "is this the CDN simulation or the gateway policy
 that's doing X" while debugging, hitting `http://localhost:8000<path>`
 with the same `Host` header talks to `gateway-envoy` directly, skipping
 the CDN layer but still enforcing the same route/payload policy — useful
 for narrowing down a problem, not the primary way to demo this to someone.
-
-The SQLi example above is actually caught by the **global** policy (every
-route gets that check, not just this one) — to specifically exercise the
-route-specific policy this skill generated, send a request missing a
-required field or with a malformed email/phone/date instead, and confirm
-the `deny_reason` names that field. Both layers are worth showing the
-developer separately so they understand what each one is actually doing.
 
 ## Worked example — demo-user-registration-api
 
