@@ -348,6 +348,18 @@ func buildClusterConfig(routes []map[string]interface{}, version string) map[str
 		clusters = append(clusters, map[string]interface{}{
 			"name": clusterName,
 			"type": "STRICT_DNS",
+			// Envoy's default dns_lookup_family for STRICT_DNS is AUTO, which
+			// prefers an AAAA record when one exists. Backends that are plain
+			// Compose service names only ever resolve A records, so AUTO is
+			// harmless for them — but a backend_url of host.docker.internal
+			// (the documented shape for a service running on the host rather
+			// than in a container) resolves to an IPv6 ULA on Docker Desktop
+			// that the gateway container has no route to. Envoy then picks
+			// that sole endpoint and every request fails active health checks
+			// with "Network is unreachable", surfacing as a 503 long after the
+			// route and its payload policy have both passed. This whole stack
+			// is IPv4-only, so pin the family rather than letting AUTO choose.
+			"dns_lookup_family": "V4_ONLY",
 			"load_assignment": map[string]interface{}{
 				"cluster_name": clusterName,
 				"endpoints": []interface{}{
@@ -390,6 +402,7 @@ func buildClusterConfig(routes []map[string]interface{}, version string) map[str
 	clusters = append(clusters, map[string]interface{}{
 		"name": "auth_service",
 		"type": "STRICT_DNS",
+		"dns_lookup_family": "V4_ONLY",
 		"load_assignment": map[string]interface{}{
 			"cluster_name": "auth_service",
 			"endpoints": []interface{}{
@@ -416,6 +429,7 @@ func buildClusterConfig(routes []map[string]interface{}, version string) map[str
 	clusters = append(clusters, map[string]interface{}{
 		"name": "opa_service",
 		"type": "STRICT_DNS",
+		"dns_lookup_family": "V4_ONLY",
 		"load_assignment": map[string]interface{}{
 			"cluster_name": "opa_service",
 			"endpoints": []interface{}{
@@ -447,6 +461,7 @@ func buildClusterConfig(routes []map[string]interface{}, version string) map[str
 	clusters = append(clusters, map[string]interface{}{
 		"name": "jaeger_cluster",
 		"type": "STRICT_DNS",
+		"dns_lookup_family": "V4_ONLY",
 		"typed_extension_protocol_options": map[string]interface{}{
 			"envoy.extensions.upstreams.http.v3.HttpProtocolOptions": map[string]interface{}{
 				"@type":                "type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions",

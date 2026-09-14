@@ -567,6 +567,32 @@ with the same `Host` header talks to `gateway-envoy` directly, skipping
 the CDN layer but still enforcing the same route/payload policy — useful
 for narrowing down a problem, not the primary way to demo this to someone.
 
+### If #1 returns 503 while #2 and #3 correctly return 403
+
+That combination means the **backend cluster**, not the policy. A 503 here is
+the request having *passed* both policy tiers and then failing to reach the
+backend, so the natural instinct — that the generated Rego is wrong — is
+exactly backwards. Check the address family Envoy resolved for the backend:
+
+```bash
+curl -s localhost:9901/clusters | grep "<route-slug>::.*health_flags"
+```
+
+An IPv6 endpoint (`[fdc4:...]:<port>`) with `/failed_active_hc` means Envoy
+picked an AAAA record the gateway container can't route to — the failure mode
+`host.docker.internal` backends hit, since compose service names resolve A
+records only. `cmd/envoy-control-plane/main.go` pins `dns_lookup_family:
+V4_ONLY` on its generated clusters to prevent this; if you see it anyway, that
+setting has been dropped or the control plane is running a stale image. A
+healthy endpoint shows an IPv4 address and `health_flags::healthy`.
+
+Two other things worth ruling out before touching the policy: the backend must
+actually be running (a host-run `uvicorn` dies with its terminal), and the
+fleet must still exist — deleting a fleet from the Console takes all its routes
+and their attached policies with it, so an onboarding can evaporate minutes
+after it succeeded. `get_audit_log` shows `DELETE_FLEET` entries if that's what
+happened.
+
 ## Worked example — demo-user-registration-api
 
 `https://github.com/gavinhamilton1/demo-user-registration-api` (public; may

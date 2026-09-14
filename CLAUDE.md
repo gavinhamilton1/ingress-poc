@@ -89,6 +89,18 @@ regardless of the fleet's dedicated nodes — this is intentional per
 `mock-psaas`'s own perimeter simulation ("route /api/* to Kong-designated
 routes, else to Envoy"), not a bug.
 
+**A `host.docker.internal` backend needs `dns_lookup_family: V4_ONLY`**: Envoy
+defaults `STRICT_DNS` clusters to `AUTO`, which prefers an AAAA record when one
+exists. Plain compose service names only ever resolve A records, so this never
+mattered until the first host-run backend — `host.docker.internal` resolves to
+an IPv6 ULA on Docker Desktop that the gateway container has no route to, so
+Envoy picks that sole endpoint and every request dies in active health checks.
+The symptom is maximally misleading: the route is correct, both payload
+policies *pass*, and the 503 arrives afterward, so suspicion lands on the
+policy. `cmd/envoy-control-plane/main.go` now pins `V4_ONLY` on all four
+generated clusters — don't drop it. To confirm the address family in a live
+gateway: `curl -s localhost:9901/clusters | grep <cluster>::.*health_flags`.
+
 ## The onboard-repo skill
 
 Lives at `.claude/skills/onboard-repo/`. Scans a target repo for HTTP routes +
