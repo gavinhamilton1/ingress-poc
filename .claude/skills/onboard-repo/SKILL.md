@@ -438,6 +438,11 @@ Tell the developer explicitly:
   or the very first request or two might not see the policy enforced yet
   (fail-open, so it'll just pass through, not error).
 
+**Then go straight to Step 6 — the run is not finished until the three test
+commands have been printed.** Reporting route IDs and a "it's live in the
+console" line is not the end of this flow; it's the second-to-last thing
+you do.
+
 ## Step 6 — Output three copy-pasteable test commands
 
 Once the routes are published, **always end by printing exactly three curl
@@ -452,6 +457,19 @@ commands** for the body-carrying endpoint, in this order:
 
 Point out which of the two policy tiers catches #2 versus #3 — that
 contrast is the whole point of showing three commands rather than two.
+
+**Running the commands yourself is not a substitute for printing them.**
+It's fine — often useful — to execute them and show the developer the
+actual status codes and `deny_reason` bodies you got back. But a results
+table is something they can only read; three pasteable lines are something
+they can re-run themselves, hand to a colleague, or drop into a demo
+script. If you only show results, they have to reconstruct the commands
+from your prose to do anything with them. Print the commands **and**, if
+you ran them, the results — in that order, commands last, so the final
+thing on screen is the thing they'll copy.
+
+Done means: the three commands are in the final message, each on one line,
+with the real hostname and path substituted in.
 
 ### Formatting rules for the emitted commands — these matter
 
