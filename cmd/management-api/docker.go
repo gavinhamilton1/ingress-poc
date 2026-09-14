@@ -459,25 +459,31 @@ func removeFleetContainers(fleetID string) error {
 		return fmt.Errorf("list fleet containers: %w", err)
 	}
 
+	// Remove all containers in parallel. Each removal used to be preceded by a
+	// graceful `stop?t=10`, but the DELETE below passes force=true — which
+	// SIGKILLs the container anyway — so that wait bought nothing and cost a
+	// flat 10s per node (envoy doesn't exit within the SIGTERM grace period,
+	// it starts a drain, so Docker always waited out the full timeout). A
+	// 4-node fleet took ~41s to delete; sequential 10s waits were the whole
+	// of it. Use stopFleetContainers instead if you ever need a graceful
+	// shutdown that keeps the containers around.
+	var wg sync.WaitGroup
 	for _, node := range containers {
-		// Stop the container (with 10 second timeout)
-		stopResp, err := dockerRequest("POST", "/v1.46/containers/"+node.ContainerID+"/stop?t=10", nil)
-		if err != nil {
-			log.Printf("Warning: could not stop container %s: %v", node.ContainerName, err)
-			continue
-		}
-		stopResp.Body.Close()
+		wg.Add(1)
+		go func(node FleetNode) {
+			defer wg.Done()
 
-		// Remove the container
-		rmResp, err := dockerRequest("DELETE", "/v1.46/containers/"+node.ContainerID+"?force=true&v=true", nil)
-		if err != nil {
-			log.Printf("Warning: could not remove container %s: %v", node.ContainerName, err)
-			continue
-		}
-		rmResp.Body.Close()
+			rmResp, err := dockerRequest("DELETE", "/v1.46/containers/"+node.ContainerID+"?force=true&v=true", nil)
+			if err != nil {
+				log.Printf("Warning: could not remove container %s: %v", node.ContainerName, err)
+				return
+			}
+			rmResp.Body.Close()
 
-		log.Printf("Removed container %s (%.12s)", node.ContainerName, node.ContainerID)
+			log.Printf("Removed container %s (%.12s)", node.ContainerName, node.ContainerID)
+		}(node)
 	}
+	wg.Wait()
 
 	// Clean up bootstrap/config temp files
 	envoyDir := filepath.Join(os.TempDir(), "ingress-poc-envoy-bootstrap")
