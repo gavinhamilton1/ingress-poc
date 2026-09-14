@@ -842,6 +842,10 @@ export default function Fleets() {
   const [sortBy, setSortBy] = useState('lob')
 
   // ========== New Fleet slide-over ==========
+  // Fleets hidden optimistically while their DELETE is in flight. Tearing down
+  // the gateway containers takes a moment server-side, and waiting for that
+  // round trip before removing the card made the UI look frozen.
+  const [deletingFleets, setDeletingFleets] = useState(() => new Set())
   const [showNewFleet, setShowNewFleet] = useState(false)
   const [isFleetSubmitting, setIsFleetSubmitting] = useState(false)
   const defaultFleetForm = {
@@ -1774,6 +1778,9 @@ export default function Fleets() {
           })
 
           const renderFleetCard = (fleet, idx) => {
+          // Optimistically removed — hidden until the DELETE resolves, and put
+          // back by the catch below if it fails.
+          if (deletingFleets.has(fleet.id)) return null
           const isControlPlane = fleet.fleet_type === 'control'
           const isExpanded = expandedFleet === fleet.id
           const instances = fleet.instances || []
@@ -1939,10 +1946,33 @@ export default function Fleets() {
                         <Settings size={14} />
                       </button>
                       <button
-                        onClick={async () => {
+                        onClick={async (e) => {
+                          e.stopPropagation()
                           if (!confirm(`Delete fleet "${fleet.name}"?\n\nThis will permanently remove:\n- All gateway containers\n- All routes for ${fleet.subdomain}\n- All fleet configuration`)) return
-                          await fetch(`${API_URL}/fleets/${fleet.id}`, { method: 'DELETE' })
-                          queryClient.invalidateQueries({ queryKey: ['fleets'] })
+                          // Hide the card now; restore it if the request fails.
+                          setDeletingFleets(prev => new Set(prev).add(fleet.id))
+                          const restoreCard = () => setDeletingFleets(prev => {
+                            const next = new Set(prev)
+                            next.delete(fleet.id)
+                            return next
+                          })
+                          try {
+                            const r = await fetch(`${API_URL}/fleets/${fleet.id}`, { method: 'DELETE' })
+                            if (!r.ok) {
+                              const err = await r.json().catch(() => ({ detail: `Error ${r.status}` }))
+                              restoreCard()
+                              alert(`Failed to delete fleet: ${err.detail || r.status}`)
+                              return
+                            }
+                          } catch (err) {
+                            restoreCard()
+                            alert(`Failed to delete fleet: ${err.message || 'Network error'}`)
+                            return
+                          }
+                          await queryClient.invalidateQueries({ queryKey: ['fleets'] })
+                          // The fleet is gone from the refetched list, so stop
+                          // tracking it rather than growing this set forever.
+                          restoreCard()
                         }}
                         className="p-1.5 rounded-md hover:bg-red-500/10 text-jpmc-muted hover:text-red-400 transition-colors"
                         title="Delete fleet"
